@@ -4,6 +4,7 @@ import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import SyncBanner from '@/components/SyncBanner';
 import PwaRegister from '@/components/PwaRegister';
+import AuthGuard from '@/components/AuthGuard';
 
 export const metadata: Metadata = {
   title: 'Feelog — Mindful Type 1 Diabetes Companion',
@@ -58,7 +59,7 @@ export default function RootLayout({
         <Header />
 
         <main className="relative z-10 w-full pt-28 pb-20 md:pb-12 flex-1">
-          {children}
+          <AuthGuard>{children}</AuthGuard>
         </main>
 
         <BottomNav />

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getSettings, saveSettings } from '@/lib/sync-storage';
+import { getSettings, setUserLoggedIn, isUserLoggedIn } from '@/lib/sync-storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { UserSettings } from '@/types';
 
@@ -33,7 +33,7 @@ export default function LoginPage() {
           const u = data.session.user;
           const realEmail = u.email || '';
           const realName = u.user_metadata?.full_name || u.user_metadata?.name || s.display_name;
-          const updated = saveSettings({
+          const updated = setUserLoggedIn(true, {
             email: realEmail,
             display_name: realName,
             avatar_url: u.user_metadata?.avatar_url || s.avatar_url,
@@ -46,6 +46,9 @@ export default function LoginPage() {
             text: `Signed in successfully via Google as ${realEmail}`,
             type: 'success',
           });
+          setTimeout(() => {
+            router.push('/');
+          }, 800);
         }
       });
 
@@ -54,7 +57,7 @@ export default function LoginPage() {
           const u = session.user;
           const realEmail = u.email || '';
           const realName = u.user_metadata?.full_name || u.user_metadata?.name || s.display_name;
-          const updated = saveSettings({
+          const updated = setUserLoggedIn(true, {
             email: realEmail,
             display_name: realName,
             avatar_url: u.user_metadata?.avatar_url || s.avatar_url,
@@ -70,7 +73,7 @@ export default function LoginPage() {
         authListener.subscription.unsubscribe();
       };
     }
-  }, []);
+  }, [router]);
 
   // 1. Google OAuth flow via Supabase
   const handleGoogleOAuth = async () => {
@@ -86,7 +89,7 @@ export default function LoginPage() {
           },
         });
         if (error) {
-          console.warn('Supabase Google OAuth response:', error.message);
+          console.warn('Supabase Google OAuth notice:', error.message);
           setFeedback({
             text: `Google OAuth is not enabled in your Supabase dashboard yet (${error.message}). Please enter your email directly below to sign in!`,
             type: 'info',
@@ -94,7 +97,6 @@ export default function LoginPage() {
           setLoading(false);
           return;
         }
-        // Browser is redirecting to accounts.google.com
         return;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -107,9 +109,8 @@ export default function LoginPage() {
       }
     }
 
-    // If Supabase is not configured with credentials in .env.local
     setFeedback({
-      text: 'Supabase Google Provider is not active. Please enter your email directly below to log in!',
+      text: 'Supabase credentials are not connected. Please enter your email directly below to log in!',
       type: 'info',
     });
     setLoading(false);
@@ -130,7 +131,7 @@ export default function LoginPage() {
     }
 
     const current = getSettings();
-    const updated = saveSettings({
+    const updated = setUserLoggedIn(true, {
       email: cleanEmail,
       display_name: cleanName || current.display_name || 'Feelog User',
       auth_provider: 'google',
@@ -145,18 +146,18 @@ export default function LoginPage() {
 
     setTimeout(() => {
       router.push('/');
-    }, 900);
+    }, 800);
   };
 
   // 3. Offline-First Guest Mode
   const handleGuestSignIn = () => {
-    const updated = saveSettings({
+    const updated = setUserLoggedIn(true, {
       auth_provider: 'guest',
       email: '',
     });
     setSettings(updated);
     setFeedback({
-      text: 'Switched to Private Offline Guest Mode. Data stays on your device.',
+      text: 'Signed in via Private Offline Mode. Everything stays on your device.',
       type: 'info',
     });
     setTimeout(() => {
@@ -174,7 +175,7 @@ export default function LoginPage() {
         // ignore
       }
     }
-    const updated = saveSettings({
+    const updated = setUserLoggedIn(false, {
       auth_provider: 'guest',
       email: '',
     });
@@ -183,12 +184,13 @@ export default function LoginPage() {
     setIsEditingAccount(false);
     setLoading(false);
     setFeedback({
-      text: 'Signed out completely. Enter your email below to log in.',
+      text: 'Signed out completely. Sign in below when you return.',
       type: 'info',
     });
   };
 
-  const hasLinkedEmail = Boolean(settings?.email && settings.email.trim().length > 0);
+  const loggedIn = isUserLoggedIn() || Boolean(settings?.is_logged_in);
+  const hasEmail = Boolean(settings?.email && settings.email.trim().length > 0);
 
   return (
     <div className="max-w-[1240px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col items-center justify-center min-h-[78vh]">
@@ -207,12 +209,12 @@ export default function LoginPage() {
             </span>
           </Link>
           <h1 className="text-xl sm:text-2xl font-extrabold text-on-surface tracking-tight">
-            {hasLinkedEmail ? 'Your Feelog Account' : 'Sign in to Feelog'}
+            {loggedIn ? 'Your Feelog Account' : 'Welcome to Feelog'}
           </h1>
           <p className="text-xs sm:text-sm text-on-surface-variant mt-1.5 leading-relaxed">
-            {hasLinkedEmail
-              ? 'Your diabetes rhythm logs, custom insulin brands, and settings are connected.'
-              : 'Sign in with your Google email to synchronize your insulin regimen across devices.'}
+            {loggedIn
+              ? 'You are signed in. Your diabetes rhythm logs, custom insulin brands, and settings are active.'
+              : 'Sign in to access your diabetes diary and automatically synchronize your regimen.'}
           </p>
         </div>
 
@@ -233,7 +235,7 @@ export default function LoginPage() {
 
         {/* Main Card Container */}
         <div className="rounded-3xl bg-surface-container-low/90 backdrop-blur-2xl border border-white/10 p-6 sm:p-7 shadow-2xl shadow-black/40">
-          {hasLinkedEmail && !isEditingAccount ? (
+          {loggedIn && !isEditingAccount ? (
             /* Signed In State */
             <div className="space-y-5">
               <div className="flex items-center gap-4 p-4 rounded-2xl bg-surface-container/70 border border-primary/25">
@@ -245,16 +247,20 @@ export default function LoginPage() {
                     <span className="text-sm font-bold text-on-surface truncate">
                       {settings?.display_name || 'Feelog User'}
                     </span>
-                    <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary text-[0.65rem] font-bold border border-primary/30">
-                      Google
+                    <span className={`px-2 py-0.5 rounded-full text-[0.65rem] font-bold border ${
+                      hasEmail
+                        ? 'bg-primary/20 text-primary border-primary/30'
+                        : 'bg-surface-container-high text-on-surface-variant border-white/10'
+                    }`}>
+                      {hasEmail ? 'Google Account' : 'Offline Guest'}
                     </span>
                   </div>
                   <div className="text-xs text-on-surface-variant font-mono truncate mt-0.5">
-                    {settings?.email}
+                    {hasEmail ? settings?.email : 'Private Local Browser Storage'}
                   </div>
                   <div className="text-[0.68rem] text-primary mt-1 font-medium flex items-center gap-1">
                     <span className="material-symbols-outlined text-[0.875rem]">cloud_done</span>
-                    <span>Synchronized with your account</span>
+                    <span>{hasEmail ? 'Account Connected & Synced' : 'Offline Private Storage Active'}</span>
                   </div>
                 </div>
               </div>
@@ -275,7 +281,7 @@ export default function LoginPage() {
                     className="py-2.5 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface font-semibold text-xs transition-all border border-white/5 flex items-center justify-center gap-1.5"
                   >
                     <span className="material-symbols-outlined text-sm">edit</span>
-                    <span>Edit Email</span>
+                    <span>{hasEmail ? 'Edit Email' : 'Link Real Email'}</span>
                   </button>
 
                   <Link
@@ -418,7 +424,7 @@ export default function LoginPage() {
           <span className="material-symbols-outlined text-secondary text-lg mt-0.5 shrink-0">verified_user</span>
           <div className="text-[11px] text-on-surface-variant leading-relaxed">
             <span className="text-on-surface font-bold block mb-0.5">Strict Privacy &amp; Data Ownership</span>
-            Feelog never shares your email or medical records with advertisers. All your daily doses and symptom logs are encrypted and stored locally on your device.
+            Feelog remembers your login across browser visits so you never lose access to your daily logs. All doses and symptoms are stored securely on this device.
           </div>
         </div>
       </div>

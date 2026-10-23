@@ -103,6 +103,7 @@ export interface UserSettings {
   email?: string;
   avatar_url?: string;
   auth_provider?: 'google' | 'guest';
+  is_logged_in?: boolean;
   age?: number;
   gender?: string;
   height_cm: number;

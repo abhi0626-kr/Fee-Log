@@ -66,48 +66,54 @@ export default function Header({ onNewEntry }: HeaderProps) {
           </div>
 
           {/* Center Navigation Links (Desktop) */}
-          <nav className="hidden lg:flex items-center p-1 bg-surface-container-lowest/80 rounded-full border border-surface-container-high/50 backdrop-blur-md">
-            {navLinks.map((link) => {
-              const isActive = pathname === link.href;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
-                    isActive
-                      ? 'bg-surface-container-high text-on-surface shadow-inner border border-white/10'
-                      : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
+          {pathname !== '/login' && (
+            <nav className="hidden lg:flex items-center p-1 bg-surface-container-lowest/80 rounded-full border border-surface-container-high/50 backdrop-blur-md">
+              {navLinks.map((link) => {
+                const isActive = pathname === link.href;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
+                      isActive
+                        ? 'bg-surface-container-high text-on-surface shadow-inner border border-white/10'
+                        : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          )}
 
           {/* Right Area: Streak & Action Button */}
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-low border border-tertiary/20 text-tertiary font-label-md text-xs shadow-[0_0_20px_rgba(255,185,95,0.15)]">
-              <span>🔥</span>
-              <span className="font-bold">
-                {streak > 0 ? `${streak} day${streak > 1 ? 's' : ''} logged` : '0 days logged'}
-              </span>
-            </div>
+            {pathname !== '/login' && (
+              <>
+                <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-low border border-tertiary/20 text-tertiary font-label-md text-xs shadow-[0_0_20px_rgba(255,185,95,0.15)]">
+                  <span>🔥</span>
+                  <span className="font-bold">
+                    {streak > 0 ? `${streak} day${streak > 1 ? 's' : ''} logged` : '0 days logged'}
+                  </span>
+                </div>
 
-            <button
-              onClick={() => {
-                if (onNewEntry) {
-                  onNewEntry();
-                } else {
-                  window.dispatchEvent(new CustomEvent('open-quick-log'));
-                }
-              }}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-primary-container text-on-primary font-body-md text-xs font-bold shadow-[0_10px_25px_-5px_rgba(16,185,129,0.35)] hover:bg-primary transition-all active:scale-95"
-              type="button"
-            >
-              <span className="material-symbols-outlined text-[1.125rem]">add</span>
-              <span className="hidden md:inline">New Entry</span>
-            </button>
+                <button
+                  onClick={() => {
+                    if (onNewEntry) {
+                      onNewEntry();
+                    } else {
+                      window.dispatchEvent(new CustomEvent('open-quick-log'));
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-primary-container text-on-primary font-body-md text-xs font-bold shadow-[0_10px_25px_-5px_rgba(16,185,129,0.35)] hover:bg-primary transition-all active:scale-95"
+                  type="button"
+                >
+                  <span className="material-symbols-outlined text-[1.125rem]">add</span>
+                  <span className="hidden md:inline">New Entry</span>
+                </button>
+              </>
+            )}
 
             {/* Profile Avatar / Login */}
             <Link

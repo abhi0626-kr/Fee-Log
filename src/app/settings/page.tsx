@@ -382,6 +382,7 @@ export default function SettingsPage() {
                     handleChange('email', val);
                     if (val.trim()) {
                       handleChange('auth_provider', 'google');
+                      handleChange('is_logged_in', true);
                     }
                   }}
                   placeholder="e.g. yourname@gmail.com"

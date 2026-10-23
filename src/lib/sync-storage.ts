@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   display_name: 'Abhishek',
   email: '',
   auth_provider: 'guest',
+  is_logged_in: false,
   age: 20,
   gender: 'Male',
   height_cm: 173,
@@ -109,6 +110,41 @@ export function saveSettings(settings: Partial<UserSettings>): UserSettings {
     window.dispatchEvent(new CustomEvent('t1d-data-updated'));
   }
   return updated;
+}
+
+export function isUserLoggedIn(): boolean {
+  if (typeof window === 'undefined') return false;
+  // 1. Direct explicit flag
+  const flag = localStorage.getItem('t1d_is_logged_in');
+  if (flag === 'true') return true;
+  if (flag === 'false') return false;
+
+  // 2. Settings check
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    if (parsed.is_logged_in === true) return true;
+    if (parsed.is_logged_in === false) return false;
+    // Fallback: If user has their email stored
+    if (parsed.email && parsed.email.trim().length > 0 && parsed.email !== 'abhishek@gmail.com') {
+      localStorage.setItem('t1d_is_logged_in', 'true');
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+export function setUserLoggedIn(loggedIn: boolean, updates?: Partial<UserSettings>): UserSettings {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('t1d_is_logged_in', loggedIn ? 'true' : 'false');
+  }
+  return saveSettings({
+    is_logged_in: loggedIn,
+    ...updates,
+  });
 }
 
 export function isGlucosePromptDismissedToday(): boolean {
