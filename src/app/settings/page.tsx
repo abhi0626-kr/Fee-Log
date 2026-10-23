@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   getSettings,
   saveSettings,
@@ -9,7 +10,10 @@ import {
   seedRealisticPGData,
   clearAllLocalData,
   flushOfflineQueue,
+  setUserLoggedIn,
+  isUserLoggedIn,
 } from '@/lib/sync-storage';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { UserSettings } from '@/types';
 
 const COMMON_TIMEZONES = [
@@ -24,7 +28,9 @@ const COMMON_TIMEZONES = [
 ];
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
   const [dataMessage, setDataMessage] = useState<string | null>(null);
   const [showDevVault, setShowDevVault] = useState(false);
@@ -37,7 +43,30 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setSettings(getSettings());
+    setIsLoggedIn(isUserLoggedIn());
   }, []);
+
+  const handleSignOut = async () => {
+    if (confirm('Are you sure you want to sign out of Feelog?')) {
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.auth.signOut();
+        } catch {
+          // ignore
+        }
+      }
+      setUserLoggedIn(false, {
+        auth_provider: 'guest',
+        email: '',
+        is_logged_in: false,
+      });
+      setIsLoggedIn(false);
+      setDataMessage('Signed out successfully.');
+      setTimeout(() => {
+        router.push('/login');
+      }, 500);
+    }
+  };
 
   const handleChange = (field: keyof UserSettings, value: unknown) => {
     setSettings((prev) => ({ ...prev, [field]: value }));
@@ -182,6 +211,19 @@ export default function SettingsPage() {
             <span className="hidden sm:inline">{isSignedInGoogle ? 'Account Details' : 'Sign in with Google'}</span>
             <span className="sm:hidden">{isSignedInGoogle ? 'Account' : 'Sign In'}</span>
           </Link>
+
+          {isLoggedIn && (
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-error/15 hover:bg-error/25 text-error font-bold text-xs transition-all border border-error/30 flex items-center gap-1.5 cursor-pointer active:scale-95"
+              title="Sign out of Feelog"
+            >
+              <span className="material-symbols-outlined text-sm">logout</span>
+              <span className="hidden sm:inline">Sign Out</span>
+              <span className="sm:hidden">Logout</span>
+            </button>
+          )}
         </div>
       </div>
 

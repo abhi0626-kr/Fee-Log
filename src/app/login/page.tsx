@@ -9,6 +9,7 @@ import { UserSettings } from '@/types';
 
 export default function LoginPage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [emailInput, setEmailInput] = useState('');
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const [feedback, setFeedback] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   useEffect(() => {
+    setMounted(true);
     const s = getSettings();
     setSettings(s);
     if (s.email) {
@@ -25,6 +27,13 @@ export default function LoginPage() {
     if (s.display_name) {
       setNameInput(s.display_name);
     }
+
+    // Check if user is returning from an active OAuth redirect callback
+    const isOAuthRedirect =
+      typeof window !== 'undefined' &&
+      (window.location.hash.includes('access_token') ||
+        window.location.search.includes('code=') ||
+        sessionStorage.getItem('t1d_oauth_in_progress') === 'true');
 
     // Check real Supabase OAuth session on redirect/load
     if (isSupabaseConfigured && supabase) {
@@ -42,17 +51,22 @@ export default function LoginPage() {
           setSettings(updated);
           setEmailInput(realEmail);
           setNameInput(realName);
-          setFeedback({
-            text: `Signed in successfully via Google as ${realEmail}`,
-            type: 'success',
-          });
-          setTimeout(() => {
-            router.push('/');
-          }, 800);
+
+          // ONLY auto-redirect if this was an active OAuth callback flow, NOT when visiting to manage account/logout
+          if (isOAuthRedirect) {
+            sessionStorage.removeItem('t1d_oauth_in_progress');
+            setFeedback({
+              text: `Signed in successfully via Google as ${realEmail}! Redirecting...`,
+              type: 'success',
+            });
+            setTimeout(() => {
+              router.push('/');
+            }, 800);
+          }
         }
       });
 
-      const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
         if (session?.user) {
           const u = session.user;
           const realEmail = u.email || '';
@@ -66,6 +80,11 @@ export default function LoginPage() {
           setSettings(updated);
           setEmailInput(realEmail);
           setNameInput(realName);
+
+          if (event === 'SIGNED_IN' && isOAuthRedirect) {
+            sessionStorage.removeItem('t1d_oauth_in_progress');
+            router.push('/');
+          }
         }
       });
 
@@ -79,6 +98,9 @@ export default function LoginPage() {
   const handleGoogleOAuth = async () => {
     setLoading(true);
     setFeedback(null);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('t1d_oauth_in_progress', 'true');
+    }
 
     if (isSupabaseConfigured && supabase) {
       try {
@@ -90,6 +112,9 @@ export default function LoginPage() {
         });
         if (error) {
           console.warn('Supabase Google OAuth notice:', error.message);
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('t1d_oauth_in_progress');
+          }
           setFeedback({
             text: `Google OAuth is not enabled in your Supabase dashboard yet (${error.message}). Please enter your email directly below to sign in!`,
             type: 'info',
@@ -99,6 +124,9 @@ export default function LoginPage() {
         }
         return;
       } catch (err: unknown) {
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('t1d_oauth_in_progress');
+        }
         const msg = err instanceof Error ? err.message : String(err);
         setFeedback({
           text: `Unable to open Google login (${msg}). You can enter your email directly below.`,
@@ -109,6 +137,9 @@ export default function LoginPage() {
       }
     }
 
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('t1d_oauth_in_progress');
+    }
     setFeedback({
       text: 'Supabase credentials are not connected. Please enter your email directly below to log in!',
       type: 'info',
@@ -178,16 +209,49 @@ export default function LoginPage() {
     const updated = setUserLoggedIn(false, {
       auth_provider: 'guest',
       email: '',
+      is_logged_in: false,
     });
     setSettings(updated);
     setEmailInput('');
+    setNameInput('');
     setIsEditingAccount(false);
     setLoading(false);
     setFeedback({
-      text: 'Signed out completely. Sign in below when you return.',
+      text: 'Signed out completely. You can sign in anytime below.',
       type: 'info',
     });
   };
+
+  // 0. Hydration Barrier: Render identical SSR & first-paint placeholder until mounted
+  if (!mounted) {
+    return (
+      <div className="max-w-[1240px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col items-center justify-center min-h-[78vh]">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[34rem] h-[34rem] bg-primary/10 rounded-full blur-[140px] pointer-events-none"></div>
+        <div className="w-full max-w-md relative z-10">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center gap-2 mb-3">
+              <span className="font-headline-xl text-3xl text-on-surface font-extrabold tracking-tight">
+                Feelog
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full bg-primary-container/20 text-primary font-label-md text-xs uppercase tracking-wider font-bold border border-primary/20">
+                Type 1 Diary
+              </span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-on-surface tracking-tight">
+              Feelog Account
+            </h1>
+            <p className="text-xs sm:text-sm text-on-surface-variant mt-1.5 leading-relaxed">
+              Verifying your account session...
+            </p>
+          </div>
+          <div className="rounded-3xl bg-surface-container-low/90 backdrop-blur-2xl border border-white/10 p-8 shadow-2xl shadow-black/40 flex flex-col items-center justify-center py-14 gap-3">
+            <div className="w-7 h-7 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
+            <span className="text-xs text-on-surface-variant font-medium">Loading session...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const loggedIn = isUserLoggedIn() || Boolean(settings?.is_logged_in);
   const hasEmail = Boolean(settings?.email && settings.email.trim().length > 0);
@@ -297,9 +361,10 @@ export default function LoginPage() {
                   type="button"
                   onClick={handleSignOut}
                   disabled={loading}
-                  className="w-full py-2.5 text-xs text-error/80 hover:text-error font-medium transition-colors mt-2 text-center"
+                  className="w-full py-3 rounded-full bg-error/15 hover:bg-error/25 active:scale-95 text-error font-bold text-xs transition-all border border-error/30 flex items-center justify-center gap-2 cursor-pointer mt-1"
                 >
-                  Sign Out / Switch Account
+                  <span className="material-symbols-outlined text-sm">logout</span>
+                  <span>Sign Out / Switch Account</span>
                 </button>
               </div>
             </div>
