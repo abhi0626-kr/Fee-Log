@@ -66,6 +66,14 @@ export default function PatternsPage() {
 
   useEffect(() => {
     loadData();
+    window.addEventListener('t1d-data-updated', loadData);
+    window.addEventListener('storage', loadData);
+    window.addEventListener('focus', loadData);
+    return () => {
+      window.removeEventListener('t1d-data-updated', loadData);
+      window.removeEventListener('storage', loadData);
+      window.removeEventListener('focus', loadData);
+    };
   }, [loadData]);
 
   return (

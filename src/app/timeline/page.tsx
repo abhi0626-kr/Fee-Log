@@ -62,6 +62,14 @@ export default function TimelinePage() {
 
   useEffect(() => {
     refreshLogs();
+    window.addEventListener('t1d-data-updated', refreshLogs);
+    window.addEventListener('storage', refreshLogs);
+    window.addEventListener('focus', refreshLogs);
+    return () => {
+      window.removeEventListener('t1d-data-updated', refreshLogs);
+      window.removeEventListener('storage', refreshLogs);
+      window.removeEventListener('focus', refreshLogs);
+    };
   }, [refreshLogs]);
 
   const handlePrevDay = () => setSelectedDate((d) => shiftDate(d, -1));

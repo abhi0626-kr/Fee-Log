@@ -175,9 +175,22 @@ export default function QuickLogPage() {
     };
     window.addEventListener('open-quick-log', handleOpenQuickLog);
     window.addEventListener('t1d-data-updated', refreshData);
+    window.addEventListener('storage', refreshData);
+    window.addEventListener('focus', refreshData);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshData();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
       window.removeEventListener('open-quick-log', handleOpenQuickLog);
       window.removeEventListener('t1d-data-updated', refreshData);
+      window.removeEventListener('storage', refreshData);
+      window.removeEventListener('focus', refreshData);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [refreshData]);
 
