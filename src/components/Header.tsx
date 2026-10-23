@@ -38,11 +38,11 @@ export default function Header({ onNewEntry }: HeaderProps) {
   }, [pathname]);
 
   const navLinks = [
-    { href: '/', label: 'Quick Log' },
-    { href: '/timeline', label: 'Day Timeline' },
-    { href: '/patterns', label: 'Patterns & Insights' },
-    { href: '/export', label: 'Clinical Export' },
-    { href: '/settings', label: 'Settings' },
+    { href: '/', label: 'Quick', icon: 'edit_calendar' },
+    { href: '/timeline', label: 'Timeline', icon: 'timeline' },
+    { href: '/patterns', label: 'Insights', icon: 'insights' },
+    { href: '/export', label: 'Export', icon: 'clinical_notes' },
+    { href: '/settings', label: 'Settings', icon: 'tune' },
   ];
 
   return (
@@ -75,13 +75,21 @@ export default function Header({ onNewEntry }: HeaderProps) {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
+                    aria-label={link.label}
+                    title={link.label}
+                    className={`flex items-center gap-1.5 px-3 h-10 rounded-full text-xs font-semibold transition-all duration-200 ${
                       isActive
                         ? 'bg-surface-container-high text-on-surface shadow-inner border border-white/10'
                         : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
                     }`}
                   >
-                    {link.label}
+                    <span
+                      className="material-symbols-outlined text-[1.125rem]"
+                      style={isActive ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                    >
+                      {link.icon}
+                    </span>
+                    <span>{link.label}</span>
                   </Link>
                 );
               })}
@@ -107,11 +115,13 @@ export default function Header({ onNewEntry }: HeaderProps) {
                       window.dispatchEvent(new CustomEvent('open-quick-log'));
                     }
                   }}
-                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-primary-container text-on-primary font-body-md text-xs font-bold shadow-[0_10px_25px_-5px_rgba(16,185,129,0.35)] hover:bg-primary transition-all active:scale-95"
+                  aria-label="New Entry"
+                  title="New Entry"
+                  className="flex items-center gap-1.5 px-3 h-10 rounded-full bg-primary-container text-on-primary font-body-md text-xs font-bold shadow-[0_10px_25px_-5px_rgba(16,185,129,0.35)] hover:bg-primary transition-all active:scale-95"
                   type="button"
                 >
                   <span className="material-symbols-outlined text-[1.125rem]">add</span>
-                  <span className="hidden md:inline">New Entry</span>
+                  <span>New</span>
                 </button>
               </>
             )}
@@ -138,12 +148,6 @@ export default function Header({ onNewEntry }: HeaderProps) {
           </div>
         </div>
 
-        {/* Quiet Medical Guardrail Banner */}
-        <div className="w-full bg-surface-container-lowest/80 border-t border-surface-container-high/30 py-1 px-3 sm:px-4 text-center font-label-md text-[10px] sm:text-[11px] text-on-surface-variant flex items-center justify-center gap-1.5">
-          <span className="material-symbols-outlined text-secondary text-[13px] sm:text-[14px]">verified_user</span>
-          <span className="hidden sm:inline">No medical advice. Pure symptom & rhythm tracking for you and your physician.</span>
-          <span className="sm:hidden">Symptom Tracker · Non-Clinical</span>
-        </div>
       </header>
     </>
   );

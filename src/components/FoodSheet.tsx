@@ -122,10 +122,10 @@ export default function FoodSheet({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-surface-container/95 border border-white/10 text-on-surface w-full max-w-lg rounded-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-150"
+        className="relative bg-surface-container/95 border border-white/10 text-on-surface w-full max-w-lg rounded-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-150"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-surface-container-high shrink-0">
+        <div className="sticky top-0 z-10 flex items-center justify-between px-5 sm:px-6 py-4 border-b border-surface-container-high bg-surface-container/95 backdrop-blur-md shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-tertiary-container/20 text-tertiary border border-tertiary/20 flex items-center justify-center">
               <span className="material-symbols-outlined text-xl">restaurant</span>
@@ -140,11 +140,11 @@ export default function FoodSheet({
           <button
             type="button"
             onClick={onClose}
-            className="px-3 py-1.5 rounded-full flex items-center gap-1 text-xs font-semibold bg-surface-container-high hover:bg-surface-bright text-on-surface-variant hover:text-on-surface transition-colors border border-white/5 cursor-pointer"
-            title="Cancel and close"
+            aria-label="Close food entry"
+            className="w-9 h-9 rounded-full flex items-center justify-center bg-surface-container-high hover:bg-surface-bright text-on-surface-variant hover:text-on-surface transition-colors border border-white/10 cursor-pointer"
+            title="Close"
           >
-            <span className="material-symbols-outlined text-sm">close</span>
-            <span>Cancel</span>
+            <span className="material-symbols-outlined text-base">close</span>
           </button>
         </div>
 

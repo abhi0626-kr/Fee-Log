@@ -96,7 +96,7 @@ export default function SyncBanner() {
       <button
         type="button"
         onClick={() => doSync()}
-        className="fixed top-0 left-0 right-0 z-[60] bg-secondary-container text-on-secondary-container text-xs px-3 py-1 flex items-center justify-center gap-1.5 font-bold transition-colors cursor-pointer shadow-md"
+        className="fixed top-2 left-1/2 -translate-x-1/2 z-[60] w-max max-w-[calc(100%-1rem)] rounded-full bg-secondary-container text-on-secondary-container text-xs px-3 py-1.5 flex items-center justify-center gap-1.5 font-bold transition-colors cursor-pointer shadow-md"
       >
         <span className={`material-symbols-outlined text-[14px] ${isSyncing ? 'animate-spin' : ''}`}>
           sync
