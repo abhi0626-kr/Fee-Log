@@ -117,9 +117,9 @@ export function clearOfflineQueue() {
   saveLocalArray(STORAGE_KEYS.QUEUE, []);
 }
 
-// Synchronize queue if Supabase configured & online
+// Synchronize queue with Server Database (and Supabase if configured)
 export async function flushOfflineQueue(): Promise<{ synced: number; failed: number }> {
-  if (!isSupabaseConfigured || !supabase || !getIsOnline()) {
+  if (!getIsOnline()) {
     return { synced: 0, failed: 0 };
   }
 
@@ -128,31 +128,79 @@ export async function flushOfflineQueue(): Promise<{ synced: number; failed: num
 
   let synced = 0;
   let failed = 0;
-  const remaining: SyncQueueItem[] = [];
 
-  for (const item of queue) {
-    try {
-      if (item.action === 'insert') {
-        const { error } = await supabase.from(item.table).insert([item.payload]);
-        if (error) throw error;
-      } else if (item.action === 'update') {
-        const payload = item.payload as { id: string };
-        const { error } = await supabase.from(item.table).update(payload).eq('id', payload.id);
-        if (error) throw error;
-      } else if (item.action === 'delete') {
-        const { error } = await supabase.from(item.table).delete().eq('id', item.id);
-        if (error) throw error;
+  // 1. Sync with Server Database (/api/sync)
+  try {
+    const res = await fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: queue }),
+    });
+    if (res.ok) {
+      synced += queue.length;
+    }
+  } catch (err) {
+    console.warn('Server database sync failed, will retry:', err);
+    failed++;
+  }
+
+  // 2. If Supabase configured, also sync to Supabase Postgres
+  if (isSupabaseConfigured && supabase) {
+    for (const item of queue) {
+      try {
+        if (item.action === 'insert') {
+          await supabase.from(item.table).insert([item.payload]);
+        } else if (item.action === 'update') {
+          const payload = item.payload as { id: string };
+          await supabase.from(item.table).update(payload).eq('id', payload.id);
+        } else if (item.action === 'delete') {
+          await supabase.from(item.table).delete().eq('id', item.id);
+        }
+      } catch (e) {
+        console.warn('Supabase sync item error:', e);
       }
-      synced++;
-    } catch (e) {
-      console.warn('Queue flush item failed, retaining in queue:', e);
-      failed++;
-      remaining.push(item);
     }
   }
 
-  saveLocalArray(STORAGE_KEYS.QUEUE, remaining);
-  return { synced, failed };
+  // If server sync succeeded, clear the offline queue!
+  if (synced > 0) {
+    clearOfflineQueue();
+    return { synced, failed: 0 };
+  }
+
+  return { synced: 0, failed };
+}
+
+// Hydrate local cache from Server Database on load
+export async function hydrateFromServerDatabase(): Promise<boolean> {
+  if (typeof window === 'undefined' || !getIsOnline()) return false;
+  try {
+    const res = await fetch('/api/logs');
+    if (!res.ok) return false;
+    const json = await res.json();
+    if (!json.success || !json.data) return false;
+
+    const db = json.data;
+    if (Array.isArray(db.insulin_logs) && db.insulin_logs.length > 0) {
+      saveLocalArray(STORAGE_KEYS.INSULIN, db.insulin_logs);
+    }
+    if (Array.isArray(db.food_logs) && db.food_logs.length > 0) {
+      saveLocalArray(STORAGE_KEYS.FOOD, db.food_logs);
+    }
+    if (Array.isArray(db.activity_logs) && db.activity_logs.length > 0) {
+      saveLocalArray(STORAGE_KEYS.ACTIVITY, db.activity_logs);
+    }
+    if (Array.isArray(db.feel_logs) && db.feel_logs.length > 0) {
+      saveLocalArray(STORAGE_KEYS.FEEL, db.feel_logs);
+    }
+    if (Array.isArray(db.glucose_logs) && db.glucose_logs.length > 0) {
+      saveLocalArray(STORAGE_KEYS.GLUCOSE, db.glucose_logs);
+    }
+    return true;
+  } catch (err) {
+    console.warn('Error hydrating from server database:', err);
+    return false;
+  }
 }
 
 // INSULIN LOGS

@@ -23,6 +23,7 @@ import {
 import {
   getUnifiedLogsForDate,
   getSettings,
+  DEFAULT_SETTINGS,
   deleteInsulinLog,
   deleteFoodLog,
   deleteActivityLog,
@@ -49,7 +50,7 @@ import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 export default function TimelinePage() {
   const [selectedDate, setSelectedDate] = useState<string>(getTodayIST());
   const [logs, setLogs] = useState<UnifiedLogItem[]>([]);
-  const [settings] = useState<UserSettings>(getSettings());
+  const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
 
   // Sheet states
   const [isFoodOpen, setIsFoodOpen] = useState(false);
@@ -70,6 +71,7 @@ export default function TimelinePage() {
   const refreshLogs = useCallback(() => {
     const dayLogs = getUnifiedLogsForDate(selectedDate);
     setLogs(dayLogs);
+    setSettings(getSettings());
   }, [selectedDate]);
 
   useEffect(() => {

@@ -16,6 +16,7 @@ import {
   getUnifiedLogsForDate,
   getSettings,
   getAllLoggedDates,
+  DEFAULT_SETTINGS,
 } from '@/lib/sync-storage';
 import {
   generateCSV,
@@ -28,7 +29,7 @@ export default function ExportPage() {
   const [today] = useState<string>(getTodayIST());
   const [startDate, setStartDate] = useState<string>(shiftDate(getTodayIST(), -13));
   const [endDate, setEndDate] = useState<string>(getTodayIST());
-  const [settings, setSettings] = useState<UserSettings>(getSettings());
+  const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [selectedLogs, setSelectedLogs] = useState<UnifiedLogItem[]>([]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState<string | null>(null);

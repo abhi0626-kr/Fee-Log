@@ -1,8 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { WifiOff, RefreshCw, CheckCircle2 } from 'lucide-react';
-import { getOfflineQueue, flushOfflineQueue, getIsOnline } from '@/lib/sync-storage';
+import {
+  getOfflineQueue,
+  flushOfflineQueue,
+  getIsOnline,
+  hydrateFromServerDatabase,
+} from '@/lib/sync-storage';
 
 export default function SyncBanner() {
   const [online, setOnline] = useState(true);
@@ -10,25 +15,41 @@ export default function SyncBanner() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [showSyncedNotice, setShowSyncedNotice] = useState(false);
 
-  const checkQueue = () => {
+  const doSync = useCallback(async () => {
     const q = getOfflineQueue();
-    setQueueCount(q.length);
-  };
+    if (q.length === 0) {
+      setQueueCount(0);
+      return;
+    }
+
+    setIsSyncing(true);
+    const res = await flushOfflineQueue();
+    setIsSyncing(false);
+
+    const remaining = getOfflineQueue();
+    setQueueCount(remaining.length);
+
+    if (res.synced > 0) {
+      setShowSyncedNotice(true);
+      setTimeout(() => setShowSyncedNotice(false), 3000);
+    }
+  }, []);
 
   useEffect(() => {
     setOnline(getIsOnline());
-    checkQueue();
+    const q = getOfflineQueue();
+    setQueueCount(q.length);
 
-    const handleOnline = async () => {
-      setOnline(true);
-      setIsSyncing(true);
-      const res = await flushOfflineQueue();
-      setIsSyncing(false);
-      checkQueue();
-      if (res.synced > 0) {
-        setShowSyncedNotice(true);
-        setTimeout(() => setShowSyncedNotice(false), 3000);
+    // Initial server hydration & sync
+    hydrateFromServerDatabase().then(() => {
+      if (q.length > 0 && getIsOnline()) {
+        doSync();
       }
+    });
+
+    const handleOnline = () => {
+      setOnline(true);
+      doSync();
     };
 
     const handleOffline = () => {
@@ -38,27 +59,33 @@ export default function SyncBanner() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    const interval = setInterval(checkQueue, 5000);
+    const interval = setInterval(() => {
+      const currentQueue = getOfflineQueue();
+      setQueueCount(currentQueue.length);
+      if (currentQueue.length > 0 && getIsOnline()) {
+        doSync();
+      }
+    }, 4000);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       clearInterval(interval);
     };
-  }, []);
+  }, [doSync]);
 
   if (showSyncedNotice) {
     return (
-      <div className="bg-emerald-500 text-white text-xs px-3 py-1.5 flex items-center justify-center gap-1.5 font-medium transition-all">
+      <div className="bg-emerald-600 text-white text-xs px-3 py-1.5 flex items-center justify-center gap-1.5 font-bold transition-all shadow-sm">
         <CheckCircle2 className="w-3.5 h-3.5" />
-        Synced offline logs to cloud
+        Synced to database ✓
       </div>
     );
   }
 
   if (!online) {
     return (
-      <div className="bg-amber-600 text-white text-xs px-3 py-1.5 flex items-center justify-center gap-1.5 font-medium">
+      <div className="bg-amber-600 text-white text-xs px-3 py-1.5 flex items-center justify-center gap-1.5 font-medium shadow-sm">
         <WifiOff className="w-3.5 h-3.5" />
         Offline mode — logs saved locally and will sync when connected
       </div>
@@ -67,10 +94,18 @@ export default function SyncBanner() {
 
   if (queueCount > 0) {
     return (
-      <div className="bg-blue-600 text-white text-xs px-3 py-1.5 flex items-center justify-center gap-1.5 font-medium">
+      <button
+        type="button"
+        onClick={() => doSync()}
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 flex items-center justify-center gap-1.5 font-medium transition-colors cursor-pointer"
+      >
         <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-        {queueCount} log{queueCount > 1 ? 's' : ''} queued locally
-      </div>
+        <span>
+          {isSyncing
+            ? 'Saving to database...'
+            : `${queueCount} log${queueCount > 1 ? 's' : ''} queued — tap to sync now`}
+        </span>
+      </button>
     );
   }
 

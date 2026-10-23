@@ -35,6 +35,7 @@ import {
   isGlucosePromptDismissedToday,
   dismissGlucosePromptToday,
   seedRealisticPGData,
+  DEFAULT_SETTINGS,
 } from '@/lib/sync-storage';
 import {
   UnifiedLogItem,
@@ -54,10 +55,12 @@ import InsulinSheet from '@/components/InsulinSheet';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 
 export default function QuickLogPage() {
+  const [mounted, setMounted] = useState<boolean>(false);
   const [todayStr] = useState<string>(getTodayIST());
   const [todayLogs, setTodayLogs] = useState<UnifiedLogItem[]>([]);
+  const [todayInsulinLogs, setTodayInsulinLogs] = useState<InsulinLog[]>([]);
   const [streak, setStreak] = useState<number>(0);
-  const [settings, setSettings] = useState<UserSettings>(getSettings());
+  const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [showGlucosePrompt, setShowGlucosePrompt] = useState<boolean>(false);
 
   // Modal states
@@ -82,6 +85,9 @@ export default function QuickLogPage() {
     const logs = getUnifiedLogsForDate(todayStr);
     setTodayLogs(logs);
 
+    const insulin = getInsulinLogs().filter((l) => l.log_date === todayStr);
+    setTodayInsulinLogs(insulin);
+
     const allDates = getAllLoggedDates();
     setStreak(calculateStreak(allDates));
 
@@ -96,13 +102,13 @@ export default function QuickLogPage() {
   }, [todayStr]);
 
   useEffect(() => {
+    setMounted(true);
     refreshData();
   }, [refreshData]);
 
-  // Check today's insulin status
-  const todayInsulinLogs = getInsulinLogs().filter((l) => l.log_date === todayStr);
-  const morningLog = todayInsulinLogs.find((l) => l.insulin_type === 'morning_regular');
-  const nightLog = todayInsulinLogs.find((l) => l.insulin_type === 'night_30_70');
+  // Check today's insulin status safely after mount
+  const morningLog = mounted ? todayInsulinLogs.find((l) => l.insulin_type === 'morning_regular') : undefined;
+  const nightLog = mounted ? todayInsulinLogs.find((l) => l.insulin_type === 'night_30_70') : undefined;
 
   const handleQuickTakeInsulin = (type: 'morning_regular' | 'night_30_70', units: number) => {
     const defaultTime = type === 'morning_regular' ? '08:00' : '20:30';
