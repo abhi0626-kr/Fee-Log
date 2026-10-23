@@ -311,7 +311,7 @@ export async function flushOfflineQueue(): Promise<{ synced: number; failed: num
   return { synced, failed };
 }
 
-// Hydrate local cache from Supabase Postgres
+// Hydrate local cache from Supabase Postgres with two-way sync
 export async function hydrateFromSupabase(targetUserId?: string): Promise<boolean> {
   if (typeof window === 'undefined' || !getIsOnline() || !isSupabaseConfigured || !supabase) {
     return false;
@@ -335,37 +335,97 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       supabase.from('glucose_logs').select('*').eq('user_id', userId),
     ]);
 
-    let updatedAny = false;
+    // 1. Two-way Insulin Sync: upload any local logs missing from Supabase, then merge
+    const localInsulin = getInsulinLogs();
+    const remoteInsulin = (insulinRes.data as InsulinLog[]) || [];
+    const remoteInsulinIds = new Set(remoteInsulin.map((r) => r.id));
+    const unuploadedInsulin = localInsulin
+      .filter((l) => !remoteInsulinIds.has(l.id))
+      .map((l) => ({ ...l, user_id: userId }));
 
-    if (insulinRes.data && Array.isArray(insulinRes.data)) {
-      const merged = mergeRecordsById(getInsulinLogs(), insulinRes.data as InsulinLog[]);
-      saveLocalArray(STORAGE_KEYS.INSULIN, merged);
-      updatedAny = true;
+    if (unuploadedInsulin.length > 0) {
+      try {
+        await supabase.from('insulin_logs').upsert(unuploadedInsulin);
+      } catch (err) {
+        console.warn('Failed to upsert unuploaded insulin logs:', err);
+      }
     }
-    if (foodRes.data && Array.isArray(foodRes.data)) {
-      const merged = mergeRecordsById(getFoodLogs(), foodRes.data as FoodLog[]);
-      saveLocalArray(STORAGE_KEYS.FOOD, merged);
-      updatedAny = true;
-    }
-    if (activityRes.data && Array.isArray(activityRes.data)) {
-      const merged = mergeRecordsById(getActivityLogs(), activityRes.data as ActivityLog[]);
-      saveLocalArray(STORAGE_KEYS.ACTIVITY, merged);
-      updatedAny = true;
-    }
-    if (feelRes.data && Array.isArray(feelRes.data)) {
-      const merged = mergeRecordsById(getFeelLogs(), feelRes.data as FeelLog[]);
-      saveLocalArray(STORAGE_KEYS.FEEL, merged);
-      updatedAny = true;
-    }
-    if (glucoseRes.data && Array.isArray(glucoseRes.data)) {
-      const merged = mergeRecordsById(getGlucoseLogs(), glucoseRes.data as GlucoseLog[]);
-      saveLocalArray(STORAGE_KEYS.GLUCOSE, merged);
-      updatedAny = true;
-    }
+    const mergedInsulin = mergeRecordsById(localInsulin, remoteInsulin);
+    saveLocalArray(STORAGE_KEYS.INSULIN, mergedInsulin);
 
-    if (updatedAny) {
-      window.dispatchEvent(new CustomEvent('t1d-data-updated'));
+    // 2. Two-way Food Sync
+    const localFood = getFoodLogs();
+    const remoteFood = (foodRes.data as FoodLog[]) || [];
+    const remoteFoodIds = new Set(remoteFood.map((r) => r.id));
+    const unuploadedFood = localFood
+      .filter((l) => !remoteFoodIds.has(l.id))
+      .map((l) => ({ ...l, user_id: userId }));
+
+    if (unuploadedFood.length > 0) {
+      try {
+        await supabase.from('food_logs').upsert(unuploadedFood);
+      } catch (err) {
+        console.warn('Failed to upsert unuploaded food logs:', err);
+      }
     }
+    const mergedFood = mergeRecordsById(localFood, remoteFood);
+    saveLocalArray(STORAGE_KEYS.FOOD, mergedFood);
+
+    // 3. Two-way Activity Sync
+    const localActivity = getActivityLogs();
+    const remoteActivity = (activityRes.data as ActivityLog[]) || [];
+    const remoteActivityIds = new Set(remoteActivity.map((r) => r.id));
+    const unuploadedActivity = localActivity
+      .filter((l) => !remoteActivityIds.has(l.id))
+      .map((l) => ({ ...l, user_id: userId }));
+
+    if (unuploadedActivity.length > 0) {
+      try {
+        await supabase.from('activity_logs').upsert(unuploadedActivity);
+      } catch (err) {
+        console.warn('Failed to upsert unuploaded activity logs:', err);
+      }
+    }
+    const mergedActivity = mergeRecordsById(localActivity, remoteActivity);
+    saveLocalArray(STORAGE_KEYS.ACTIVITY, mergedActivity);
+
+    // 4. Two-way Feel Sync
+    const localFeel = getFeelLogs();
+    const remoteFeel = (feelRes.data as FeelLog[]) || [];
+    const remoteFeelIds = new Set(remoteFeel.map((r) => r.id));
+    const unuploadedFeel = localFeel
+      .filter((l) => !remoteFeelIds.has(l.id))
+      .map((l) => ({ ...l, user_id: userId }));
+
+    if (unuploadedFeel.length > 0) {
+      try {
+        await supabase.from('feel_logs').upsert(unuploadedFeel);
+      } catch (err) {
+        console.warn('Failed to upsert unuploaded feel logs:', err);
+      }
+    }
+    const mergedFeel = mergeRecordsById(localFeel, remoteFeel);
+    saveLocalArray(STORAGE_KEYS.FEEL, mergedFeel);
+
+    // 5. Two-way Glucose Sync
+    const localGlucose = getGlucoseLogs();
+    const remoteGlucose = (glucoseRes.data as GlucoseLog[]) || [];
+    const remoteGlucoseIds = new Set(remoteGlucose.map((r) => r.id));
+    const unuploadedGlucose = localGlucose
+      .filter((l) => !remoteGlucoseIds.has(l.id))
+      .map((l) => ({ ...l, user_id: userId }));
+
+    if (unuploadedGlucose.length > 0) {
+      try {
+        await supabase.from('glucose_logs').upsert(unuploadedGlucose);
+      } catch (err) {
+        console.warn('Failed to upsert unuploaded glucose logs:', err);
+      }
+    }
+    const mergedGlucose = mergeRecordsById(localGlucose, remoteGlucose);
+    saveLocalArray(STORAGE_KEYS.GLUCOSE, mergedGlucose);
+
+    window.dispatchEvent(new CustomEvent('t1d-data-updated'));
     return true;
   } catch (err) {
     console.warn('Error hydrating from Supabase:', err);
@@ -439,6 +499,9 @@ export function saveInsulinLog(log: Omit<InsulinLog, 'id' | 'created_at'> & { id
   }
 
   saveLocalArray(STORAGE_KEYS.INSULIN, existing);
+  if (typeof window !== 'undefined' && getIsOnline()) {
+    flushOfflineQueue().catch(() => {});
+  }
   return fullLog;
 }
 
@@ -446,6 +509,9 @@ export function deleteInsulinLog(id: string): void {
   const existing = getInsulinLogs().filter((item) => item.id !== id);
   saveLocalArray(STORAGE_KEYS.INSULIN, existing);
   addToQueue({ id, table: 'insulin_logs', action: 'delete', payload: null });
+  if (typeof window !== 'undefined' && getIsOnline()) {
+    flushOfflineQueue().catch(() => {});
+  }
 }
 
 // FOOD LOGS
@@ -474,6 +540,9 @@ export function saveFoodLog(log: Omit<FoodLog, 'id' | 'created_at'> & { id?: str
   }
 
   saveLocalArray(STORAGE_KEYS.FOOD, existing);
+  if (typeof window !== 'undefined' && getIsOnline()) {
+    flushOfflineQueue().catch(() => {});
+  }
   return fullLog;
 }
 
@@ -481,6 +550,9 @@ export function deleteFoodLog(id: string): void {
   const existing = getFoodLogs().filter((item) => item.id !== id);
   saveLocalArray(STORAGE_KEYS.FOOD, existing);
   addToQueue({ id, table: 'food_logs', action: 'delete', payload: null });
+  if (typeof window !== 'undefined' && getIsOnline()) {
+    flushOfflineQueue().catch(() => {});
+  }
 }
 
 // ACTIVITY LOGS
@@ -509,6 +581,9 @@ export function saveActivityLog(log: Omit<ActivityLog, 'id' | 'created_at'> & { 
   }
 
   saveLocalArray(STORAGE_KEYS.ACTIVITY, existing);
+  if (typeof window !== 'undefined' && getIsOnline()) {
+    flushOfflineQueue().catch(() => {});
+  }
   return fullLog;
 }
 
@@ -516,6 +591,9 @@ export function deleteActivityLog(id: string): void {
   const existing = getActivityLogs().filter((item) => item.id !== id);
   saveLocalArray(STORAGE_KEYS.ACTIVITY, existing);
   addToQueue({ id, table: 'activity_logs', action: 'delete', payload: null });
+  if (typeof window !== 'undefined' && getIsOnline()) {
+    flushOfflineQueue().catch(() => {});
+  }
 }
 
 // FEEL LOGS
@@ -544,6 +622,9 @@ export function saveFeelLog(log: Omit<FeelLog, 'id' | 'created_at'> & { id?: str
   }
 
   saveLocalArray(STORAGE_KEYS.FEEL, existing);
+  if (typeof window !== 'undefined' && getIsOnline()) {
+    flushOfflineQueue().catch(() => {});
+  }
   return fullLog;
 }
 
@@ -551,6 +632,9 @@ export function deleteFeelLog(id: string): void {
   const existing = getFeelLogs().filter((item) => item.id !== id);
   saveLocalArray(STORAGE_KEYS.FEEL, existing);
   addToQueue({ id, table: 'feel_logs', action: 'delete', payload: null });
+  if (typeof window !== 'undefined' && getIsOnline()) {
+    flushOfflineQueue().catch(() => {});
+  }
 }
 
 // GLUCOSE LOGS (Nullable/Optional everywhere)
@@ -579,6 +663,9 @@ export function saveGlucoseLog(log: Omit<GlucoseLog, 'id' | 'created_at'> & { id
   }
 
   saveLocalArray(STORAGE_KEYS.GLUCOSE, existing);
+  if (typeof window !== 'undefined' && getIsOnline()) {
+    flushOfflineQueue().catch(() => {});
+  }
   return fullLog;
 }
 
@@ -586,6 +673,9 @@ export function deleteGlucoseLog(id: string): void {
   const existing = getGlucoseLogs().filter((item) => item.id !== id);
   saveLocalArray(STORAGE_KEYS.GLUCOSE, existing);
   addToQueue({ id, table: 'glucose_logs', action: 'delete', payload: null });
+  if (typeof window !== 'undefined' && getIsOnline()) {
+    flushOfflineQueue().catch(() => {});
+  }
 }
 
 // MERGED CHRONOLOGICAL FEED

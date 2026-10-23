@@ -6,6 +6,7 @@ import {
   flushOfflineQueue,
   getIsOnline,
   hydrateFromServerDatabase,
+  hydrateFromSupabase,
 } from '@/lib/sync-storage';
 
 export default function SyncBanner() {
@@ -49,26 +50,46 @@ export default function SyncBanner() {
     const handleOnline = () => {
       setOnline(true);
       doSync();
+      hydrateFromSupabase().catch(() => {});
     };
 
     const handleOffline = () => {
       setOnline(false);
     };
 
+    const handleFocus = () => {
+      if (getIsOnline()) {
+        hydrateFromSupabase().catch(() => {});
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && getIsOnline()) {
+        hydrateFromSupabase().catch(() => {});
+      }
+    };
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
 
     const interval = setInterval(() => {
       const currentQueue = getOfflineQueue();
       setQueueCount(currentQueue.length);
       if (currentQueue.length > 0 && getIsOnline()) {
         doSync();
+      } else if (getIsOnline()) {
+        // Automatically fetch updates made from other devices
+        hydrateFromSupabase().catch(() => {});
       }
     }, 4000);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
       clearInterval(interval);
     };
   }, [doSync]);

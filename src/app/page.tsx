@@ -178,23 +178,26 @@ export default function QuickLogPage() {
         el.scrollIntoView({ behavior: 'smooth' });
       }
     };
-    window.addEventListener('open-quick-log', handleOpenQuickLog);
-    window.addEventListener('t1d-data-updated', refreshData);
-    window.addEventListener('storage', refreshData);
-    window.addEventListener('focus', refreshData);
+    const handleFocus = () => {
+      hydrateFromSupabase().then(() => refreshData());
+    };
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        refreshData();
+        hydrateFromSupabase().then(() => refreshData());
       }
     };
+    window.addEventListener('open-quick-log', handleOpenQuickLog);
+    window.addEventListener('t1d-data-updated', refreshData);
+    window.addEventListener('storage', refreshData);
+    window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       window.removeEventListener('open-quick-log', handleOpenQuickLog);
       window.removeEventListener('t1d-data-updated', refreshData);
       window.removeEventListener('storage', refreshData);
-      window.removeEventListener('focus', refreshData);
+      window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [refreshData]);
