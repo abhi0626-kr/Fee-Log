@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { GlucoseContext, GlucoseLog } from '@/types';
 import { getCurrentTimeIST } from '@/lib/date-utils';
-import { saveGlucoseLog } from '@/lib/sync-storage';
+import { saveGlucoseLog, getActiveUserId } from '@/lib/sync-storage';
 
 interface GlucoseSheetProps {
   isOpen: boolean;
@@ -59,7 +59,7 @@ export default function GlucoseSheet({
 
     saveGlucoseLog({
       id: initialData?.id,
-      user_id: initialData?.user_id || 'user-1',
+      user_id: initialData?.user_id || getActiveUserId(),
       log_date: dateStr,
       log_time: logTime,
       reading_mgdl: val,

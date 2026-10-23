@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { InsulinType, InsulinLog } from '@/types';
 import { getCurrentTimeIST } from '@/lib/date-utils';
-import { saveInsulinLog, getSettings } from '@/lib/sync-storage';
+import { saveInsulinLog, getSettings, getActiveUserId } from '@/lib/sync-storage';
 
 interface InsulinSheetProps {
   isOpen: boolean;
@@ -94,7 +94,7 @@ export default function InsulinSheet({
 
     saveInsulinLog({
       id: initialData?.id,
-      user_id: initialData?.user_id || 'user-1',
+      user_id: initialData?.user_id || getActiveUserId(),
       log_date: dateStr,
       log_time: logTime,
       insulin_type: selectedType,

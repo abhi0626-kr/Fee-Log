@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { MealType, CarbSize, FoodLog, COMMON_FOOD_CHIPS } from '@/types';
 import { getCurrentTimeIST, getDefaultMealTypeByHour, getCurrentHourIST } from '@/lib/date-utils';
-import { saveFoodLog } from '@/lib/sync-storage';
+import { saveFoodLog, getActiveUserId } from '@/lib/sync-storage';
 
 interface FoodSheetProps {
   isOpen: boolean;
@@ -86,7 +86,7 @@ export default function FoodSheet({
 
     saveFoodLog({
       id: initialData?.id,
-      user_id: initialData?.user_id || 'user-1',
+      user_id: initialData?.user_id || getActiveUserId(),
       log_date: dateStr,
       log_time: logTime,
       meal,

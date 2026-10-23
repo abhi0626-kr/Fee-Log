@@ -30,6 +30,9 @@ const INITIAL_DB: DatabaseSchema = {
   glucose_logs: [],
 };
 
+// In-memory fallback for read-only environments (e.g. Vercel serverless)
+let memoryDb: DatabaseSchema = { ...INITIAL_DB };
+
 // Ensure data directory and file exist
 function ensureDatabase(): void {
   try {
@@ -39,27 +42,35 @@ function ensureDatabase(): void {
     if (!fs.existsSync(DB_FILE)) {
       fs.writeFileSync(DB_FILE, JSON.stringify(INITIAL_DB, null, 2), 'utf-8');
     }
-  } catch (err) {
-    console.error('Error initializing server database:', err);
+  } catch {
+    // Read-only filesystem on Vercel is expected; use memoryDb
   }
 }
 
 export function readDatabase(): DatabaseSchema {
-  ensureDatabase();
   try {
-    const raw = fs.readFileSync(DB_FILE, 'utf-8');
-    return JSON.parse(raw);
+    ensureDatabase();
+    if (fs.existsSync(DB_FILE)) {
+      const raw = fs.readFileSync(DB_FILE, 'utf-8');
+      return JSON.parse(raw);
+    }
   } catch {
-    return INITIAL_DB;
+    // Fallback to memory
   }
+  return memoryDb;
 }
 
 export function writeDatabase(data: DatabaseSchema): void {
-  ensureDatabase();
-  // Atomic write via temp file
-  const tempFile = `${DB_FILE}.tmp`;
-  fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf-8');
-  fs.renameSync(tempFile, DB_FILE);
+  memoryDb = data;
+  try {
+    ensureDatabase();
+    // Atomic write via temp file
+    const tempFile = `${DB_FILE}.tmp`;
+    fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf-8');
+    fs.renameSync(tempFile, DB_FILE);
+  } catch {
+    // Write failed on read-only filesystem (Vercel serverless); memoryDb retained
+  }
 }
 
 export type TableName = keyof DatabaseSchema;

@@ -112,6 +112,24 @@ export function saveSettings(settings: Partial<UserSettings>): UserSettings {
   return updated;
 }
 
+export function getActiveUserId(): string {
+  if (typeof window === 'undefined') return '00000000-0000-0000-0000-000000000000';
+  const settings = getSettings();
+  if (settings.user_id && settings.user_id.length > 10) {
+    return settings.user_id;
+  }
+  const storedId = localStorage.getItem('t1d_user_id');
+  if (storedId && storedId.length > 10) {
+    return storedId;
+  }
+  let anonId = localStorage.getItem('t1d_anon_uuid');
+  if (!anonId) {
+    anonId = crypto.randomUUID();
+    localStorage.setItem('t1d_anon_uuid', anonId);
+  }
+  return anonId;
+}
+
 export function isUserLoggedIn(): boolean {
   if (typeof window === 'undefined') return false;
   // 1. Direct explicit flag
@@ -140,6 +158,11 @@ export function isUserLoggedIn(): boolean {
 export function setUserLoggedIn(loggedIn: boolean, updates?: Partial<UserSettings>): UserSettings {
   if (typeof window !== 'undefined') {
     localStorage.setItem('t1d_is_logged_in', loggedIn ? 'true' : 'false');
+    if (updates?.user_id) {
+      localStorage.setItem('t1d_user_id', updates.user_id);
+    } else if (!loggedIn) {
+      localStorage.removeItem('t1d_user_id');
+    }
   }
   return saveSettings({
     is_logged_in: loggedIn,
@@ -180,6 +203,14 @@ function saveLocalArray<T>(key: string, items: T[]): void {
   }
 }
 
+// Helper to merge local and remote arrays without duplicates
+function mergeRecordsById<T extends { id: string }>(existing: T[], incoming: T[]): T[] {
+  const map = new Map<string, T>();
+  existing.forEach((item) => map.set(item.id, item));
+  incoming.forEach((item) => map.set(item.id, item));
+  return Array.from(map.values());
+}
+
 // Queue management
 export function getOfflineQueue(): SyncQueueItem[] {
   return getLocalArray<SyncQueueItem>(STORAGE_KEYS.QUEUE);
@@ -198,7 +229,7 @@ export function clearOfflineQueue() {
   saveLocalArray(STORAGE_KEYS.QUEUE, []);
 }
 
-// Synchronize queue with Server Database (and Supabase if configured)
+// Synchronize queue with Supabase Postgres
 export async function flushOfflineQueue(): Promise<{ synced: number; failed: number }> {
   if (!getIsOnline()) {
     return { synced: 0, failed: 0 };
@@ -207,54 +238,152 @@ export async function flushOfflineQueue(): Promise<{ synced: number; failed: num
   const queue = getOfflineQueue();
   if (queue.length === 0) return { synced: 0, failed: 0 };
 
+  let authUserId: string | null = null;
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data } = await supabase.auth.getSession();
+      authUserId = data.session?.user?.id || null;
+    } catch {
+      // ignore session lookup errors
+    }
+  }
+
+  const remainingQueue: SyncQueueItem[] = [];
   let synced = 0;
   let failed = 0;
 
-  // 1. Sync with Server Database (/api/sync)
+  // 1. Sync directly to Supabase if authenticated
+  if (isSupabaseConfigured && supabase && authUserId) {
+    for (const item of queue) {
+      try {
+        if (item.action === 'insert') {
+          const payload = {
+            ...(item.payload as Record<string, unknown>),
+            user_id: authUserId,
+          };
+          const { error } = await supabase.from(item.table).upsert([payload]);
+          if (error) throw error;
+          synced++;
+        } else if (item.action === 'update') {
+          const payload = {
+            ...(item.payload as Record<string, unknown>),
+            user_id: authUserId,
+          };
+          const { error } = await supabase
+            .from(item.table)
+            .update(payload)
+            .eq('id', (item.payload as { id: string }).id)
+            .eq('user_id', authUserId);
+          if (error) throw error;
+          synced++;
+        } else if (item.action === 'delete') {
+          const { error } = await supabase
+            .from(item.table)
+            .delete()
+            .eq('id', item.id)
+            .eq('user_id', authUserId);
+          if (error) throw error;
+          synced++;
+        }
+      } catch (e) {
+        console.warn(`Supabase sync item error on ${item.table}:`, e);
+        remainingQueue.push(item);
+        failed++;
+      }
+    }
+  } else {
+    // Retain in offline queue until user is logged in with Supabase
+    remainingQueue.push(...queue);
+  }
+
+  // 2. Also ping server endpoint as graceful fallback
   try {
-    const res = await fetch('/api/sync', {
+    await fetch('/api/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: queue }),
     });
-    if (res.ok) {
-      synced += queue.length;
-    }
-  } catch (err) {
-    console.warn('Server database sync failed, will retry:', err);
-    failed++;
+  } catch {
+    // Ignore server file fallback errors on Vercel
   }
 
-  // 2. If Supabase configured, also sync to Supabase Postgres
-  if (isSupabaseConfigured && supabase) {
-    for (const item of queue) {
-      try {
-        if (item.action === 'insert') {
-          await supabase.from(item.table).insert([item.payload]);
-        } else if (item.action === 'update') {
-          const payload = item.payload as { id: string };
-          await supabase.from(item.table).update(payload).eq('id', payload.id);
-        } else if (item.action === 'delete') {
-          await supabase.from(item.table).delete().eq('id', item.id);
-        }
-      } catch (e) {
-        console.warn('Supabase sync item error:', e);
-      }
-    }
-  }
-
-  // If server sync succeeded, clear the offline queue!
-  if (synced > 0) {
-    clearOfflineQueue();
-    return { synced, failed: 0 };
-  }
-
-  return { synced: 0, failed };
+  saveLocalArray(STORAGE_KEYS.QUEUE, remainingQueue);
+  return { synced, failed };
 }
 
-// Hydrate local cache from Server Database on load
+// Hydrate local cache from Supabase Postgres
+export async function hydrateFromSupabase(targetUserId?: string): Promise<boolean> {
+  if (typeof window === 'undefined' || !getIsOnline() || !isSupabaseConfigured || !supabase) {
+    return false;
+  }
+
+  try {
+    let userId = targetUserId;
+    if (!userId) {
+      const { data } = await supabase.auth.getSession();
+      userId = data.session?.user?.id;
+    }
+    if (!userId) {
+      return false;
+    }
+
+    const [insulinRes, foodRes, activityRes, feelRes, glucoseRes] = await Promise.all([
+      supabase.from('insulin_logs').select('*').eq('user_id', userId),
+      supabase.from('food_logs').select('*').eq('user_id', userId),
+      supabase.from('activity_logs').select('*').eq('user_id', userId),
+      supabase.from('feel_logs').select('*').eq('user_id', userId),
+      supabase.from('glucose_logs').select('*').eq('user_id', userId),
+    ]);
+
+    let updatedAny = false;
+
+    if (insulinRes.data && Array.isArray(insulinRes.data)) {
+      const merged = mergeRecordsById(getInsulinLogs(), insulinRes.data as InsulinLog[]);
+      saveLocalArray(STORAGE_KEYS.INSULIN, merged);
+      updatedAny = true;
+    }
+    if (foodRes.data && Array.isArray(foodRes.data)) {
+      const merged = mergeRecordsById(getFoodLogs(), foodRes.data as FoodLog[]);
+      saveLocalArray(STORAGE_KEYS.FOOD, merged);
+      updatedAny = true;
+    }
+    if (activityRes.data && Array.isArray(activityRes.data)) {
+      const merged = mergeRecordsById(getActivityLogs(), activityRes.data as ActivityLog[]);
+      saveLocalArray(STORAGE_KEYS.ACTIVITY, merged);
+      updatedAny = true;
+    }
+    if (feelRes.data && Array.isArray(feelRes.data)) {
+      const merged = mergeRecordsById(getFeelLogs(), feelRes.data as FeelLog[]);
+      saveLocalArray(STORAGE_KEYS.FEEL, merged);
+      updatedAny = true;
+    }
+    if (glucoseRes.data && Array.isArray(glucoseRes.data)) {
+      const merged = mergeRecordsById(getGlucoseLogs(), glucoseRes.data as GlucoseLog[]);
+      saveLocalArray(STORAGE_KEYS.GLUCOSE, merged);
+      updatedAny = true;
+    }
+
+    if (updatedAny) {
+      window.dispatchEvent(new CustomEvent('t1d-data-updated'));
+    }
+    return true;
+  } catch (err) {
+    console.warn('Error hydrating from Supabase:', err);
+    return false;
+  }
+}
+
+// Hydrate local cache from Server Database / Supabase on load
 export async function hydrateFromServerDatabase(): Promise<boolean> {
   if (typeof window === 'undefined' || !getIsOnline()) return false;
+
+  // 1. First priority: hydrate from Supabase
+  if (isSupabaseConfigured && supabase) {
+    const supabaseHydrated = await hydrateFromSupabase();
+    if (supabaseHydrated) return true;
+  }
+
+  // 2. Fallback to /api/logs
   try {
     const res = await fetch('/api/logs');
     if (!res.ok) return false;
@@ -263,19 +392,19 @@ export async function hydrateFromServerDatabase(): Promise<boolean> {
 
     const db = json.data;
     if (Array.isArray(db.insulin_logs) && db.insulin_logs.length > 0) {
-      saveLocalArray(STORAGE_KEYS.INSULIN, db.insulin_logs);
+      saveLocalArray(STORAGE_KEYS.INSULIN, mergeRecordsById(getInsulinLogs(), db.insulin_logs));
     }
     if (Array.isArray(db.food_logs) && db.food_logs.length > 0) {
-      saveLocalArray(STORAGE_KEYS.FOOD, db.food_logs);
+      saveLocalArray(STORAGE_KEYS.FOOD, mergeRecordsById(getFoodLogs(), db.food_logs));
     }
     if (Array.isArray(db.activity_logs) && db.activity_logs.length > 0) {
-      saveLocalArray(STORAGE_KEYS.ACTIVITY, db.activity_logs);
+      saveLocalArray(STORAGE_KEYS.ACTIVITY, mergeRecordsById(getActivityLogs(), db.activity_logs));
     }
     if (Array.isArray(db.feel_logs) && db.feel_logs.length > 0) {
-      saveLocalArray(STORAGE_KEYS.FEEL, db.feel_logs);
+      saveLocalArray(STORAGE_KEYS.FEEL, mergeRecordsById(getFeelLogs(), db.feel_logs));
     }
     if (Array.isArray(db.glucose_logs) && db.glucose_logs.length > 0) {
-      saveLocalArray(STORAGE_KEYS.GLUCOSE, db.glucose_logs);
+      saveLocalArray(STORAGE_KEYS.GLUCOSE, mergeRecordsById(getGlucoseLogs(), db.glucose_logs));
     }
     return true;
   } catch (err) {
@@ -292,9 +421,11 @@ export function getInsulinLogs(): InsulinLog[] {
 export function saveInsulinLog(log: Omit<InsulinLog, 'id' | 'created_at'> & { id?: string }): InsulinLog {
   const existing = getInsulinLogs();
   const id = log.id || crypto.randomUUID();
+  const userId = log.user_id && log.user_id !== 'user-1' ? log.user_id : getActiveUserId();
   const fullLog: InsulinLog = {
     ...log,
     id,
+    user_id: userId,
     created_at: new Date().toISOString(),
   };
 
@@ -325,9 +456,11 @@ export function getFoodLogs(): FoodLog[] {
 export function saveFoodLog(log: Omit<FoodLog, 'id' | 'created_at'> & { id?: string }): FoodLog {
   const existing = getFoodLogs();
   const id = log.id || crypto.randomUUID();
+  const userId = log.user_id && log.user_id !== 'user-1' ? log.user_id : getActiveUserId();
   const fullLog: FoodLog = {
     ...log,
     id,
+    user_id: userId,
     created_at: new Date().toISOString(),
   };
 
@@ -358,9 +491,11 @@ export function getActivityLogs(): ActivityLog[] {
 export function saveActivityLog(log: Omit<ActivityLog, 'id' | 'created_at'> & { id?: string }): ActivityLog {
   const existing = getActivityLogs();
   const id = log.id || crypto.randomUUID();
+  const userId = log.user_id && log.user_id !== 'user-1' ? log.user_id : getActiveUserId();
   const fullLog: ActivityLog = {
     ...log,
     id,
+    user_id: userId,
     created_at: new Date().toISOString(),
   };
 
@@ -391,9 +526,11 @@ export function getFeelLogs(): FeelLog[] {
 export function saveFeelLog(log: Omit<FeelLog, 'id' | 'created_at'> & { id?: string }): FeelLog {
   const existing = getFeelLogs();
   const id = log.id || crypto.randomUUID();
+  const userId = log.user_id && log.user_id !== 'user-1' ? log.user_id : getActiveUserId();
   const fullLog: FeelLog = {
     ...log,
     id,
+    user_id: userId,
     created_at: new Date().toISOString(),
   };
 
@@ -424,9 +561,11 @@ export function getGlucoseLogs(): GlucoseLog[] {
 export function saveGlucoseLog(log: Omit<GlucoseLog, 'id' | 'created_at'> & { id?: string }): GlucoseLog {
   const existing = getGlucoseLogs();
   const id = log.id || crypto.randomUUID();
+  const userId = log.user_id && log.user_id !== 'user-1' ? log.user_id : getActiveUserId();
   const fullLog: GlucoseLog = {
     ...log,
     id,
+    user_id: userId,
     created_at: new Date().toISOString(),
   };
 

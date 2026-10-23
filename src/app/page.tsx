@@ -14,6 +14,8 @@ import {
   getInsulinLogs,
   getAllLoggedDates,
   getSettings,
+  getActiveUserId,
+  hydrateFromSupabase,
   saveInsulinLog,
   saveFeelLog,
   deleteInsulinLog,
@@ -166,6 +168,9 @@ export default function QuickLogPage() {
   useEffect(() => {
     setMounted(true);
     refreshData();
+    hydrateFromSupabase().then(() => {
+      refreshData();
+    });
 
     const handleOpenQuickLog = () => {
       const el = document.getElementById('feel-section');
@@ -214,7 +219,7 @@ export default function QuickLogPage() {
           : (settings.night_meal_note || 'Administered before dinner');
 
       saveInsulinLog({
-        user_id: 'user-1',
+        user_id: getActiveUserId(),
         log_date: todayStr,
         log_time: actualCurrentTime,
         insulin_type: type,
@@ -261,7 +266,7 @@ export default function QuickLogPage() {
 
   const handleSaveSensoryFeel = () => {
     saveFeelLog({
-      user_id: 'user-1',
+      user_id: getActiveUserId(),
       log_date: todayStr,
       log_time: getCurrentTimeIST(),
       feel: selectedFeel,

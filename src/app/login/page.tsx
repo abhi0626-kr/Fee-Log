@@ -3,7 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getSettings, setUserLoggedIn, isUserLoggedIn } from '@/lib/sync-storage';
+import {
+  getSettings,
+  setUserLoggedIn,
+  isUserLoggedIn,
+  hydrateFromSupabase,
+  flushOfflineQueue,
+} from '@/lib/sync-storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { UserSettings } from '@/types';
 
@@ -12,7 +18,9 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
   const [nameInput, setNameInput] = useState('');
   const [isEditingAccount, setIsEditingAccount] = useState(false);
   const [feedback, setFeedback] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -28,7 +36,6 @@ export default function LoginPage() {
       setNameInput(s.display_name);
     }
 
-    // Check if user is returning from an active OAuth redirect callback
     const isOAuthRedirect =
       typeof window !== 'undefined' &&
       (window.location.hash.includes('access_token') ||
@@ -37,7 +44,7 @@ export default function LoginPage() {
 
     // Check real Supabase OAuth session on redirect/load
     if (isSupabaseConfigured && supabase) {
-      supabase.auth.getSession().then(({ data }) => {
+      supabase.auth.getSession().then(async ({ data }) => {
         if (data.session?.user) {
           const u = data.session.user;
           const realEmail = u.email || '';
@@ -45,6 +52,7 @@ export default function LoginPage() {
           const updated = setUserLoggedIn(true, {
             email: realEmail,
             display_name: realName,
+            user_id: u.id,
             avatar_url: u.user_metadata?.avatar_url || s.avatar_url,
             auth_provider: 'google',
           });
@@ -52,11 +60,14 @@ export default function LoginPage() {
           setEmailInput(realEmail);
           setNameInput(realName);
 
-          // ONLY auto-redirect if this was an active OAuth callback flow, NOT when visiting to manage account/logout
+          // Hydrate user data from Supabase
+          await hydrateFromSupabase(u.id);
+          await flushOfflineQueue();
+
           if (isOAuthRedirect) {
             sessionStorage.removeItem('t1d_oauth_in_progress');
             setFeedback({
-              text: `Signed in successfully via Google as ${realEmail}! Redirecting...`,
+              text: `Signed in successfully as ${realEmail}! Redirecting...`,
               type: 'success',
             });
             setTimeout(() => {
@@ -66,7 +77,7 @@ export default function LoginPage() {
         }
       });
 
-      const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (session?.user) {
           const u = session.user;
           const realEmail = u.email || '';
@@ -74,12 +85,16 @@ export default function LoginPage() {
           const updated = setUserLoggedIn(true, {
             email: realEmail,
             display_name: realName,
+            user_id: u.id,
             avatar_url: u.user_metadata?.avatar_url || s.avatar_url,
-            auth_provider: 'google',
+            auth_provider: session.provider_token ? 'google' : 'email',
           });
           setSettings(updated);
           setEmailInput(realEmail);
           setNameInput(realName);
+
+          await hydrateFromSupabase(u.id);
+          await flushOfflineQueue();
 
           if (event === 'SIGNED_IN' && isOAuthRedirect) {
             sessionStorage.removeItem('t1d_oauth_in_progress');
@@ -116,7 +131,7 @@ export default function LoginPage() {
             sessionStorage.removeItem('t1d_oauth_in_progress');
           }
           setFeedback({
-            text: `Google OAuth is not enabled in your Supabase dashboard yet (${error.message}). Please enter your email directly below to sign in!`,
+            text: `Google OAuth is not enabled in your Supabase dashboard yet (${error.message}). You can use Email & Password below!`,
             type: 'info',
           });
           setLoading(false);
@@ -129,7 +144,7 @@ export default function LoginPage() {
         }
         const msg = err instanceof Error ? err.message : String(err);
         setFeedback({
-          text: `Unable to open Google login (${msg}). You can enter your email directly below.`,
+          text: `Unable to open Google login (${msg}). You can sign in with Email & Password below.`,
           type: 'error',
         });
         setLoading(false);
@@ -141,46 +156,166 @@ export default function LoginPage() {
       sessionStorage.removeItem('t1d_oauth_in_progress');
     }
     setFeedback({
-      text: 'Supabase credentials are not connected. Please enter your email directly below to log in!',
+      text: 'Supabase credentials are not connected.',
       type: 'info',
     });
     setLoading(false);
   };
 
-  // 2. Direct Sign In with Real Email
-  const handleDirectEmailSignIn = (e: React.FormEvent) => {
+  // 2. Email & Password Sign In
+  const handleEmailSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanEmail = emailInput.trim();
+    if (!cleanEmail || !passwordInput) {
+      setFeedback({ text: 'Please enter both your email and password.', type: 'error' });
+      return;
+    }
+
+    if (!isSupabaseConfigured || !supabase) {
+      setFeedback({ text: 'Supabase is not configured yet.', type: 'error' });
+      return;
+    }
+
+    setLoading(true);
+    setFeedback(null);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: passwordInput,
+      });
+
+      if (error) {
+        if (error.message.toLowerCase().includes('email not confirmed')) {
+          setFeedback({
+            text: 'Your email address is not confirmed yet. Please verify your email inbox or disable "Confirm email" in your Supabase dashboard (Authentication -> Providers -> Email).',
+            type: 'error',
+          });
+        } else if (error.message.toLowerCase().includes('invalid login credentials')) {
+          setFeedback({
+            text: 'Invalid email or password. If you do not have an account yet, switch to "Create Account" below.',
+            type: 'error',
+          });
+        } else {
+          setFeedback({ text: error.message, type: 'error' });
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (data.user) {
+        const u = data.user;
+        const realName = u.user_metadata?.full_name || nameInput || 'Feelog User';
+        const updated = setUserLoggedIn(true, {
+          email: u.email || cleanEmail,
+          display_name: realName,
+          user_id: u.id,
+          auth_provider: 'email',
+        });
+        setSettings(updated);
+        setFeedback({
+          text: `Signed in successfully as ${u.email}! Restoring your diabetes logs...`,
+          type: 'success',
+        });
+
+        // Hydrate all logs from Supabase
+        await hydrateFromSupabase(u.id);
+        await flushOfflineQueue();
+
+        setTimeout(() => {
+          router.push('/');
+        }, 800);
+      }
+    } catch (err) {
+      setFeedback({
+        text: `Sign in error: ${err instanceof Error ? err.message : String(err)}`,
+        type: 'error',
+      });
+      setLoading(false);
+    }
+  };
+
+  // 3. Email & Password Sign Up
+  const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanEmail = emailInput.trim();
     const cleanName = nameInput.trim();
 
-    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
-      setFeedback({
-        text: 'Please enter a valid email address (e.g. yourname@gmail.com).',
-        type: 'error',
-      });
+    if (!cleanEmail || !passwordInput) {
+      setFeedback({ text: 'Please enter both email and password.', type: 'error' });
       return;
     }
 
-    const current = getSettings();
-    const updated = setUserLoggedIn(true, {
-      email: cleanEmail,
-      display_name: cleanName || current.display_name || 'Feelog User',
-      auth_provider: 'google',
-    });
+    if (passwordInput.length < 6) {
+      setFeedback({ text: 'Password must be at least 6 characters long.', type: 'error' });
+      return;
+    }
 
-    setSettings(updated);
-    setIsEditingAccount(false);
-    setFeedback({
-      text: `Signed in successfully as ${cleanEmail}!`,
-      type: 'success',
-    });
+    if (!isSupabaseConfigured || !supabase) {
+      setFeedback({ text: 'Supabase is not configured yet.', type: 'error' });
+      return;
+    }
 
-    setTimeout(() => {
-      router.push('/');
-    }, 800);
+    setLoading(true);
+    setFeedback(null);
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password: passwordInput,
+        options: {
+          data: {
+            full_name: cleanName || 'Feelog User',
+          },
+        },
+      });
+
+      if (error) {
+        setFeedback({ text: error.message, type: 'error' });
+        setLoading(false);
+        return;
+      }
+
+      if (data.session && data.user) {
+        // Email confirmation is disabled; immediately signed in!
+        const u = data.user;
+        const updated = setUserLoggedIn(true, {
+          email: u.email || cleanEmail,
+          display_name: cleanName || 'Feelog User',
+          user_id: u.id,
+          auth_provider: 'email',
+        });
+        setSettings(updated);
+        setFeedback({
+          text: `Account created & signed in! Synchronizing your data...`,
+          type: 'success',
+        });
+
+        await hydrateFromSupabase(u.id);
+        await flushOfflineQueue();
+
+        setTimeout(() => {
+          router.push('/');
+        }, 800);
+      } else if (data.user) {
+        // Confirmation email sent
+        setFeedback({
+          text: `Account created for ${cleanEmail}! Please check your email to confirm, or turn off "Confirm email" in your Supabase dashboard (Authentication -> Providers -> Email) to sign in instantly.`,
+          type: 'info',
+        });
+        setAuthMode('signin');
+        setLoading(false);
+      }
+    } catch (err) {
+      setFeedback({
+        text: `Sign up error: ${err instanceof Error ? err.message : String(err)}`,
+        type: 'error',
+      });
+      setLoading(false);
+    }
   };
 
-  // 3. Offline-First Guest Mode
+  // 4. Offline-First Guest Mode
   const handleGuestSignIn = () => {
     const updated = setUserLoggedIn(true, {
       auth_provider: 'guest',
@@ -188,7 +323,7 @@ export default function LoginPage() {
     });
     setSettings(updated);
     setFeedback({
-      text: 'Signed in via Private Offline Mode. Everything stays on your device.',
+      text: 'Signed in via Private Offline Mode. Everything stays on this browser.',
       type: 'info',
     });
     setTimeout(() => {
@@ -196,7 +331,7 @@ export default function LoginPage() {
     }, 600);
   };
 
-  // 4. Complete Sign Out
+  // 5. Complete Sign Out
   const handleSignOut = async () => {
     setLoading(true);
     if (isSupabaseConfigured && supabase) {
@@ -209,10 +344,12 @@ export default function LoginPage() {
     const updated = setUserLoggedIn(false, {
       auth_provider: 'guest',
       email: '',
+      user_id: undefined,
       is_logged_in: false,
     });
     setSettings(updated);
     setEmailInput('');
+    setPasswordInput('');
     setNameInput('');
     setIsEditingAccount(false);
     setLoading(false);
@@ -277,8 +414,8 @@ export default function LoginPage() {
           </h1>
           <p className="text-xs sm:text-sm text-on-surface-variant mt-1.5 leading-relaxed">
             {loggedIn
-              ? 'You are signed in. Your diabetes rhythm logs, custom insulin brands, and settings are active.'
-              : 'Sign in to access your diabetes diary and automatically synchronize your regimen.'}
+              ? 'You are signed in. Your doses, sensory logs, and history sync seamlessly with your database.'
+              : 'Sign in to access your diabetes diary and synchronize all logs across devices & URLs.'}
           </p>
         </div>
 
@@ -311,12 +448,14 @@ export default function LoginPage() {
                     <span className="text-sm font-bold text-on-surface truncate">
                       {settings?.display_name || 'Feelog User'}
                     </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[0.65rem] font-bold border ${
-                      hasEmail
-                        ? 'bg-primary/20 text-primary border-primary/30'
-                        : 'bg-surface-container-high text-on-surface-variant border-white/10'
-                    }`}>
-                      {hasEmail ? 'Google Account' : 'Offline Guest'}
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[0.65rem] font-bold border ${
+                        hasEmail
+                          ? 'bg-primary/20 text-primary border-primary/30'
+                          : 'bg-surface-container-high text-on-surface-variant border-white/10'
+                      }`}
+                    >
+                      {hasEmail ? 'Supabase Account' : 'Offline Guest'}
                     </span>
                   </div>
                   <div className="text-xs text-on-surface-variant font-mono truncate mt-0.5">
@@ -324,7 +463,7 @@ export default function LoginPage() {
                   </div>
                   <div className="text-[0.68rem] text-primary mt-1 font-medium flex items-center gap-1">
                     <span className="material-symbols-outlined text-[0.875rem]">cloud_done</span>
-                    <span>{hasEmail ? 'Account Connected & Synced' : 'Offline Private Storage Active'}</span>
+                    <span>{hasEmail ? 'Database Connected & Synced' : 'Offline Private Storage Active'}</span>
                   </div>
                 </div>
               </div>
@@ -341,11 +480,18 @@ export default function LoginPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setIsEditingAccount(true)}
+                    onClick={async () => {
+                      setLoading(true);
+                      await hydrateFromSupabase();
+                      await flushOfflineQueue();
+                      setLoading(false);
+                      setFeedback({ text: 'Data refreshed from Supabase!', type: 'success' });
+                    }}
+                    disabled={loading}
                     className="py-2.5 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface font-semibold text-xs transition-all border border-white/5 flex items-center justify-center gap-1.5"
                   >
-                    <span className="material-symbols-outlined text-sm">edit</span>
-                    <span>{hasEmail ? 'Edit Email' : 'Link Real Email'}</span>
+                    <span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>sync</span>
+                    <span>Sync Now</span>
                   </button>
 
                   <Link
@@ -369,7 +515,7 @@ export default function LoginPage() {
               </div>
             </div>
           ) : (
-            /* Sign In / Edit Form */
+            /* Sign In / Sign Up Form */
             <div className="space-y-5">
               {isEditingAccount && (
                 <div className="flex items-center justify-between pb-3 border-b border-white/10">
@@ -391,7 +537,6 @@ export default function LoginPage() {
                 disabled={loading}
                 className="w-full py-3.5 px-4 rounded-2xl bg-white text-slate-900 hover:bg-slate-100 font-bold text-xs sm:text-sm transition-all shadow-lg shadow-black/20 flex items-center justify-center gap-3 active:scale-95 cursor-pointer disabled:opacity-60"
               >
-                {/* Official Google multicolored G SVG */}
                 <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
                   <path
                     fill="#4285F4"
@@ -416,46 +561,107 @@ export default function LoginPage() {
               <div className="flex items-center gap-3 my-2">
                 <div className="flex-1 h-px bg-white/10"></div>
                 <span className="text-[10px] uppercase tracking-wider text-on-surface-variant font-semibold">
-                  or sign in with your email
+                  or with email &amp; password
                 </span>
                 <div className="flex-1 h-px bg-white/10"></div>
               </div>
 
-              {/* 2. Direct Email Form */}
-              <form onSubmit={handleDirectEmailSignIn} className="space-y-3.5">
+              {/* Mode Toggle Tabs: Sign In vs Create Account */}
+              <div className="flex p-1 rounded-xl bg-surface-container border border-white/5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('signin');
+                    setFeedback(null);
+                  }}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    authMode === 'signin'
+                      ? 'bg-primary-container text-on-primary shadow-sm'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('signup');
+                    setFeedback(null);
+                  }}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    authMode === 'signup'
+                      ? 'bg-primary-container text-on-primary shadow-sm'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  Create Account
+                </button>
+              </div>
+
+              {/* 2. Supabase Email + Password Form */}
+              <form
+                onSubmit={authMode === 'signin' ? handleEmailSignIn : handleEmailSignUp}
+                className="space-y-3.5"
+              >
+                {authMode === 'signup' && (
+                  <div>
+                    <label className="text-[11px] font-semibold text-on-surface-variant block mb-1">
+                      Your Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value)}
+                      placeholder="e.g. Abhishek KR"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container border border-white/10 text-on-surface text-xs sm:text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-on-surface-variant/40"
+                    />
+                  </div>
+                )}
+
                 <div>
                   <label className="text-[11px] font-semibold text-on-surface-variant block mb-1">
-                    Your Real Google / Email Address <span className="text-primary">*</span>
+                    Email Address <span className="text-primary">*</span>
                   </label>
                   <input
                     type="email"
                     required
                     value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)}
-                    placeholder="e.g. yourname@gmail.com"
+                    placeholder="e.g. abhishek636kr@gmail.com"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container border border-white/10 text-on-surface text-xs sm:text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-on-surface-variant/40"
                   />
                 </div>
 
                 <div>
                   <label className="text-[11px] font-semibold text-on-surface-variant block mb-1">
-                    Your Full Name
+                    Password <span className="text-primary">*</span>
                   </label>
                   <input
-                    type="text"
-                    value={nameInput}
-                    onChange={(e) => setNameInput(e.target.value)}
-                    placeholder="e.g. Abhishek"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container border border-white/10 text-on-surface text-xs sm:text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-on-surface-variant/40"
+                    type="password"
+                    required
+                    minLength={6}
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    placeholder="Enter your password (min 6 characters)"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container border border-white/10 text-on-surface text-xs sm:text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-on-surface-variant/40"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-3 rounded-full bg-primary text-on-primary font-bold text-xs transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 cursor-pointer mt-1"
+                  disabled={loading}
+                  className="w-full py-3 rounded-full bg-primary text-on-primary font-bold text-xs transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 cursor-pointer mt-1 disabled:opacity-60"
                 >
-                  <span className="material-symbols-outlined text-sm">login</span>
-                  <span>{isEditingAccount ? 'Save Account Details' : 'Sign In with This Email'}</span>
+                  <span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>
+                    {loading ? 'sync' : authMode === 'signin' ? 'login' : 'person_add'}
+                  </span>
+                  <span>
+                    {loading
+                      ? 'Authenticating...'
+                      : authMode === 'signin'
+                      ? 'Sign In with Password'
+                      : 'Create Account & Sync'}
+                  </span>
                 </button>
               </form>
 
@@ -476,7 +682,7 @@ export default function LoginPage() {
                     className="w-full py-2.5 px-4 rounded-2xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface font-semibold text-xs transition-all border border-white/5 active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-secondary text-base">cloud_off</span>
-                    <span>Continue in Private Offline Mode (No Email)</span>
+                    <span>Continue in Private Offline Mode (No Account)</span>
                   </button>
                 </>
               )}
@@ -484,12 +690,12 @@ export default function LoginPage() {
           )}
         </div>
 
-        {/* T1D Privacy & Medical Guarantee */}
+        {/* T1D Privacy & Database Guarantee */}
         <div className="mt-6 p-4 rounded-2xl bg-surface-container-lowest/70 border border-white/5 backdrop-blur-md text-left flex items-start gap-3">
           <span className="material-symbols-outlined text-secondary text-lg mt-0.5 shrink-0">verified_user</span>
           <div className="text-[11px] text-on-surface-variant leading-relaxed">
-            <span className="text-on-surface font-bold block mb-0.5">Strict Privacy &amp; Data Ownership</span>
-            Feelog remembers your login across browser visits so you never lose access to your daily logs. All doses and symptoms are stored securely on this device.
+            <span className="text-on-surface font-bold block mb-0.5">Cloud Database Sync &amp; Privacy</span>
+            Feelog encrypts and locks all your diabetes rhythm logs to your individual Supabase user account via Row-Level Security (RLS). You can access your complete logs from any browser or phone by logging in.
           </div>
         </div>
       </div>

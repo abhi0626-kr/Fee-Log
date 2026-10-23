@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { ActivityType, IntensityType, ActivityLog } from '@/types';
 import { getCurrentTimeIST } from '@/lib/date-utils';
-import { saveActivityLog } from '@/lib/sync-storage';
+import { saveActivityLog, getActiveUserId } from '@/lib/sync-storage';
 
 interface ActivitySheetProps {
   isOpen: boolean;
@@ -61,7 +61,7 @@ export default function ActivitySheet({
 
     saveActivityLog({
       id: initialData?.id,
-      user_id: initialData?.user_id || 'user-1',
+      user_id: initialData?.user_id || getActiveUserId(),
       log_date: dateStr,
       log_time: logTime,
       activity_type: activityType,

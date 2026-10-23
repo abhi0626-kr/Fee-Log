@@ -99,10 +99,11 @@ export interface UnifiedLogItem {
 
 export interface UserSettings {
   // Personal & Identity
+  user_id?: string;
   display_name: string;
   email?: string;
   avatar_url?: string;
-  auth_provider?: 'google' | 'guest';
+  auth_provider?: 'google' | 'email' | 'guest';
   is_logged_in?: boolean;
   age?: number;
   gender?: string;

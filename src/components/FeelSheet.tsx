@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { FeelLevel, FeelLog } from '@/types';
 import { getCurrentTimeIST } from '@/lib/date-utils';
-import { saveFeelLog } from '@/lib/sync-storage';
+import { saveFeelLog, getActiveUserId } from '@/lib/sync-storage';
 
 interface FeelSheetProps {
   isOpen: boolean;
@@ -115,7 +115,7 @@ export default function FeelSheet({
 
     saveFeelLog({
       id: initialData?.id,
-      user_id: initialData?.user_id || 'user-1',
+      user_id: initialData?.user_id || getActiveUserId(),
       log_date: dateStr,
       log_time: logTime,
       feel,
