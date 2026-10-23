@@ -19,16 +19,33 @@ export default function DeleteConfirmModal({
   title = 'Delete Log Entry',
   message = 'Are you sure you want to delete this log entry? This action cannot be undone.',
 }: DeleteConfirmModalProps) {
-  if (!isOpen) return null;
-
-  const handleClose = () => {
+  const handleClose = React.useCallback(() => {
     if (onCancel) onCancel();
     else if (onClose) onClose();
-  };
+  }, [onCancel, onClose]);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, handleClose]);
+
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
-      <div className="bg-surface-container/95 border border-white/10 text-on-surface w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 duration-150">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-surface-container/95 border border-white/10 text-on-surface w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 duration-150"
+      >
         <div className="flex items-center justify-between mb-4">
           <div className="w-10 h-10 rounded-full bg-error-container/20 text-error border border-error/20 flex items-center justify-center">
             <span className="material-symbols-outlined text-xl">delete</span>

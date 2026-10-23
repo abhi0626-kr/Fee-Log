@@ -44,6 +44,15 @@ export default function ActivitySheet({
     }
   }, [isOpen, initialData]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -79,10 +88,18 @@ export default function ActivitySheet({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-md p-0 sm:p-4">
-      <div className="bg-surface-container/95 border border-white/10 text-on-surface w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom-6 duration-200">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-surface-container/95 border border-white/10 text-on-surface w-full max-w-lg rounded-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-150"
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-container-high">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-surface-container-high shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-secondary-container/20 text-secondary border border-secondary/20 flex items-center justify-center">
               <span className="material-symbols-outlined text-xl">directions_run</span>
@@ -97,9 +114,11 @@ export default function ActivitySheet({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
+            className="px-3 py-1.5 rounded-full flex items-center gap-1 text-xs font-semibold bg-surface-container-high hover:bg-surface-bright text-on-surface-variant hover:text-on-surface transition-colors border border-white/5 cursor-pointer"
+            title="Cancel and close"
           >
-            ✕
+            <span className="material-symbols-outlined text-sm">close</span>
+            <span>Cancel</span>
           </button>
         </div>
 
@@ -223,10 +242,17 @@ export default function ActivitySheet({
             />
           </div>
 
-          <div className="pt-2">
+          <div className="pt-2 flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface font-semibold text-xs sm:text-sm transition-all border border-white/10 active:scale-95 cursor-pointer text-center"
+            >
+              Cancel
+            </button>
             <button
               type="submit"
-              className="w-full py-3 rounded-full bg-secondary-container text-on-secondary-container hover:bg-secondary hover:text-on-secondary font-bold text-sm shadow-lg transition-all active:scale-95"
+              className="flex-[2] py-3 rounded-full bg-secondary-container text-on-secondary-container hover:bg-secondary hover:text-on-secondary font-bold text-xs sm:text-sm shadow-lg transition-all active:scale-95 cursor-pointer"
             >
               {initialData ? 'Update Activity Log' : 'Save Activity Log'}
             </button>
