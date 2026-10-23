@@ -25,11 +25,43 @@ const STORAGE_KEYS = {
 
 export const DEFAULT_SETTINGS: UserSettings = {
   display_name: 'Abhishek',
+  email: '',
+  auth_provider: 'guest',
+  age: 20,
+  gender: 'Male',
   height_cm: 173,
   weight_kg: 58,
-  morning_regular_units: 20,
-  night_30_70_units: 25,
+
+  city: 'Bangalore',
+  residence_area: 'Koramangala PG',
+  native_location: 'Coimbatore, Tamil Nadu',
+  lifestyle_note: 'Studying & Running away from native Tamil Nadu',
   timezone: 'Asia/Kolkata',
+
+  doctor_name: 'Dr. S. Ramanathan, MD',
+  doctor_phone: '+91 98420 12345',
+  clinic_name: 'Coimbatore Endocrine Clinic / Manipal BLR',
+  emergency_contact_name: 'Parent / Friend',
+  emergency_contact_phone: '+91 98765 43210',
+
+  morning_insulin_brand: 'Regular (R)',
+  morning_regular_units: 20,
+  morning_target_time: '08:00',
+  morning_meal_note: 'Before breakfast (Idly / Dosa)',
+
+  midday_insulin_brand: 'Regular (R)',
+  afternoon_regular_units: 10,
+  midday_target_time: '13:30',
+  midday_meal_note: 'Before lunch / body condition',
+
+  night_insulin_brand: '30/70 Biphasic Mix',
+  night_30_70_units: 25,
+  night_target_time: '20:30',
+  night_meal_note: 'Before dinner (Chapati / Rice)',
+
+  correction_insulin_brand: 'Regular (R)',
+  correction_default_units: 4,
+
   activity_chips: DEFAULT_ACTIVITY_CHIPS.map((a) => a.label),
   food_chips: COMMON_FOOD_CHIPS,
 };
@@ -52,7 +84,18 @@ export function getSettings(): UserSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     if (!raw) return DEFAULT_SETTINGS;
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    // Automatic cleanup: clear placeholder mock email so user can use their real email
+    if (parsed.email === 'abhishek@gmail.com') {
+      parsed.email = '';
+      parsed.auth_provider = 'guest';
+      try {
+        localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify({ ...DEFAULT_SETTINGS, ...parsed }));
+      } catch {
+        // ignore
+      }
+    }
+    return { ...DEFAULT_SETTINGS, ...parsed };
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -63,6 +106,7 @@ export function saveSettings(settings: Partial<UserSettings>): UserSettings {
   const updated = { ...current, ...settings };
   if (typeof window !== 'undefined') {
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('t1d-data-updated'));
   }
   return updated;
 }
@@ -94,6 +138,7 @@ function saveLocalArray<T>(key: string, items: T[]): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(key, JSON.stringify(items));
+    window.dispatchEvent(new CustomEvent('t1d-data-updated'));
   } catch (err) {
     console.error(`Failed to save to localStorage for key ${key}:`, err);
   }

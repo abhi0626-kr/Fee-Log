@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { WifiOff, RefreshCw, CheckCircle2 } from 'lucide-react';
 import {
   getOfflineQueue,
   flushOfflineQueue,
@@ -76,18 +75,18 @@ export default function SyncBanner() {
 
   if (showSyncedNotice) {
     return (
-      <div className="bg-emerald-600 text-white text-xs px-3 py-1.5 flex items-center justify-center gap-1.5 font-bold transition-all shadow-sm">
-        <CheckCircle2 className="w-3.5 h-3.5" />
-        Synced to database ✓
+      <div className="fixed top-0 left-0 right-0 z-[60] bg-primary-container text-on-primary text-xs px-3 py-1 flex items-center justify-center gap-1.5 font-bold transition-all shadow-md">
+        <span className="material-symbols-outlined text-[14px]">check_circle</span>
+        <span>Synced to database ✓</span>
       </div>
     );
   }
 
   if (!online) {
     return (
-      <div className="bg-amber-600 text-white text-xs px-3 py-1.5 flex items-center justify-center gap-1.5 font-medium shadow-sm">
-        <WifiOff className="w-3.5 h-3.5" />
-        Offline mode — logs saved locally and will sync when connected
+      <div className="fixed top-0 left-0 right-0 z-[60] bg-tertiary-container text-on-tertiary-container text-xs px-3 py-1 flex items-center justify-center gap-1.5 font-medium shadow-md">
+        <span className="material-symbols-outlined text-[14px]">wifi_off</span>
+        <span>Offline mode — logs saved locally and will sync when connected</span>
       </div>
     );
   }
@@ -97,14 +96,12 @@ export default function SyncBanner() {
       <button
         type="button"
         onClick={() => doSync()}
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 flex items-center justify-center gap-1.5 font-medium transition-colors cursor-pointer"
+        className="fixed top-0 left-0 right-0 z-[60] bg-secondary-container text-on-secondary-container text-xs px-3 py-1 flex items-center justify-center gap-1.5 font-bold transition-colors cursor-pointer shadow-md"
       >
-        <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-        <span>
-          {isSyncing
-            ? 'Saving to database...'
-            : `${queueCount} log${queueCount > 1 ? 's' : ''} queued — tap to sync now`}
+        <span className={`material-symbols-outlined text-[14px] ${isSyncing ? 'animate-spin' : ''}`}>
+          sync
         </span>
+        <span>{isSyncing ? 'Syncing data...' : `${queueCount} local updates pending — tap to sync`}</span>
       </button>
     );
   }

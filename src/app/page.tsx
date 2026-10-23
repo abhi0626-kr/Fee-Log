@@ -1,39 +1,26 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Flame,
-  Utensils,
-  Activity as ActivityIcon,
-  HeartPulse,
-  Droplets,
-  Syringe,
-  CheckCircle2,
-  Clock,
-  X,
-  Edit2,
-  Trash2,
-} from 'lucide-react';
+import Link from 'next/link';
 import {
   getTodayIST,
   formatISTDate,
   formatISTTime,
+  getCurrentTimeIST,
   calculateStreak,
 } from '@/lib/date-utils';
 import {
   getUnifiedLogsForDate,
   getInsulinLogs,
-  getGlucoseLogs,
   getAllLoggedDates,
   getSettings,
   saveInsulinLog,
+  saveFeelLog,
   deleteInsulinLog,
   deleteFoodLog,
   deleteActivityLog,
   deleteFeelLog,
   deleteGlucoseLog,
-  isGlucosePromptDismissedToday,
-  dismissGlucosePromptToday,
   seedRealisticPGData,
   DEFAULT_SETTINGS,
 } from '@/lib/sync-storage';
@@ -45,7 +32,8 @@ import {
   ActivityLog,
   FeelLog,
   GlucoseLog,
-  FEEL_COLORS,
+  FeelLevel,
+  InsulinType,
 } from '@/types';
 import FoodSheet from '@/components/FoodSheet';
 import ActivitySheet from '@/components/ActivitySheet';
@@ -54,6 +42,64 @@ import GlucoseSheet from '@/components/GlucoseSheet';
 import InsulinSheet from '@/components/InsulinSheet';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 
+interface FeelConfig {
+  id: FeelLevel;
+  emoji: string;
+  title: string;
+  subtitle: string;
+  dotColor: string;
+  glowColor: string;
+  symptoms: string[];
+}
+
+const FEEL_CONFIGS: Record<FeelLevel, FeelConfig> = {
+  low: {
+    id: 'low',
+    emoji: '📉',
+    title: 'Low',
+    subtitle: 'Under ~70 mg/dL feeling',
+    dotColor: 'bg-error shadow-[0_0_8px_rgba(255,180,171,0.8)]',
+    glowColor: 'rgba(255,180,171,0.2)',
+    symptoms: ['Shaky', 'Cold Sweats', 'Dizziness', 'Sudden Hunger', 'Brain Fog', 'Fast Pulse'],
+  },
+  slightly_low: {
+    id: 'slightly_low',
+    emoji: '🔻',
+    title: 'Slightly Low',
+    subtitle: 'Dipping early signs',
+    dotColor: 'bg-tertiary shadow-[0_0_8px_rgba(255,185,95,0.8)]',
+    glowColor: 'rgba(255,185,95,0.2)',
+    symptoms: ['Mild Tremor', 'Yawning', 'Heavy Legs', 'Anxious Sensation', 'Light Sweating'],
+  },
+  okay: {
+    id: 'okay',
+    emoji: '✨',
+    title: 'Okay',
+    subtitle: 'Balanced & In-Range',
+    dotColor: 'bg-primary shadow-[0_0_12px_rgba(78,222,163,0.9)]',
+    glowColor: 'rgba(78,222,163,0.2)',
+    symptoms: ['High Energy', 'Clear Head', 'Good Focus', 'Calm Pulse', 'Post-Run Endorphins'],
+  },
+  slightly_high: {
+    id: 'slightly_high',
+    emoji: '☕',
+    title: 'Slightly High',
+    subtitle: 'Post-meal elevation',
+    dotColor: 'bg-tertiary-container shadow-[0_0_10px_rgba(226,145,0,0.8)]',
+    glowColor: 'rgba(226,145,0,0.25)',
+    symptoms: ['Sluggish', 'Mild Thirst', 'Heavy Eyes', 'PG Mess Rice Aftermath', 'Restless', 'Headache'],
+  },
+  high: {
+    id: 'high',
+    emoji: '🔥',
+    title: 'High',
+    subtitle: 'Significant spike',
+    dotColor: 'bg-tertiary-container shadow-[0_0_12px_rgba(226,145,0,0.9)]',
+    glowColor: 'rgba(226,145,0,0.3)',
+    symptoms: ['Extreme Thirst', 'Dry Mouth', 'Very Heavy Eyes', 'Brain Fog', 'Frequent Urination', 'Fatigue'],
+  },
+};
+
 export default function QuickLogPage() {
   const [mounted, setMounted] = useState<boolean>(false);
   const [todayStr] = useState<string>(getTodayIST());
@@ -61,24 +107,32 @@ export default function QuickLogPage() {
   const [todayInsulinLogs, setTodayInsulinLogs] = useState<InsulinLog[]>([]);
   const [streak, setStreak] = useState<number>(0);
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
-  const [showGlucosePrompt, setShowGlucosePrompt] = useState<boolean>(false);
 
-  // Modal states
+  // Dynamic day-to-day adjustable dose units
+  const [morningUnits, setMorningUnits] = useState<number>(20);
+  const [afternoonUnits, setAfternoonUnits] = useState<number>(10);
+  const [nightUnits, setNightUnits] = useState<number>(25);
+
+  // Sensory Feel Deck state
+  const [selectedFeel, setSelectedFeel] = useState<FeelLevel>('slightly_high');
+  const [selectedChips, setSelectedChips] = useState<string[]>(['Sluggish', 'Mild Thirst']);
+  const [feelNote, setFeelNote] = useState<string>('After PG mess lunch + sweet filter coffee at canteen');
+  const [feelSavedToast, setFeelSavedToast] = useState<string | null>(null);
+
+  // Modal Sheet states
   const [isFoodOpen, setIsFoodOpen] = useState(false);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [isFeelOpen, setIsFeelOpen] = useState(false);
   const [isGlucoseOpen, setIsGlucoseOpen] = useState(false);
   const [isInsulinOpen, setIsInsulinOpen] = useState(false);
-  const [insulinModalType, setInsulinModalType] = useState<'morning_regular' | 'night_30_70'>('morning_regular');
+  const [insulinModalType, setInsulinModalType] = useState<InsulinType>('morning_regular');
 
-  // Editing state
+  // Editing targets
   const [editingFood, setEditingFood] = useState<FoodLog | null>(null);
   const [editingActivity, setEditingActivity] = useState<ActivityLog | null>(null);
   const [editingFeel, setEditingFeel] = useState<FeelLog | null>(null);
   const [editingGlucose, setEditingGlucose] = useState<GlucoseLog | null>(null);
   const [editingInsulin, setEditingInsulin] = useState<InsulinLog | null>(null);
-
-  // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<UnifiedLogItem | null>(null);
 
   const refreshData = useCallback(() => {
@@ -89,44 +143,133 @@ export default function QuickLogPage() {
     setTodayInsulinLogs(insulin);
 
     const allDates = getAllLoggedDates();
-    setStreak(calculateStreak(allDates));
+    const st = calculateStreak(allDates);
+    setStreak(st);
 
     const currentSettings = getSettings();
     setSettings(currentSettings);
 
-    // Glucose Prompt Card logic:
-    // If no glucose_logs row for today AND not dismissed today
-    const dayGlucoseLogs = getGlucoseLogs().filter((g) => g.log_date === todayStr);
-    const dismissed = isGlucosePromptDismissedToday();
-    setShowGlucosePrompt(dayGlucoseLogs.length === 0 && !dismissed);
+    // Sync unit steppers with existing logs if already taken today, else fallback to settings defaults
+    const morning = insulin.find((l) => l.insulin_type === 'morning_regular');
+    if (morning) setMorningUnits(morning.units);
+    else setMorningUnits(currentSettings.morning_regular_units);
+
+    const afternoon = insulin.find((l) => l.insulin_type === 'afternoon_regular');
+    if (afternoon) setAfternoonUnits(afternoon.units);
+    else setAfternoonUnits(currentSettings.afternoon_regular_units ?? 10);
+
+    const night = insulin.find((l) => l.insulin_type === 'night_30_70');
+    if (night) setNightUnits(night.units);
+    else setNightUnits(currentSettings.night_30_70_units);
   }, [todayStr]);
 
   useEffect(() => {
     setMounted(true);
     refreshData();
+
+    const handleOpenQuickLog = () => {
+      const el = document.getElementById('feel-section');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    };
+    window.addEventListener('open-quick-log', handleOpenQuickLog);
+    window.addEventListener('t1d-data-updated', refreshData);
+    return () => {
+      window.removeEventListener('open-quick-log', handleOpenQuickLog);
+      window.removeEventListener('t1d-data-updated', refreshData);
+    };
   }, [refreshData]);
 
-  // Check today's insulin status safely after mount
   const morningLog = mounted ? todayInsulinLogs.find((l) => l.insulin_type === 'morning_regular') : undefined;
+  const afternoonLog = mounted ? todayInsulinLogs.find((l) => l.insulin_type === 'afternoon_regular') : undefined;
   const nightLog = mounted ? todayInsulinLogs.find((l) => l.insulin_type === 'night_30_70') : undefined;
+  const extraCorrectionLogs = mounted ? todayInsulinLogs.filter((l) => l.insulin_type === 'correction' || l.insulin_type === 'other') : [];
 
-  const handleQuickTakeInsulin = (type: 'morning_regular' | 'night_30_70', units: number) => {
-    const defaultTime = type === 'morning_regular' ? '08:00' : '20:30';
+  // Toggle or save dose with chosen units and actual current time
+  const handleToggleInsulinDose = (type: InsulinType, chosenUnits: number) => {
+    const existing = todayInsulinLogs.find((l) => l.insulin_type === type);
+    if (existing) {
+      deleteInsulinLog(existing.id);
+    } else {
+      const actualCurrentTime = getCurrentTimeIST();
+      const defaultNote =
+        type === 'morning_regular'
+          ? (settings.morning_meal_note || 'Administered before breakfast')
+          : type === 'afternoon_regular'
+          ? (settings.midday_meal_note || 'Midday dose before lunch based on body condition')
+          : (settings.night_meal_note || 'Administered before dinner');
+
+      saveInsulinLog({
+        user_id: 'user-1',
+        log_date: todayStr,
+        log_time: actualCurrentTime,
+        insulin_type: type,
+        units: chosenUnits,
+        taken: true,
+        note: defaultNote,
+      });
+    }
+    refreshData();
+  };
+
+  // Immediate unit adjustment for already-taken doses
+  const handleUpdateLoggedUnits = (existingLog: InsulinLog, newUnits: number) => {
+    if (newUnits <= 0) return;
     saveInsulinLog({
-      user_id: 'user-1',
-      log_date: todayStr,
-      log_time: defaultTime,
-      insulin_type: type,
-      units,
-      taken: true,
-      note: 'Quick logged via pre-filled card',
+      ...existingLog,
+      units: newUnits,
     });
     refreshData();
   };
 
-  const handleDismissGlucosePrompt = () => {
-    dismissGlucosePromptToday();
-    setShowGlucosePrompt(false);
+  // Immediate time adjustment for already-taken doses
+  const handleUpdateLoggedTime = (existingLog: InsulinLog, newTime: string) => {
+    if (!newTime) return;
+    saveInsulinLog({
+      ...existingLog,
+      log_time: newTime,
+    });
+    refreshData();
+  };
+
+  // Select Feel state
+  const handleSelectFeel = (level: FeelLevel) => {
+    setSelectedFeel(level);
+    const cfg = FEEL_CONFIGS[level];
+    setSelectedChips(cfg.symptoms.slice(0, 2));
+  };
+
+  const handleToggleChip = (chip: string) => {
+    setSelectedChips((prev) =>
+      prev.includes(chip) ? prev.filter((c) => c !== chip) : [...prev, chip]
+    );
+  };
+
+  const handleSaveSensoryFeel = () => {
+    saveFeelLog({
+      user_id: 'user-1',
+      log_date: todayStr,
+      log_time: getCurrentTimeIST(),
+      feel: selectedFeel,
+      symptoms: selectedChips,
+      note: feelNote.trim() || null,
+    });
+    setFeelSavedToast(`Logged: ${FEEL_CONFIGS[selectedFeel].title} state recorded!`);
+    setTimeout(() => setFeelSavedToast(null), 3000);
+    refreshData();
+  };
+
+  const handleDeleteConfirmed = () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.category === 'insulin') deleteInsulinLog(deleteTarget.id);
+    else if (deleteTarget.category === 'food') deleteFoodLog(deleteTarget.id);
+    else if (deleteTarget.category === 'activity') deleteActivityLog(deleteTarget.id);
+    else if (deleteTarget.category === 'feel') deleteFeelLog(deleteTarget.id);
+    else if (deleteTarget.category === 'glucose') deleteGlucoseLog(deleteTarget.id);
+
+    setDeleteTarget(null);
+    refreshData();
   };
 
   const handleEditItem = (item: UnifiedLogItem) => {
@@ -149,432 +292,1039 @@ export default function QuickLogPage() {
     }
   };
 
-  const handleDeleteConfirmed = () => {
-    if (!deleteTarget) return;
-    if (deleteTarget.category === 'insulin') deleteInsulinLog(deleteTarget.id);
-    else if (deleteTarget.category === 'food') deleteFoodLog(deleteTarget.id);
-    else if (deleteTarget.category === 'activity') deleteActivityLog(deleteTarget.id);
-    else if (deleteTarget.category === 'feel') deleteFeelLog(deleteTarget.id);
-    else if (deleteTarget.category === 'glucose') deleteGlucoseLog(deleteTarget.id);
-
-    setDeleteTarget(null);
-    refreshData();
-  };
+  const totalDosesLogged = todayInsulinLogs.filter((l) => l.taken).length;
+  const feelsCount = todayLogs.filter((l) => l.category === 'feel').length;
+  const activityItems = todayLogs.filter((l) => l.category === 'activity');
 
   return (
-    <div className="pb-28 max-w-lg mx-auto px-4 pt-4">
-      {/* Top Header: Today's date in IST & Streak Counter */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-teal-600 dark:text-teal-400 uppercase tracking-wider">
-            <span>Today (IST)</span>
-            <span>•</span>
-            <span>Bangalore PG</span>
-          </div>
-          <h1 className="text-xl font-black text-slate-900 dark:text-slate-50 tracking-tight">
-            {formatISTDate(todayStr, { weekday: 'long', month: 'short', day: 'numeric' })}
-          </h1>
-        </div>
-
-        {/* Streak Counter */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-50 dark:bg-orange-950/40 border border-orange-200/80 dark:border-orange-800/50 shadow-sm">
-          <Flame className="w-4 h-4 text-orange-500 fill-orange-500 animate-pulse" />
-          <span className="text-xs font-bold text-orange-700 dark:text-orange-300">
-            {streak > 0 ? `${streak} day${streak > 1 ? 's' : ''} in a row` : 'Start streak'}
-          </span>
-        </div>
-      </div>
-
-      {/* Conditional Glucose Prompt Card (At most once per day) */}
-      {showGlucosePrompt && (
-        <div className="mb-4 p-3.5 bg-gradient-to-r from-rose-50/90 to-pink-50/90 dark:from-rose-950/30 dark:to-pink-950/30 border border-rose-200/70 dark:border-rose-900/50 rounded-2xl flex items-center justify-between gap-3 shadow-sm animate-in fade-in duration-300">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-300 flex items-center justify-center shrink-0">
-              <Droplets className="w-4 h-4" />
+    <div className="max-w-[1240px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-6">
+      {/* 1. TOP OVERVIEW BAR */}
+      <section className="w-full">
+        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 p-5 md:p-6 rounded-3xl bg-surface-container-low/70 backdrop-blur-xl border border-surface-container-high/50 shadow-xl shadow-surface-container-lowest/40">
+          {/* Date, Identity & Bangalore Context */}
+          <div className="flex flex-col md:flex-row md:items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-primary shadow-inner shrink-0 border border-primary/20">
+              <span className="material-symbols-outlined text-[1.75rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                calendar_today
+              </span>
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                Got a reading today?
-              </p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Optional: Add your fingerstick or lab number.
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-headline-sm text-headline-sm text-on-surface font-bold tracking-tight">
+                  {formatISTDate(todayStr, { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>
+                <span className="text-outline-variant font-label-md text-xs">·</span>
+                <span className="font-label-md text-xs text-secondary font-semibold">
+                  {settings.city || 'Bangalore'} ({settings.timezone?.includes('Kolkata') ? 'IST' : settings.timezone || 'IST'})
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-primary/15 text-primary text-[0.7rem] font-bold tracking-wide border border-primary/20">
+                  {streak > 0 ? `Day ${streak} Streak` : 'Start streak'}
+                </span>
+              </div>
+              <p className="font-body-md text-sm text-on-surface-variant flex items-center gap-2 mt-0.5">
+                <span>{settings.display_name ? `${settings.display_name} · ` : ''}{settings.lifestyle_note || 'Flexible diabetes routine'}</span>
+                <span className="text-outline-variant">·</span>
+                <span className="text-primary font-medium">Flexible 2–3 Doses / Day Regimen</span>
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+
+          {/* Telemetry Summary Chips */}
+          <div className="flex items-center gap-2 md:gap-3 flex-wrap xl:justify-end">
             <button
-              type="button"
               onClick={() => {
-                setEditingGlucose(null);
-                setIsGlucoseOpen(true);
+                const el = document.getElementById('insulin-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow-sm active:scale-95 transition-all"
-            >
-              Add it
-            </button>
-            <button
               type="button"
-              onClick={handleDismissGlucosePrompt}
-              aria-label="Dismiss"
-              className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-rose-100/50"
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface-container-high/60 hover:bg-surface-container-high border border-white/5 backdrop-blur-md transition-all text-left cursor-pointer"
             >
-              <X className="w-4 h-4" />
+              <span className="material-symbols-outlined text-primary text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                vaccines
+              </span>
+              <div className="flex flex-col text-left">
+                <span className="font-label-md text-xs text-on-surface font-bold leading-none">
+                  {totalDosesLogged} Dose{totalDosesLogged === 1 ? '' : 's'}
+                </span>
+                <span className="text-[0.65rem] text-on-surface-variant leading-tight">
+                  {totalDosesLogged === 0
+                    ? 'Pending doses'
+                    : totalDosesLogged === 1
+                    ? `${morningLog ? 'Morning' : afternoonLog ? 'Midday' : 'Night'} done`
+                    : totalDosesLogged === 2
+                    ? '2 doses logged'
+                    : `${totalDosesLogged} doses taken today`}
+                </span>
+              </div>
+            </button>
+
+            <button
+              onClick={() => {
+                const el = document.getElementById('feel-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+                else setIsFeelOpen(true);
+              }}
+              type="button"
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface-container-high/60 hover:bg-surface-container-high border border-white/5 backdrop-blur-md transition-all text-left cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-tertiary text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                mood
+              </span>
+              <div className="flex flex-col text-left">
+                <span className="font-label-md text-xs text-on-surface font-bold leading-none">
+                  {feelsCount} Feel Logged
+                </span>
+                <span className="text-[0.65rem] text-tertiary leading-tight">
+                  {feelsCount > 0 ? 'Recorded today' : 'No feel log yet'}
+                </span>
+              </div>
+            </button>
+
+            <button
+              onClick={() => {
+                setEditingActivity(null);
+                setIsActivityOpen(true);
+              }}
+              type="button"
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface-container-high/60 hover:bg-surface-container-high border border-white/5 backdrop-blur-md transition-all text-left group cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-secondary text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                directions_run
+              </span>
+              <div className="flex flex-col text-left">
+                <span className="font-label-md text-xs text-on-surface font-bold leading-none">
+                  {activityItems.length > 0
+                    ? `${activityItems[0].activity?.duration_min}m ${activityItems[0].activity?.activity_type}`
+                    : '0 Activity'}
+                </span>
+                <span className="text-[0.65rem] text-on-surface-variant leading-tight">
+                  {activityItems.length > 0
+                    ? `${activityItems.length} session${activityItems.length > 1 ? 's' : ''} logged`
+                    : 'No run/workout yet'}
+                </span>
+              </div>
             </button>
           </div>
         </div>
-      )}
 
-      {/* Pre-filled Insulin Card */}
-      <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700/80 p-4 shadow-sm mb-5">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-teal-100 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center">
-              <Syringe className="w-3.5 h-3.5" />
-            </div>
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              Daily Insulin Regimen
+        {/* Optional Glucose Zero-Pressure Glass Ribbon */}
+        <div className="mt-2.5 px-4 py-2 rounded-full bg-surface-container-lowest/80 border border-white/5 backdrop-blur-md flex flex-col md:flex-row items-center justify-between gap-2 text-on-surface-variant text-xs shadow-sm">
+          <div className="flex items-center gap-2 text-center md:text-left flex-wrap">
+            <span className="material-symbols-outlined text-secondary text-[1rem]">bloodtype</span>
+            <span className="text-on-surface font-bold">Optional Reading:</span>
+            <span>Got a fingerstick or lab number today?</span>
+            <span className="hidden lg:inline text-outline-variant">
+              Feelog functions 100% on pure symptom &amp; feel rhythms. Zero pressure.
             </span>
           </div>
-          <span className="text-[10px] text-slate-400">Fixed doses</span>
-        </div>
-
-        <div className="space-y-2.5">
-          {/* Row 1: Morning Regular */}
-          <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-750/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  Morning · Regular (R)
-                </span>
-                <span className="text-xs font-black text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/50 px-2 py-0.5 rounded-full border border-teal-200/50">
-                  {morningLog ? morningLog.units : settings.morning_regular_units} U
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                {morningLog
-                  ? `Logged at ${formatISTTime(morningLog.log_time)} ✓`
-                  : 'Before morning PG breakfast'}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              {morningLog ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInsulinModalType('morning_regular');
-                    setEditingInsulin(morningLog);
-                    setIsInsulinOpen(true);
-                  }}
-                  className="px-2.5 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg flex items-center gap-1"
-                >
-                  <Edit2 className="w-3 h-3" />
-                  Edit
-                </button>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleQuickTakeInsulin('morning_regular', settings.morning_regular_units)
-                    }
-                    className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-sm active:scale-95 transition-all flex items-center gap-1 min-h-[44px]"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Taken ✓
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInsulinModalType('morning_regular');
-                      setEditingInsulin(null);
-                      setIsInsulinOpen(true);
-                    }}
-                    className="px-2 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700 rounded-lg min-h-[44px]"
-                  >
-                    Edit
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Row 2: Night 30/70 */}
-          <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-750/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  Night · 30/70 Biphasic
-                </span>
-                <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-full border border-indigo-200/50">
-                  {nightLog ? nightLog.units : settings.night_30_70_units} U
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                {nightLog
-                  ? `Logged at ${formatISTTime(nightLog.log_time)} ✓`
-                  : 'Before PG dinner'}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              {nightLog ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInsulinModalType('night_30_70');
-                    setEditingInsulin(nightLog);
-                    setIsInsulinOpen(true);
-                  }}
-                  className="px-2.5 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg flex items-center gap-1"
-                >
-                  <Edit2 className="w-3 h-3" />
-                  Edit
-                </button>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleQuickTakeInsulin('night_30_70', settings.night_30_70_units)
-                    }
-                    className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm active:scale-95 transition-all flex items-center gap-1 min-h-[44px]"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Taken ✓
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInsulinModalType('night_30_70');
-                      setEditingInsulin(null);
-                      setIsInsulinOpen(true);
-                    }}
-                    className="px-2 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700 rounded-lg min-h-[44px]"
-                  >
-                    Edit
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Four Big Action Buttons */}
-      <div className="mb-6">
-        <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-          Log an Event
-        </div>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          {/* + Food */}
           <button
-            type="button"
-            onClick={() => {
-              setEditingFood(null);
-              setIsFoodOpen(true);
-            }}
-            className="flex flex-col items-center justify-center p-3.5 rounded-2xl bg-gradient-to-b from-amber-50 to-orange-50/60 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200/80 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 shadow-sm hover:shadow-md transition-all active:scale-[0.98] min-h-[72px]"
-          >
-            <div className="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center mb-1.5 shadow-sm">
-              <Utensils className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-bold">+ Food</span>
-            <span className="text-[10px] text-amber-700/80 dark:text-amber-400/80">Meals & Carbs</span>
-          </button>
-
-          {/* + Activity */}
-          <button
-            type="button"
-            onClick={() => {
-              setEditingActivity(null);
-              setIsActivityOpen(true);
-            }}
-            className="flex flex-col items-center justify-center p-3.5 rounded-2xl bg-gradient-to-b from-blue-50 to-sky-50/60 dark:from-blue-950/30 dark:to-sky-950/20 border border-blue-200/80 dark:border-blue-800/60 text-blue-900 dark:text-blue-200 shadow-sm hover:shadow-md transition-all active:scale-[0.98] min-h-[72px]"
-          >
-            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center mb-1.5 shadow-sm">
-              <ActivityIcon className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-bold">+ Activity</span>
-            <span className="text-[10px] text-blue-700/80 dark:text-blue-400/80">Run / Workout</span>
-          </button>
-
-          {/* + Feel */}
-          <button
-            type="button"
-            onClick={() => {
-              setEditingFeel(null);
-              setIsFeelOpen(true);
-            }}
-            className="flex flex-col items-center justify-center p-3.5 rounded-2xl bg-gradient-to-b from-purple-50 to-violet-50/60 dark:from-purple-950/30 dark:to-violet-950/20 border border-purple-200/80 dark:border-purple-800/60 text-purple-900 dark:text-purple-200 shadow-sm hover:shadow-md transition-all active:scale-[0.98] min-h-[72px]"
-          >
-            <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center mb-1.5 shadow-sm">
-              <HeartPulse className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-bold">+ Feel</span>
-            <span className="text-[10px] text-purple-700/80 dark:text-purple-400/80">Low/High Symptoms</span>
-          </button>
-
-          {/* + Glucose */}
-          <button
-            type="button"
             onClick={() => {
               setEditingGlucose(null);
               setIsGlucoseOpen(true);
             }}
-            className="flex flex-col items-center justify-center p-3.5 rounded-2xl bg-gradient-to-b from-rose-50 to-red-50/60 dark:from-rose-950/30 dark:to-red-950/20 border border-rose-200/80 dark:border-rose-800/60 text-rose-900 dark:text-rose-200 shadow-sm hover:shadow-md transition-all active:scale-[0.98] min-h-[72px]"
+            className="flex items-center gap-1 px-4 py-1 rounded-full bg-surface-container hover:bg-surface-container-high text-secondary hover:text-on-surface transition-all active:scale-95 text-xs font-semibold shadow-inner border border-secondary/20"
+            type="button"
           >
-            <div className="w-8 h-8 rounded-full bg-rose-600 text-white flex items-center justify-center mb-1.5 shadow-sm">
-              <Droplets className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-bold">+ Glucose</span>
-            <span className="text-[10px] text-rose-700/80 dark:text-rose-400/80">Meter mg/dL</span>
+            <span className="material-symbols-outlined text-[0.875rem]">add</span>
+            <span>Add Meter Value</span>
           </button>
         </div>
-      </div>
+      </section>
 
-      {/* Today's Entries Feed (Merged Chronological) */}
-      <div>
-        <div className="flex items-center justify-between mb-2.5">
-          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-            <Clock className="w-4 h-4 text-slate-500" />
-            Today&apos;s Logs ({todayLogs.length})
-          </h2>
-          {todayLogs.length === 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                seedRealisticPGData();
-                refreshData();
-              }}
-              className="text-[11px] text-teal-600 dark:text-teal-400 font-bold hover:underline"
-            >
-              Load Demo PG Data
-            </button>
-          )}
+      {/* 2. DYNAMIC PRE-FILLED INSULIN DOSAGE CARDS (SUPPORTS 2-3+ DOSES / DAY & ADJUSTABLE UNITS) */}
+      <section id="insulin-section" className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-base">vaccines</span>
+            <span className="font-headline-sm text-sm text-on-surface font-bold">
+              Today&apos;s Insulin Doses
+            </span>
+            <span className="text-xs text-on-surface-variant font-medium">
+              (Adjust units anytime based on your body condition)
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              setInsulinModalType('correction');
+              setEditingInsulin(null);
+              setIsInsulinOpen(true);
+            }}
+            className="flex items-center gap-1 px-3 py-1 rounded-full bg-surface-container-high hover:bg-surface-bright text-secondary text-xs font-semibold transition-all border border-secondary/20"
+            type="button"
+          >
+            <span className="material-symbols-outlined text-[1rem]">add</span>
+            <span>+ Extra Correction Dose</span>
+          </button>
         </div>
 
-        {todayLogs.length === 0 ? (
-          <div className="p-8 text-center bg-white dark:bg-slate-800/60 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">
-              No entries logged for today yet.
-            </p>
-            <p className="text-[11px] text-slate-400">
-              Tap any action button above to log food, activity, or how you feel.
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Card 1: Morning Regimen */}
+          <div className="relative overflow-hidden rounded-3xl bg-surface-container-low/80 backdrop-blur-xl p-5 border border-primary/20 shadow-xl shadow-surface-container-lowest/50 flex flex-col justify-between transition-all group">
+            <div className="absolute -right-8 -top-8 w-24 h-24 bg-primary/10 rounded-full blur-2xl pointer-events-none"></div>
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2.5 h-2.5 rounded-full ${morningLog ? 'bg-primary shadow-[0_0_12px_rgba(78,222,163,0.8)]' : 'bg-outline'}`}></span>
+                  <span className="font-label-md text-xs text-primary uppercase font-bold tracking-wider">
+                    Morning Dose
+                  </span>
+                </div>
+                {morningLog ? (
+                  <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary-container/20 text-primary border border-primary/20 font-label-md text-[0.7rem] font-bold">
+                    <span className="material-symbols-outlined text-[0.875rem]">schedule</span>
+                    <span>Taken at</span>
+                    <input
+                      type="time"
+                      value={morningLog.log_time}
+                      onChange={(e) => handleUpdateLoggedTime(morningLog, e.target.value)}
+                      className="bg-transparent text-primary font-bold focus:outline-none cursor-pointer border-b border-primary/40 px-0.5"
+                      title="Adjust injection time"
+                    />
+                  </div>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full font-label-md text-[0.7rem] font-semibold bg-surface-container-high text-on-surface-variant">
+                    Target {formatISTTime(settings.morning_target_time || '08:00')}
+                  </span>
+                )}
+              </div>
+
+              <h2 className="font-headline-sm text-base text-on-surface font-bold mt-1">
+                {settings.morning_insulin_brand || 'Regular (R)'} Insulin
+              </h2>
+              <p className="font-body-md text-xs text-on-surface-variant">
+                {settings.morning_meal_note || 'Before PG breakfast (Idly / Dosa)'}
+              </p>
+
+              {/* Day-to-Day Inline Unit Stepper */}
+              <div className="mt-4 p-3 rounded-2xl bg-surface-container/70 border border-white/5 flex items-center justify-between">
+                <span className="text-xs text-on-surface-variant font-medium">Dose Units:</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const next = Math.max(1, morningUnits - 1);
+                      setMorningUnits(next);
+                      if (morningLog) handleUpdateLoggedUnits(morningLog, next);
+                    }}
+                    type="button"
+                    className="w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-base shadow-sm"
+                    title="Decrease 1 unit"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={morningUnits}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setMorningUnits(val);
+                      if (morningLog) handleUpdateLoggedUnits(morningLog, val);
+                    }}
+                    className="w-14 text-center font-label-numeric text-xl text-primary font-extrabold bg-transparent border-b border-primary/40 focus:outline-none"
+                  />
+                  <button
+                    onClick={() => {
+                      const next = morningUnits + 1;
+                      setMorningUnits(next);
+                      if (morningLog) handleUpdateLoggedUnits(morningLog, next);
+                    }}
+                    type="button"
+                    className="w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-base shadow-sm"
+                    title="Increase 1 unit"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 mt-4 border-t border-surface-container-high/40 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1 text-primary font-label-md text-xs font-semibold">
+                <span className="material-symbols-outlined text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  {morningLog ? 'check_circle' : 'schedule'}
+                </span>
+                <span>{morningLog ? 'Logged ✓' : 'Scheduled'}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {morningLog ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        setInsulinModalType('morning_regular');
+                        setEditingInsulin(morningLog);
+                        setIsInsulinOpen(true);
+                      }}
+                      className="px-2.5 py-1 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface-variant hover:text-on-surface text-xs font-semibold"
+                      type="button"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleToggleInsulinDose('morning_regular', morningUnits)}
+                      className="w-7 h-7 rounded-full bg-primary/20 text-primary hover:bg-error/20 hover:text-error flex items-center justify-center transition-colors"
+                      title="Untake dose"
+                      type="button"
+                    >
+                      <span className="material-symbols-outlined text-sm">done_all</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => handleToggleInsulinDose('morning_regular', morningUnits)}
+                    className="flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-primary text-on-primary font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                    type="button"
+                  >
+                    <span className="material-symbols-outlined text-base">alarm_on</span>
+                    <span>Mark as Taken</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Afternoon / Midday Dose (Based on Body Condition / Lunch Spike) */}
+          <div className="relative overflow-hidden rounded-3xl bg-surface-container-low/80 backdrop-blur-xl p-5 border border-tertiary/20 shadow-xl shadow-surface-container-lowest/50 flex flex-col justify-between transition-all group">
+            <div className="absolute -right-8 -top-8 w-24 h-24 bg-tertiary/10 rounded-full blur-2xl pointer-events-none"></div>
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2.5 h-2.5 rounded-full ${afternoonLog ? 'bg-tertiary shadow-[0_0_12px_rgba(255,185,95,0.8)]' : 'bg-outline'}`}></span>
+                  <span className="font-label-md text-xs text-tertiary uppercase font-bold tracking-wider">
+                    Midday Dose
+                  </span>
+                </div>
+                {afternoonLog ? (
+                  <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-tertiary-container/20 text-tertiary border border-tertiary/20 font-label-md text-[0.7rem] font-bold">
+                    <span className="material-symbols-outlined text-[0.875rem]">schedule</span>
+                    <span>Taken at</span>
+                    <input
+                      type="time"
+                      value={afternoonLog.log_time}
+                      onChange={(e) => handleUpdateLoggedTime(afternoonLog, e.target.value)}
+                      className="bg-transparent text-tertiary font-bold focus:outline-none cursor-pointer border-b border-tertiary/40 px-0.5"
+                      title="Adjust injection time"
+                    />
+                  </div>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full font-label-md text-[0.7rem] font-semibold bg-surface-container-high text-on-surface-variant">
+                    Target {formatISTTime(settings.midday_target_time || '13:30')}
+                  </span>
+                )}
+              </div>
+
+              <h2 className="font-headline-sm text-base text-on-surface font-bold mt-1">
+                {settings.midday_insulin_brand || 'Regular (R)'} Insulin
+              </h2>
+              <p className="font-body-md text-xs text-on-surface-variant">
+                {settings.midday_meal_note || 'Based on PG mess rice carb load or high feel'}
+              </p>
+
+              {/* Day-to-Day Inline Unit Stepper */}
+              <div className="mt-4 p-3 rounded-2xl bg-surface-container/70 border border-white/5 flex items-center justify-between">
+                <span className="text-xs text-on-surface-variant font-medium">Dose Units:</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const next = Math.max(1, afternoonUnits - 1);
+                      setAfternoonUnits(next);
+                      if (afternoonLog) handleUpdateLoggedUnits(afternoonLog, next);
+                    }}
+                    type="button"
+                    className="w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-base shadow-sm"
+                    title="Decrease 1 unit"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={afternoonUnits}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setAfternoonUnits(val);
+                      if (afternoonLog) handleUpdateLoggedUnits(afternoonLog, val);
+                    }}
+                    className="w-14 text-center font-label-numeric text-xl text-tertiary font-extrabold bg-transparent border-b border-tertiary/40 focus:outline-none"
+                  />
+                  <button
+                    onClick={() => {
+                      const next = afternoonUnits + 1;
+                      setAfternoonUnits(next);
+                      if (afternoonLog) handleUpdateLoggedUnits(afternoonLog, next);
+                    }}
+                    type="button"
+                    className="w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-base shadow-sm"
+                    title="Increase 1 unit"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 mt-4 border-t border-surface-container-high/40 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1 text-tertiary font-label-md text-xs font-semibold">
+                <span className="material-symbols-outlined text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  {afternoonLog ? 'check_circle' : 'psychology_alt'}
+                </span>
+                <span>{afternoonLog ? 'Logged ✓' : '3rd Dose Option'}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {afternoonLog ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        setInsulinModalType('afternoon_regular');
+                        setEditingInsulin(afternoonLog);
+                        setIsInsulinOpen(true);
+                      }}
+                      className="px-2.5 py-1 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface-variant hover:text-on-surface text-xs font-semibold"
+                      type="button"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleToggleInsulinDose('afternoon_regular', afternoonUnits)}
+                      className="w-7 h-7 rounded-full bg-tertiary/20 text-tertiary hover:bg-error/20 hover:text-error flex items-center justify-center transition-colors"
+                      title="Untake dose"
+                      type="button"
+                    >
+                      <span className="material-symbols-outlined text-sm">done_all</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => handleToggleInsulinDose('afternoon_regular', afternoonUnits)}
+                    className="flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-tertiary-container hover:bg-tertiary text-on-tertiary font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                    type="button"
+                  >
+                    <span className="material-symbols-outlined text-base">alarm_on</span>
+                    <span>Mark as Taken</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Scheduled Tonight (30/70 Biphasic) */}
+          <div className="relative overflow-hidden rounded-3xl bg-surface-container-low/80 backdrop-blur-xl p-5 border border-secondary/20 shadow-xl shadow-surface-container-lowest/50 flex flex-col justify-between transition-all group">
+            <div className="absolute -right-8 -top-8 w-24 h-24 bg-secondary/15 rounded-full blur-2xl pointer-events-none"></div>
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2.5 h-2.5 rounded-full ${nightLog ? 'bg-secondary' : 'bg-secondary animate-pulse shadow-[0_0_12px_rgba(76,215,246,0.8)]'}`}></span>
+                  <span className="font-label-md text-xs text-secondary uppercase font-bold tracking-wider">
+                    Night Regimen
+                  </span>
+                </div>
+                {nightLog ? (
+                  <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-secondary-container/20 text-secondary border border-secondary/20 font-label-md text-[0.7rem] font-bold">
+                    <span className="material-symbols-outlined text-[0.875rem]">schedule</span>
+                    <span>Taken at</span>
+                    <input
+                      type="time"
+                      value={nightLog.log_time}
+                      onChange={(e) => handleUpdateLoggedTime(nightLog, e.target.value)}
+                      className="bg-transparent text-secondary font-bold focus:outline-none cursor-pointer border-b border-secondary/40 px-0.5"
+                      title="Adjust injection time"
+                    />
+                  </div>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full font-label-md text-[0.7rem] font-semibold bg-surface-container-high text-on-surface-variant">
+                    Target {formatISTTime(settings.night_target_time || '20:30')}
+                  </span>
+                )}
+              </div>
+
+              <h2 className="font-headline-sm text-base text-on-surface font-bold mt-1">
+                {settings.night_insulin_brand || '30/70 Biphasic Mix'}
+              </h2>
+              <p className="font-body-md text-xs text-on-surface-variant">
+                {settings.night_meal_note || '15m before PG dinner (Chapati / Rice)'}
+              </p>
+
+              {/* Day-to-Day Inline Unit Stepper */}
+              <div className="mt-4 p-3 rounded-2xl bg-surface-container/70 border border-white/5 flex items-center justify-between">
+                <span className="text-xs text-on-surface-variant font-medium">Dose Units:</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const next = Math.max(1, nightUnits - 1);
+                      setNightUnits(next);
+                      if (nightLog) handleUpdateLoggedUnits(nightLog, next);
+                    }}
+                    type="button"
+                    className="w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-base shadow-sm"
+                    title="Decrease 1 unit"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={nightUnits}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setNightUnits(val);
+                      if (nightLog) handleUpdateLoggedUnits(nightLog, val);
+                    }}
+                    className="w-14 text-center font-label-numeric text-xl text-secondary font-extrabold bg-transparent border-b border-secondary/40 focus:outline-none"
+                  />
+                  <button
+                    onClick={() => {
+                      const next = nightUnits + 1;
+                      setNightUnits(next);
+                      if (nightLog) handleUpdateLoggedUnits(nightLog, next);
+                    }}
+                    type="button"
+                    className="w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-base shadow-sm"
+                    title="Increase 1 unit"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 mt-4 border-t border-surface-container-high/40 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1 text-secondary font-label-md text-xs font-semibold">
+                <span className="material-symbols-outlined text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  {nightLog ? 'check_circle' : 'schedule'}
+                </span>
+                <span>{nightLog ? 'Logged ✓' : 'Scheduled'}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {nightLog ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        setInsulinModalType('night_30_70');
+                        setEditingInsulin(nightLog);
+                        setIsInsulinOpen(true);
+                      }}
+                      className="px-2.5 py-1 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface-variant hover:text-on-surface text-xs font-semibold"
+                      type="button"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleToggleInsulinDose('night_30_70', nightUnits)}
+                      className="w-7 h-7 rounded-full bg-secondary/20 text-secondary hover:bg-error/20 hover:text-error flex items-center justify-center transition-colors"
+                      title="Untake dose"
+                      type="button"
+                    >
+                      <span className="material-symbols-outlined text-sm">done_all</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => handleToggleInsulinDose('night_30_70', nightUnits)}
+                    className="flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-secondary-container hover:bg-secondary text-on-secondary-container hover:text-on-secondary font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                    type="button"
+                  >
+                    <span className="material-symbols-outlined text-base">alarm_on</span>
+                    <span>Mark as Taken</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Extra Correction Doses list if taken */}
+        {extraCorrectionLogs.length > 0 && (
+          <div className="p-3 rounded-2xl bg-surface-container-lowest/70 border border-white/5 flex items-center justify-between gap-2 flex-wrap text-xs">
+            <span className="text-secondary font-semibold">Additional Doses Taken Today:</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              {extraCorrectionLogs.map((cLog) => (
+                <div key={cLog.id} className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container-high text-on-surface border border-white/5">
+                  <span className="font-bold text-secondary">{cLog.units}U</span>
+                  <span className="text-[0.7rem] text-on-surface-variant">({formatISTTime(cLog.log_time)})</span>
+                  <button
+                    onClick={() => {
+                      setInsulinModalType(cLog.insulin_type);
+                      setEditingInsulin(cLog);
+                      setIsInsulinOpen(true);
+                    }}
+                    className="hover:text-primary transition-colors ml-1"
+                    title="Edit correction"
+                  >
+                    ✎
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* 3. FEEL TRACKER (HERO 5-SECOND LOGGING DECK) */}
+      <section
+        id="feel-section"
+        className="rounded-3xl bg-surface-container-low/70 backdrop-blur-2xl p-5 md:p-8 border border-white/5 shadow-2xl shadow-surface-container-lowest/60 relative overflow-hidden"
+      >
+        {/* Dynamic Ambient Backing Splash */}
+        <div
+          className="absolute -top-20 -left-20 w-96 h-96 rounded-full blur-[120px] pointer-events-none transition-all duration-700"
+          style={{ backgroundColor: FEEL_CONFIGS[selectedFeel].glowColor }}
+        ></div>
+
+        {/* Section Title & Intent */}
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6 relative z-10">
+          <div>
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="material-symbols-outlined text-primary text-[1.25rem]">vital_signs</span>
+              <span className="font-label-md text-xs uppercase font-bold tracking-widest text-primary">
+                Sensory Metabolic Feedback
+              </span>
+            </div>
+            <h2 className="font-headline-xl text-headline-xl text-on-surface font-bold tracking-tight">
+              How does your body feel right now?
+            </h2>
+            <p className="font-body-md text-sm text-on-surface-variant">
+              Tap once to log in under 5 seconds. Designed for zero mental fatigue &amp; no finger prick needed.
             </p>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {todayLogs.map((item) => {
-              let icon = <Clock className="w-4 h-4" />;
-              let iconBg = 'bg-slate-100 text-slate-600';
-              let title = '';
-              let subtitle = '';
-              let badge = null;
 
-              if (item.category === 'insulin' && item.insulin) {
-                icon = <Syringe className="w-4 h-4" />;
-                iconBg = 'bg-teal-100 dark:bg-teal-950/60 text-teal-600';
-                title = `${item.insulin.insulin_type === 'morning_regular' ? 'Morning Regular' : 'Night 30/70'} · ${item.insulin.units} U`;
-                subtitle = item.insulin.note || (item.insulin.taken ? 'Taken as prescribed' : 'Skipped');
-              } else if (item.category === 'food' && item.food) {
-                icon = <Utensils className="w-4 h-4" />;
-                iconBg = 'bg-amber-100 dark:bg-amber-950/60 text-amber-600';
-                title = `${item.food.meal.charAt(0).toUpperCase() + item.food.meal.slice(1)}: ${item.food.items}`;
-                subtitle = item.food.note || `Carb portion: ${item.food.carb_size || 'standard'}`;
-                if (item.food.carb_size) {
-                  badge = (
-                    <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                      {item.food.carb_size} carb
+          {/* Live Timestamp Slot */}
+          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-surface-container-lowest text-on-surface-variant font-label-md text-xs border border-white/5 shadow-inner">
+            <span className="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+            <span className="text-on-surface font-semibold">Active Slot:</span>
+            <span>Just now ({formatISTTime(getCurrentTimeIST())} IST)</span>
+          </div>
+        </div>
+
+        {/* The 5 Neumorphic Extruded Feel States (Horizontal Arc) */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-6 relative z-10">
+          {(Object.keys(FEEL_CONFIGS) as FeelLevel[]).map((level) => {
+            const cfg = FEEL_CONFIGS[level];
+            const isActive = selectedFeel === level;
+            return (
+              <button
+                key={level}
+                onClick={() => handleSelectFeel(level)}
+                type="button"
+                className={`relative text-left p-4 rounded-2xl transition-all duration-300 flex flex-col justify-between h-44 group cursor-pointer overflow-hidden border ${
+                  isActive
+                    ? 'bg-surface-container-high border-tertiary/40 ring-2 ring-tertiary/50 shadow-xl shadow-tertiary/10 scale-[1.02]'
+                    : 'bg-surface-container/70 border-white/5 hover:bg-surface-container-high hover:border-white/10 shadow-md'
+                }`}
+              >
+                <div className="w-full flex items-center justify-between">
+                  <span className={`text-2xl transition-transform ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
+                    {cfg.emoji}
+                  </span>
+                  {isActive ? (
+                    <span className="px-2 py-0.5 rounded-full bg-tertiary-container text-on-tertiary-container text-[0.65rem] font-bold uppercase tracking-wider">
+                      Active
                     </span>
-                  );
-                }
-              } else if (item.category === 'activity' && item.activity) {
-                icon = <ActivityIcon className="w-4 h-4" />;
-                iconBg = 'bg-blue-100 dark:bg-blue-950/60 text-blue-600';
-                title = `${item.activity.activity_type.charAt(0).toUpperCase() + item.activity.activity_type.slice(1)} · ${item.activity.duration_min} min`;
-                subtitle = item.activity.note || `Intensity: ${item.activity.intensity || 'moderate'}`;
-              } else if (item.category === 'feel' && item.feel) {
-                const feelCfg = FEEL_COLORS[item.feel.feel];
-                icon = <HeartPulse className="w-4 h-4" />;
-                iconBg = `${feelCfg.bg} text-white`;
-                title = `Felt ${feelCfg.label}`;
-                subtitle =
-                  item.feel.symptoms && item.feel.symptoms.length > 0
-                    ? `Symptoms: ${item.feel.symptoms.join(', ')}`
-                    : item.feel.note || 'No specific symptoms noted';
-                badge = (
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${feelCfg.badge}`}>
-                    {feelCfg.label}
-                  </span>
-                );
-              } else if (item.category === 'glucose' && item.glucose) {
-                icon = <Droplets className="w-4 h-4" />;
-                iconBg = 'bg-rose-100 dark:bg-rose-950/60 text-rose-600';
-                title = `${item.glucose.reading_mgdl} mg/dL`;
-                subtitle = item.glucose.note || `Context: ${item.glucose.context || 'general'}`;
-                badge = (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
-                    Meter Reading
-                  </span>
-                );
-              }
-
-              return (
-                <div
-                  key={item.id}
-                  className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700/70 shadow-sm flex items-center justify-between gap-3 hover:border-slate-300 transition-colors"
-                >
-                  <div
-                    onClick={() => handleEditItem(item)}
-                    className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
-                  >
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
-                      {icon}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[11px] font-bold text-slate-400">
-                          {formatISTTime(item.log_time)}
-                        </span>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
-                          {title}
-                        </span>
-                        {badge}
-                      </div>
-                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                        {subtitle}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleEditItem(item)}
-                      aria-label="Edit"
-                      className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteTarget(item)}
-                      aria-label="Delete"
-                      className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  ) : (
+                    <span className={`w-2.5 h-2.5 rounded-full ${cfg.dotColor}`}></span>
+                  )}
                 </div>
+
+                <div>
+                  <h3 className={`font-headline-sm text-headline-sm font-bold ${isActive ? 'text-tertiary' : 'text-on-surface'}`}>
+                    {cfg.title}
+                  </h3>
+                  <span className="font-label-md text-[0.7rem] text-on-surface-variant font-medium block">
+                    {cfg.subtitle}
+                  </span>
+                </div>
+
+                <div className="text-[0.7rem] text-on-surface-variant font-label-md leading-tight line-clamp-1">
+                  {cfg.symptoms.slice(0, 2).join(', ')}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Dynamic Symptom Chips Container */}
+        <div className="p-4 rounded-2xl bg-surface-container-lowest/90 border border-white/5 backdrop-blur-md shadow-inner mb-4 relative z-10">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <span className="font-label-md text-xs text-on-surface-variant font-semibold">
+              Contextual Symptoms (<span className="text-tertiary font-bold">{FEEL_CONFIGS[selectedFeel].title}</span> tags)
+            </span>
+            <span className="text-[0.7rem] text-outline">Tap any to toggle sensation</span>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {FEEL_CONFIGS[selectedFeel].symptoms.map((symptom) => {
+              const isSelected = selectedChips.includes(symptom);
+              return (
+                <button
+                  key={symptom}
+                  onClick={() => handleToggleChip(symptom)}
+                  type="button"
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+                    isSelected
+                      ? 'bg-tertiary/20 text-tertiary border border-tertiary/40 font-bold shadow-sm'
+                      : 'bg-surface-container text-on-surface-variant hover:text-on-surface border border-white/5'
+                  }`}
+                >
+                  {isSelected ? `✓ ${symptom}` : `+ ${symptom}`}
+                </button>
               );
             })}
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Sheets & Modals */}
+        {/* Quick Note & Rapid Commit Button Row */}
+        <div className="flex flex-col md:flex-row items-center gap-3 relative z-10">
+          <div className="relative flex-1 w-full">
+            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-[1.25rem]">
+              edit_note
+            </span>
+            <input
+              type="text"
+              value={feelNote}
+              onChange={(e) => setFeelNote(e.target.value)}
+              placeholder="Add a quick note (e.g. 2 dosa, mid-exam, evening run...)"
+              className="w-full pl-12 pr-4 py-3 bg-surface-container border border-white/5 rounded-full text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary font-body-md text-sm shadow-inner transition-all"
+            />
+          </div>
+
+          <button
+            onClick={handleSaveSensoryFeel}
+            type="button"
+            className="w-full md:w-auto flex items-center justify-center gap-2 px-8 py-3 rounded-full bg-primary-container text-on-primary font-body-md text-sm font-bold shadow-[0_10px_25px_-5px_rgba(16,185,129,0.4)] hover:bg-primary transition-all active:scale-95 shrink-0"
+          >
+            <span className="material-symbols-outlined text-[1.25rem]">check</span>
+            <span>Save Feel Log</span>
+          </button>
+        </div>
+
+        {/* Toast confirmation */}
+        {feelSavedToast && (
+          <div className="mt-3 p-2.5 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-semibold text-center animate-in fade-in">
+            {feelSavedToast}
+          </div>
+        )}
+      </section>
+
+      {/* 4. SPLIT BENTO: QUICK EVENT LAUNCHERS & TODAY'S ACTIVITY STREAM */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Column (4 cols): Fast Add Shortcuts & Origin Blueprint */}
+        <div className="lg:col-span-4 flex flex-col gap-4">
+          <div className="flex items-center justify-between px-1">
+            <span className="font-headline-sm text-headline-sm text-on-surface font-bold">Fast Add</span>
+            <span className="font-label-md text-xs text-outline">1-Tap Shortcuts</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* + Food */}
+            <button
+              onClick={() => {
+                setEditingFood(null);
+                setIsFoodOpen(true);
+              }}
+              type="button"
+              className="p-4 rounded-2xl bg-surface-container-low/80 hover:bg-surface-container border border-white/5 backdrop-blur-md shadow-lg flex flex-col items-start justify-between h-32 text-left group transition-all cursor-pointer active:scale-95"
+            >
+              <div className="w-10 h-10 rounded-full bg-tertiary-container/20 text-tertiary border border-tertiary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <span className="material-symbols-outlined text-[1.5rem]">restaurant</span>
+              </div>
+              <div>
+                <span className="font-headline-sm text-sm text-on-surface font-bold block">+ Food</span>
+                <span className="text-[0.7rem] text-on-surface-variant font-label-md">Rice, Dosa, Idly</span>
+              </div>
+            </button>
+
+            {/* + Activity */}
+            <button
+              onClick={() => {
+                setEditingActivity(null);
+                setIsActivityOpen(true);
+              }}
+              type="button"
+              className="p-4 rounded-2xl bg-surface-container-low/80 hover:bg-surface-container border border-white/5 backdrop-blur-md shadow-lg flex flex-col items-start justify-between h-32 text-left group transition-all cursor-pointer active:scale-95"
+            >
+              <div className="w-10 h-10 rounded-full bg-secondary-container/20 text-secondary border border-secondary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <span className="material-symbols-outlined text-[1.5rem]">directions_run</span>
+              </div>
+              <div>
+                <span className="font-headline-sm text-sm text-on-surface font-bold block">+ Activity</span>
+                <span className="text-[0.7rem] text-on-surface-variant font-label-md">5-10k run, Walk</span>
+              </div>
+            </button>
+
+            {/* + Feel Log */}
+            <button
+              onClick={() => {
+                setEditingFeel(null);
+                setIsFeelOpen(true);
+              }}
+              type="button"
+              className="p-4 rounded-2xl bg-surface-container-low/80 hover:bg-surface-container border border-white/5 backdrop-blur-md shadow-lg flex flex-col items-start justify-between h-32 text-left group transition-all cursor-pointer active:scale-95"
+            >
+              <div className="w-10 h-10 rounded-full bg-primary/20 text-primary border border-primary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <span className="material-symbols-outlined text-[1.5rem]">sentiment_satisfied</span>
+              </div>
+              <div>
+                <span className="font-headline-sm text-sm text-on-surface font-bold block">+ Feel Log</span>
+                <span className="text-[0.7rem] text-on-surface-variant font-label-md">Additional time</span>
+              </div>
+            </button>
+
+            {/* + Glucose */}
+            <button
+              onClick={() => {
+                setEditingGlucose(null);
+                setIsGlucoseOpen(true);
+              }}
+              type="button"
+              className="p-4 rounded-2xl bg-surface-container-low/80 hover:bg-surface-container border border-white/5 backdrop-blur-md shadow-lg flex flex-col items-start justify-between h-32 text-left group transition-all cursor-pointer active:scale-95"
+            >
+              <div className="w-10 h-10 rounded-full bg-secondary/20 text-secondary border border-secondary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <span className="material-symbols-outlined text-[1.5rem]">water_drop</span>
+              </div>
+              <div>
+                <span className="font-headline-sm text-sm text-on-surface font-bold block">+ Glucose</span>
+                <span className="text-[0.7rem] text-on-surface-variant font-label-md">Optional mg/dL</span>
+              </div>
+            </button>
+          </div>
+
+          {/* Prototype Origin Blueprint Badge */}
+          <div className="p-4 rounded-2xl bg-surface-container-lowest/80 border border-white/5 backdrop-blur-md shadow-sm flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center text-primary shrink-0 border border-primary/20">
+              <span className="material-symbols-outlined text-[1.25rem]">architecture</span>
+            </div>
+            <div className="min-w-0">
+              <span className="font-label-md text-[0.7rem] text-primary uppercase font-bold tracking-wider">
+                Source Blueprint
+              </span>
+              <p className="font-body-md text-sm text-on-surface font-semibold truncate">
+                Type 1 Minimal Logbook
+              </p>
+              <p className="text-[0.7rem] text-on-surface-variant truncate">
+                Evolved into calm glass telemetry
+              </p>
+            </div>
+          </div>
+
+          {/* Medical Guardrail Note */}
+          <div className="p-3.5 rounded-2xl bg-surface-container-low/40 border border-white/5 text-[0.72rem] text-on-surface-variant leading-relaxed">
+            <span className="text-secondary font-semibold">Diary Note:</span> Feelog does not offer clinical insulin titration or predictive medical advice. All data belongs locally to you and your diabetologist.
+          </div>
+        </div>
+
+        {/* Right Column (8 cols): Today's Activity & Metabolic Rhythm Stream */}
+        <div className="lg:col-span-8 rounded-3xl bg-surface-container-low/70 backdrop-blur-xl p-5 md:p-6 border border-white/5 shadow-xl shadow-surface-container-lowest/40 flex flex-col justify-between">
+          <div>
+            {/* Timeline Header */}
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-surface-container-high/40">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-secondary text-[1.25rem]">timeline</span>
+                <span className="font-headline-sm text-headline-sm text-on-surface font-bold">
+                  Today&apos;s Timeline Stream
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-[0.7rem] font-semibold border border-white/5">
+                  {todayLogs.length} Events
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                {todayLogs.length === 0 && (
+                  <button
+                    onClick={() => {
+                      seedRealisticPGData();
+                      refreshData();
+                    }}
+                    type="button"
+                    className="text-xs text-primary font-bold hover:underline"
+                  >
+                    Load Demo PG Data
+                  </button>
+                )}
+                <Link
+                  href="/timeline"
+                  className="font-body-md text-xs text-primary hover:underline flex items-center gap-1 font-semibold"
+                >
+                  <span>Full 24h View</span>
+                  <span className="material-symbols-outlined text-[1rem]">arrow_forward</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* Timeline Items List */}
+            {todayLogs.length === 0 ? (
+              <div className="py-12 text-center flex flex-col items-center justify-center">
+                <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-outline mb-3">
+                  <span className="material-symbols-outlined text-[1.5rem]">schedule</span>
+                </div>
+                <p className="font-headline-sm text-sm text-on-surface font-bold">
+                  No logs recorded for today yet.
+                </p>
+                <p className="text-xs text-on-surface-variant mt-1 max-w-sm">
+                  Tap any 5-second feel card or Fast Add shortcut above, or load the realistic 14-day Bangalore PG student sample dataset.
+                </p>
+                <button
+                  onClick={() => {
+                    seedRealisticPGData();
+                    refreshData();
+                  }}
+                  className="mt-4 px-4 py-2 rounded-full bg-primary-container text-on-primary text-xs font-bold shadow-md hover:bg-primary transition-all active:scale-95"
+                  type="button"
+                >
+                  Seed Realistic PG Dataset
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {todayLogs.map((item) => {
+                  let iconName = 'schedule';
+                  let iconBg = 'bg-surface-container text-on-surface-variant';
+                  let title = '';
+                  let badge = '';
+                  let badgeBg = 'bg-surface-container text-on-surface-variant';
+                  let details = '';
+                  let rightTag = 'Logged';
+
+                  if (item.category === 'insulin' && item.insulin) {
+                    iconName = 'vaccines';
+                    const isMorning = item.insulin.insulin_type === 'morning_regular';
+                    const isNight = item.insulin.insulin_type === 'night_30_70';
+                    const isAfternoon = item.insulin.insulin_type === 'afternoon_regular';
+
+                    iconBg = isMorning
+                      ? 'bg-primary/20 text-primary border border-primary/20'
+                      : isNight
+                      ? 'bg-secondary/20 text-secondary border border-secondary/20'
+                      : 'bg-tertiary/20 text-tertiary border border-tertiary/20';
+
+                    title = isMorning
+                      ? 'Morning Regular (R) Dose'
+                      : isNight
+                      ? 'Night 30/70 Biphasic Dose'
+                      : isAfternoon
+                      ? 'Afternoon Midday Regular Dose'
+                      : 'Correction Insulin Dose';
+
+                    badge = `${item.insulin.units} U`;
+                    badgeBg = isMorning
+                      ? 'bg-primary/15 text-primary border border-primary/20'
+                      : isNight
+                      ? 'bg-secondary/15 text-secondary border border-secondary/20'
+                      : 'bg-tertiary/15 text-tertiary border border-tertiary/20';
+
+                    details = item.insulin.note || 'Subcutaneous injection';
+                    rightTag = item.insulin.taken ? 'Taken ✓' : 'Scheduled';
+                  } else if (item.category === 'food' && item.food) {
+                    iconName = 'restaurant';
+                    iconBg = 'bg-tertiary/20 text-tertiary border border-tertiary/20';
+                    title = `${item.food.meal.charAt(0).toUpperCase() + item.food.meal.slice(1)} · ${item.food.items}`;
+                    badge = `${item.food.carb_size ? item.food.carb_size + ' Carb' : 'Meal'}`;
+                    badgeBg = 'bg-tertiary/15 text-tertiary border border-tertiary/20';
+                    details = item.food.note || 'Logged meal';
+                    rightTag = 'Logged';
+                  } else if (item.category === 'activity' && item.activity) {
+                    iconName = 'directions_run';
+                    iconBg = 'bg-secondary/20 text-secondary border border-secondary/20';
+                    title = `${item.activity.activity_type.charAt(0).toUpperCase() + item.activity.activity_type.slice(1)} Workout`;
+                    badge = `${item.activity.duration_min} min`;
+                    badgeBg = 'bg-secondary/15 text-secondary border border-secondary/20';
+                    details = item.activity.note || `Intensity: ${item.activity.intensity || 'moderate'}`;
+                    rightTag = 'High Rhythm';
+                  } else if (item.category === 'feel' && item.feel) {
+                    iconName = 'mood';
+                    iconBg = 'bg-tertiary-container/20 text-tertiary border border-tertiary/20';
+                    title = `Feel: ${FEEL_CONFIGS[item.feel.feel]?.title || item.feel.feel}`;
+                    badge = item.feel.symptoms.slice(0, 2).join(', ') || 'Check-in';
+                    badgeBg = 'bg-tertiary-container/15 text-tertiary border border-tertiary/20';
+                    details = item.feel.note || `Symptoms: ${item.feel.symptoms.join(', ')}`;
+                    rightTag = 'Sensory Log';
+                  } else if (item.category === 'glucose' && item.glucose) {
+                    iconName = 'water_drop';
+                    iconBg = 'bg-secondary-fixed-dim/20 text-secondary-fixed border border-secondary/20';
+                    title = `Blood Glucose: ${item.glucose.reading_mgdl} mg/dL`;
+                    badge = item.glucose.context || 'Spot Check';
+                    badgeBg = 'bg-secondary-fixed-dim/15 text-secondary border border-secondary/20';
+                    details = item.glucose.note || 'Meter reading';
+                    rightTag = `${item.glucose.reading_mgdl} mg/dL`;
+                  }
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="p-3.5 rounded-2xl bg-surface-container/60 hover:bg-surface-container border border-white/5 transition-all flex items-center justify-between gap-3 group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="font-label-md text-xs text-outline font-mono w-16 shrink-0">
+                          {formatISTTime(item.log_time)}
+                        </span>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
+                          <span className="material-symbols-outlined text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                            {iconName}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-body-md text-sm text-on-surface font-bold truncate">
+                              {title}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-[0.65rem] font-semibold ${badgeBg}`}>
+                              {badge}
+                            </span>
+                          </div>
+                          <p className="text-xs text-on-surface-variant truncate">
+                            {details}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="hidden sm:inline text-xs font-semibold text-primary">
+                          {rightTag}
+                        </span>
+                        <button
+                          onClick={() => handleEditItem(item)}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-opacity"
+                          title="Edit"
+                          type="button"
+                        >
+                          <span className="material-symbols-outlined text-[1rem]">edit</span>
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(item)}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-error hover:bg-error-container/20 transition-opacity"
+                          title="Delete"
+                          type="button"
+                        >
+                          <span className="material-symbols-outlined text-[1rem]">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Day Rhythm Summary Progress Bar */}
+          <div className="pt-5 mt-5 border-t border-surface-container-high/40">
+            <div className="flex items-center justify-between text-xs text-on-surface-variant font-label-md mb-2">
+              <span>Daily Metabolic Target Progress</span>
+              <span className="text-primary font-bold">85% On Track</span>
+            </div>
+            <div className="w-full h-2.5 rounded-full bg-surface-container overflow-hidden flex border border-white/5">
+              <div className="h-full bg-primary" style={{ width: '55%' }} title="In-Range / Okay Time"></div>
+              <div className="h-full bg-tertiary" style={{ width: '30%' }} title="Slightly High Segment"></div>
+              <div className="h-full bg-secondary" style={{ width: '15%' }} title="Post-Exercise Period"></div>
+            </div>
+            <div className="flex items-center justify-between text-[0.68rem] text-outline mt-1.5 font-label-md">
+              <span>Morning: Fasting Balanced</span>
+              <span>Afternoon: Midday Response</span>
+              <span>Evening: Basal Prep at 8:30 PM</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Modal Sheets & Confirmation Dialogs */}
       <FoodSheet
         isOpen={isFoodOpen}
         onClose={() => {
@@ -585,7 +1335,6 @@ export default function QuickLogPage() {
         dateStr={todayStr}
         initialData={editingFood}
       />
-
       <ActivitySheet
         isOpen={isActivityOpen}
         onClose={() => {
@@ -596,7 +1345,6 @@ export default function QuickLogPage() {
         dateStr={todayStr}
         initialData={editingActivity}
       />
-
       <FeelSheet
         isOpen={isFeelOpen}
         onClose={() => {
@@ -607,7 +1355,6 @@ export default function QuickLogPage() {
         dateStr={todayStr}
         initialData={editingFeel}
       />
-
       <GlucoseSheet
         isOpen={isGlucoseOpen}
         onClose={() => {
@@ -618,7 +1365,6 @@ export default function QuickLogPage() {
         dateStr={todayStr}
         initialData={editingGlucose}
       />
-
       <InsulinSheet
         isOpen={isInsulinOpen}
         onClose={() => {
@@ -627,21 +1373,15 @@ export default function QuickLogPage() {
         }}
         onSaved={refreshData}
         dateStr={todayStr}
-        insulinType={insulinModalType}
-        defaultUnits={
-          insulinModalType === 'morning_regular'
-            ? settings.morning_regular_units
-            : settings.night_30_70_units
-        }
+        type={insulinModalType}
         initialData={editingInsulin}
       />
-
       <DeleteConfirmModal
-        isOpen={Boolean(deleteTarget)}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDeleteConfirmed}
+        isOpen={!!deleteTarget}
         title="Delete Log Entry"
-        message="Are you sure you want to delete this log entry? This cannot be undone."
+        message="Are you sure you want to remove this logged entry from your diary?"
+        onConfirm={handleDeleteConfirmed}
+        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );

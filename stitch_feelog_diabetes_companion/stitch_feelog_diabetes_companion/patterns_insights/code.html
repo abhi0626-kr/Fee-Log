@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_standard" name="shell-type"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = {"darkMode":"class","theme":{"extend":{"colors":{"error-container":"#93000a","inverse-primary":"#006c49","on-secondary-fixed":"#001f26","outline-variant":"#3c4a42","outline":"#86948a","surface-container":"#171f33","primary-container":"#10b981","background":"#0b1326","on-tertiary-fixed":"#2a1700","primary":"#4edea3","tertiary-fixed":"#ffddb8","primary-fixed-dim":"#4edea3","on-surface":"#dae2fd","secondary-fixed":"#acedff","on-secondary-fixed-variant":"#004e5c","on-surface-variant":"#bbcabf","secondary":"#4cd7f6","surface-tint":"#4edea3","on-error":"#690005","surface-container-lowest":"#060e20","on-error-container":"#ffdad6","secondary-container":"#03b5d3","on-primary-fixed":"#002113","on-tertiary-container":"#523200","on-background":"#dae2fd","surface-container-low":"#131b2e","surface-container-high":"#222a3d","primary-fixed":"#6ffbbe","on-secondary-container":"#00424e","on-secondary":"#003640","on-primary":"#003824","surface-container-highest":"#2d3449","tertiary-container":"#e29100","error":"#ffb4ab","inverse-on-surface":"#283044","surface-variant":"#2d3449","tertiary":"#ffb95f","surface":"#0b1326","on-tertiary-fixed-variant":"#653e00","tertiary-fixed-dim":"#ffb95f","surface-dim":"#0b1326","on-tertiary":"#472a00","inverse-surface":"#dae2fd","on-primary-fixed-variant":"#005236","on-primary-container":"#00422b","surface-bright":"#31394d","secondary-fixed-dim":"#4cd7f6"},"borderRadius":{"DEFAULT":"1rem","lg":"2rem","xl":"3rem","full":"9999px"},"spacing":{"space-md":"1rem","margin":"1rem","space-xs":"0.25rem","gutter":"1rem","space-lg":"1.5rem","margin-lg":"3.5rem","gutter-lg":"2rem","gutter-md":"1.5rem","space-sm":"0.5rem","space-xl":"2.5rem","margin-md":"2rem"},"fontFamily":{"headline-sm":["Plus Jakarta Sans"],"body-lg":["Plus Jakarta Sans"],"label-md":["Inter"],"headline-xl":["Plus Jakarta Sans"],"display-lg-mobile":["Plus Jakarta Sans"],"body-md":["Plus Jakarta Sans"],"label-numeric":["Plus Jakarta Sans"],"headline-xl-mobile":["Plus Jakarta Sans"],"display-lg":["Plus Jakarta Sans"]},"fontSize":{"headline-sm":["1.125rem",{"lineHeight":"1.5rem","fontWeight":"600"}],"body-lg":["1rem",{"lineHeight":"1.6rem","fontWeight":"400"}],"label-md":["0.75rem",{"lineHeight":"1rem","letterSpacing":"0.04em","fontWeight":"500"}],"headline-xl":["2rem",{"lineHeight":"2.5rem","letterSpacing":"-0.01em","fontWeight":"600"}],"display-lg-mobile":["2.5rem",{"lineHeight":"3rem","letterSpacing":"-0.01em","fontWeight":"700"}],"body-md":["0.875rem",{"lineHeight":"1.4rem","fontWeight":"400"}],"label-numeric":["1.75rem",{"lineHeight":"2rem","fontWeight":"700"}],"headline-xl-mobile":["1.5rem",{"lineHeight":"2rem","letterSpacing":"-0.01em","fontWeight":"600"}],"display-lg":["3.5rem",{"lineHeight":"4rem","letterSpacing":"-0.02em","fontWeight":"700"}]}}}}</script></head><body class="bg-background font-body-lg text-body-lg text-on-surface antialiased min-h-screen relative selection:bg-primary-container selection:text-on-primary"><div class="fixed inset-0 pointer-events-none z-0 overflow-hidden"><div class="absolute -top-40 left-1/4 w-[48rem] h-[48rem] bg-[#0f766e]/15 rounded-full blur-[140px]"></div><div class="absolute top-1/3 -right-32 w-[40rem] h-[40rem] bg-[#1e1b4b]/25 rounded-full blur-[160px]"></div><div class="absolute -bottom-20 left-10 w-[36rem] h-[36rem] bg-[#083344]/20 rounded-full blur-[130px]"></div></div><header class="fixed top-0 w-full z-50 bg-surface/75 backdrop-blur-2xl shadow-[0_4px_30px_rgba(0,0,0,0.35)]"><div class="h-20 max-w-[1200px] mx-auto px-margin md:px-margin-lg flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-md"><div class="flex items-center gap-space-sm"><span class="font-headline-xl text-headline-xl text-on-surface font-bold tracking-tight">Feelog</span><span class="px-space-sm py-0.5 rounded-full bg-primary-container/20 text-primary font-label-md text-label-md uppercase tracking-wider font-semibold">Type 1 Diary</span></div><div class="hidden xl:flex items-center gap-space-xs text-on-surface-variant font-label-md text-label-md pl-space-sm"><span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span><span>Bangalore PG · IST</span></div></div><nav class="hidden lg:flex items-center p-space-xs bg-surface-container-lowest/80 rounded-full backdrop-blur-md" data-active-classes="bg-surface-container-high text-on-surface font-semibold shadow-inner"><a class="px-space-md py-space-xs rounded-full font-body-md text-body-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all" data-path="quick-log" href="#">Quick Log</a><a class="px-space-md py-space-xs rounded-full font-body-md text-body-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all" data-path="day-timeline" href="#">Day Timeline</a><a class="px-space-md py-space-xs rounded-full font-body-md text-body-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all" data-path="patterns-and-insights" href="#">Patterns &amp; Insights</a><a class="px-space-md py-space-xs rounded-full font-body-md text-body-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all" data-path="export-and-settings" href="#">Export &amp; Settings</a></nav><div class="flex items-center gap-space-sm"><div class="hidden sm:flex items-center gap-space-xs px-space-md py-space-xs rounded-full bg-surface-container-low text-tertiary font-label-md text-label-md shadow-[0_0_20px_rgba(255,185,95,0.15)]"><span class="text-tertiary">🔥</span><span class="font-semibold">12 days logged</span></div><button class="flex items-center gap-space-xs px-space-md py-space-xs rounded-full bg-primary-container text-on-primary font-body-md text-body-md font-semibold shadow-[0_10px_25px_-5px_rgba(16,185,129,0.35)] hover:bg-primary transition-all active:scale-95" type="button"><span class="material-symbols-outlined text-[1.125rem]">add</span><span class="hidden md:inline">New Entry</span></button><div class="flex items-center pl-space-xs"><div class="relative flex items-center justify-center"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida/AEtjO1W3V0IZP2c2paUrZgaO1L1NPkJaAKCMBwCMBvKqph8UsqyoNnSBiHwW6BV4E9cSifrpS9j_PsJgGp8v7TIWw5-8r3qRdNIDje4Ee1Xotlq_UrY1DGjZUdCbDkr15JWCQKq_NavdG13yHOISAny-SBIcwwD5svusYqyWbwmjCWN1dbLTkk7LuuVRLTpv-1NMBZli4KmlNWHvmpIMk4gNp9PnVGY8MuuDkpPcx6BWsuXumu3djS0MCePDRBY"/><span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-background"></span></div></div></div></div><div class="w-full bg-surface-container-lowest/60 backdrop-blur-md py-1.5 px-margin text-center font-label-md text-label-md text-on-surface-variant flex items-center justify-center gap-space-xs"><span class="material-symbols-outlined text-secondary text-[1rem]">verified_user</span><span>No medical advice. Pure symptom &amp; rhythm tracking for you and your physician.</span></div></header><main class="relative z-10 w-full pt-20 max-w-[1200px] mx-auto px-margin md:px-margin-lg pb-margin-lg"><div class="flex flex-col w-full">
+<!-- Top Ambient Flare & Header Control -->
+<div class="relative w-full pt-space-lg pb-space-md">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
+<div class="flex flex-col max-w-2xl">
+<div class="flex items-center gap-space-xs mb-1">
+<span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+<span class="font-label-md text-label-md uppercase tracking-wider text-secondary font-semibold">Behavioral Telemetry</span>
+<span class="text-on-surface-variant font-label-md text-label-md">· Baseline v2.4</span>
+</div>
+<h1 class="font-display-lg text-headline-xl md:text-display-lg text-on-surface font-bold tracking-tight">Symptom &amp; Rhythm Patterns</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant mt-1 leading-relaxed">
+          Observing your body's rhythm without judgment or moral grades. These correlations represent experiential notes mapped to daily lifestyle inputs in your Bangalore PG.
+        </p>
+</div>
+<!-- Pill Tab Switcher -->
+<div class="inline-flex p-1 rounded-full bg-surface-container-lowest shadow-inner backdrop-blur-xl self-start md:self-auto">
+<button class="px-space-md py-space-xs rounded-full font-label-md text-label-md font-semibold transition-all duration-300 bg-surface-container-high text-on-surface shadow-[0_2px_12px_rgba(0,0,0,0.35)]" id="btn-7d" onclick="switchRange('7d')">
+          Last 7 Days
+        </button>
+<button class="px-space-md py-space-xs rounded-full font-label-md text-label-md font-semibold transition-all duration-300 text-on-surface-variant hover:text-on-surface" id="btn-30d" onclick="switchRange('30d')">
+          Last 30 Days
+        </button>
+<button class="px-space-md py-space-xs rounded-full font-label-md text-label-md font-semibold transition-all duration-300 text-on-surface-variant hover:text-on-surface" id="btn-pg" onclick="switchRange('pg')">
+          Bangalore PG Baseline
+        </button>
+</div>
+</div>
+</div>
+<!-- Bento Grid Pattern Discovery -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-md mt-space-md">
+<!-- Hero Card 1: 3 PM - 7 PM Plateau (Col 7) -->
+<div class="lg:col-span-7 rounded-lg bg-surface-container-low/70 backdrop-blur-xl p-space-lg shadow-xl relative overflow-hidden flex flex-col justify-between">
+<div class="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-tertiary-container/10 blur-[80px] pointer-events-none"></div>
+<div>
+<div class="flex items-start justify-between gap-space-md">
+<div class="flex flex-col">
+<span class="font-label-md text-label-md uppercase tracking-wider text-tertiary font-bold flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base">schedule</span> Recurrent Excursion
+            </span>
+<h2 class="font-headline-xl text-headline-xl text-on-surface font-semibold mt-1">The 3 PM – 7 PM Afternoon Plateau</h2>
+</div>
+<span class="px-space-sm py-1 rounded-full bg-tertiary-container/20 text-tertiary font-label-md text-label-md font-bold whitespace-nowrap">
+            5 of 7 Days High
+          </span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mt-space-sm leading-relaxed">
+          Symptoms tagged as <span class="text-tertiary font-semibold">"Brain Fog"</span>, <span class="text-tertiary font-semibold">"Heavy Thirst"</span>, or feeling <span class="text-tertiary font-semibold">"Slightly High"</span> group consistently between 3:15 PM and 6:45 PM. This follows typical 1:30 PM Koramangala PG mess lunch (parboiled Sona Masoori rice + sambar + potato fry).
+        </p>
+<!-- Hourly Heat Distribution Chart (SVG) -->
+<div class="mt-space-lg pt-space-xs">
+<div class="flex items-center justify-between mb-space-xs">
+<span class="font-label-md text-label-md text-on-surface-variant">Relative Symptom Intensity Profile</span>
+<span class="font-label-md text-label-md text-primary font-medium">Post-Bolus Interval (Hrs 2–5)</span>
+</div>
+<svg class="w-full h-36" fill="none" preserveaspectratio="none" viewbox="0 0 620 140">
+<!-- Reference base gridlines -->
+<line stroke="#3c4a42" stroke-dasharray="4 4" stroke-opacity="0.3" x1="20" x2="600" y1="110" y2="110"></line>
+<line stroke="#3c4a42" stroke-dasharray="4 4" stroke-opacity="0.2" x1="20" x2="600" y1="65" y2="65"></line>
+<!-- Hourly Bars -->
+<!-- 12 PM -->
+<rect class="hover:opacity-80 transition-opacity" fill="#171f33" height="25" rx="6" width="28" x="30" y="85"></rect>
+<!-- 1 PM (Lunch time) -->
+<rect fill="#222a3d" height="40" rx="6" width="28" x="85" y="70"></rect>
+<!-- 2 PM -->
+<rect fill="#4edea3" fill-opacity="0.25" height="55" rx="6" width="28" x="140" y="55"></rect>
+<!-- 3 PM Peak High -->
+<rect fill="#ffb95f" fill-opacity="0.9" filter="drop-shadow(0 0 8px rgba(255,185,95,0.45))" height="86" rx="6" width="28" x="195" y="24"></rect>
+<!-- 4 PM Peak High -->
+<rect fill="#ffb95f" filter="drop-shadow(0 0 10px rgba(255,185,95,0.55))" height="94" rx="6" width="28" x="250" y="16"></rect>
+<!-- 5 PM Peak High -->
+<rect fill="#ffb95f" fill-opacity="0.85" filter="drop-shadow(0 0 8px rgba(255,185,95,0.45))" height="90" rx="6" width="28" x="305" y="20"></rect>
+<!-- 6 PM High Plateau -->
+<rect fill="#ffb95f" fill-opacity="0.75" height="72" rx="6" width="28" x="360" y="38"></rect>
+<!-- 7 PM Returning -->
+<rect fill="#4cd7f6" fill-opacity="0.4" height="45" rx="6" width="28" x="415" y="65"></rect>
+<!-- 8 PM Dinner -->
+<rect fill="#222a3d" height="30" rx="6" width="28" x="470" y="80"></rect>
+<!-- 9 PM -->
+<rect fill="#171f33" height="25" rx="6" width="28" x="525" y="85"></rect>
+<!-- 10 PM -->
+<rect fill="#171f33" height="18" rx="6" width="28" x="575" y="92"></rect>
+<!-- Smooth Spline Overlay -->
+<path d="M 44 95 C 100 80, 150 60, 209 30 C 264 10, 319 14, 374 45 C 429 70, 484 86, 589 100" fill="none" opacity="0.85" stroke="#ffb95f" stroke-linecap="round" stroke-width="2.5"></path>
+<!-- Highlight badge on top of 4 PM -->
+<circle cx="264" cy="16" fill="#ffddb8" r="4"></circle>
+<text fill="#ffddb8" font-family="Plus Jakarta Sans" font-size="10" font-weight="600" text-anchor="middle" x="264" y="8">Peak Load</text>
+</svg>
+<!-- Timeline X-Axis labels -->
+<div class="flex justify-between px-2 font-label-md text-label-md text-on-surface-variant font-medium mt-1">
+<span>12 PM</span>
+<span>1 PM</span>
+<span>2 PM</span>
+<span class="text-tertiary font-bold">3 PM</span>
+<span class="text-tertiary font-bold">4 PM</span>
+<span class="text-tertiary font-bold">5 PM</span>
+<span class="text-tertiary font-bold">6 PM</span>
+<span>7 PM</span>
+<span>8 PM</span>
+<span>9 PM</span>
+<span>10 PM</span>
+</div>
+</div>
+</div>
+<!-- Actionable Context Callout -->
+<div class="mt-space-lg p-space-md rounded bg-surface-container/90 flex items-center justify-between gap-space-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-8 h-8 rounded-full bg-tertiary-container/20 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-tertiary text-base">restaurant</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface truncate">
+            Carb density indicator: <span class="font-semibold text-tertiary-fixed">~120g starch</span> estimated at PG meal vs morning 20U Regular dose.
+          </p>
+</div>
+<button class="shrink-0 px-space-sm py-1 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface font-label-md text-label-md transition-all">
+          View 7 Logs
+        </button>
+</div>
+</div>
+<!-- Hero Card 2: Running & Protective Effect (Col 5) -->
+<div class="lg:col-span-5 rounded-lg bg-surface-container-low/70 backdrop-blur-xl p-space-lg shadow-xl relative overflow-hidden flex flex-col justify-between">
+<div class="absolute -bottom-10 -left-10 w-48 h-48 rounded-full bg-primary-container/10 blur-[90px] pointer-events-none"></div>
+<div>
+<div class="flex items-start justify-between">
+<span class="font-label-md text-label-md uppercase tracking-wider text-primary font-bold flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base">directions_run</span> Physical Rhythm
+          </span>
+<span class="px-space-sm py-0.5 rounded-full bg-primary-container/20 text-primary font-label-md text-label-md font-semibold">
+            Cubbon Park 8km
+          </span>
+</div>
+<h2 class="font-headline-xl text-headline-xl text-on-surface font-semibold mt-1">Morning Cardio Protective Cushion</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-space-sm">
+          On mornings with 5–10km steady runs, afternoon symptoms averaged <span class="text-primary font-semibold">"Stable &amp; Clear"</span> for <span class="text-primary font-bold">3.2 hours longer</span> compared to sedentary university days.
+        </p>
+<!-- Metric Side by Side Cards -->
+<div class="grid grid-cols-2 gap-space-sm mt-space-lg">
+<div class="p-space-md rounded bg-surface-container-lowest/80 shadow-inner flex flex-col justify-between">
+<div>
+<span class="font-label-md text-label-md text-on-surface-variant">Run Days (4 Mornings)</span>
+<div class="font-label-numeric text-label-numeric text-primary font-bold mt-1">6.8 hrs</div>
+</div>
+<div class="flex items-center gap-1 mt-2 text-primary">
+<span class="material-symbols-outlined text-sm">sentiment_satisfied</span>
+<span class="font-label-md text-label-md font-medium">Calm Post-Lunch</span>
+</div>
+</div>
+<div class="p-space-md rounded bg-surface-container-lowest/80 shadow-inner flex flex-col justify-between">
+<div>
+<span class="font-label-md text-label-md text-on-surface-variant">Rest Days (3 Days)</span>
+<div class="font-label-numeric text-label-numeric text-tertiary font-bold mt-1">3.6 hrs</div>
+</div>
+<div class="flex items-center gap-1 mt-2 text-tertiary">
+<span class="material-symbols-outlined text-sm">bolt</span>
+<span class="font-label-md text-label-md font-medium">Mid-Day Slump</span>
+</div>
+</div>
+</div>
+<!-- Comparative Sparklines -->
+<div class="mt-space-md p-space-sm rounded bg-surface-container-high/40">
+<div class="flex items-center justify-between text-on-surface-variant font-label-md text-label-md mb-2">
+<span>Symptom Calm Span</span>
+<span class="text-primary font-semibold">+88% Resilience</span>
+</div>
+<div class="w-full bg-surface-container-lowest h-3 rounded-full overflow-hidden flex">
+<div class="bg-primary h-full rounded-full transition-all duration-700" style="width: 71%;"></div>
+</div>
+</div>
+</div>
+<!-- Quick Context Note -->
+<div class="mt-space-md text-on-surface-variant font-label-md text-label-md flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-base">info</span>
+<span>Increased insulin sensitivity noted for 18h post-endurance effort.</span>
+</div>
+</div>
+<!-- Card 3: Regimen Compliance & Timing Integrity (Col 4) -->
+<div class="lg:col-span-4 rounded-lg bg-surface-container-low/70 backdrop-blur-xl p-space-lg shadow-xl flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md uppercase tracking-wider text-secondary font-bold flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base">vaccines</span> Fixed Protocol
+          </span>
+<span class="w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-primary/20"></span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-semibold mt-2">Dosing Consistency</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">
+          Tracking injection punctuality without judging missed moments.
+        </p>
+<div class="mt-space-lg space-y-space-md">
+<!-- Morning Dose -->
+<div class="p-space-md rounded bg-surface-container/60 shadow-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-base">wb_sunny</span>
+<span class="font-body-md text-body-md font-semibold text-on-surface">Morning 20U Regular</span>
+</div>
+<span class="font-label-md text-label-md text-primary font-bold">100% On-Time</span>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant font-label-md text-label-md mt-2">
+<span>Avg Injection: 8:04 AM</span>
+<span>7/7 Days</span>
+</div>
+<div class="w-full bg-surface-container-lowest h-2 rounded-full mt-2 overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 100%;"></div>
+</div>
+</div>
+<!-- Night Dose -->
+<div class="p-space-md rounded bg-surface-container/60 shadow-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-base">bedtime</span>
+<span class="font-body-md text-body-md font-semibold text-on-surface">Night 25U 30/70 Biphasic</span>
+</div>
+<span class="font-label-md text-label-md text-secondary font-bold">92% On-Time</span>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant font-label-md text-label-md mt-2">
+<span>Avg Injection: 9:48 PM</span>
+<span>Shifted by PG dinner</span>
+</div>
+<div class="w-full bg-surface-container-lowest h-2 rounded-full mt-2 overflow-hidden">
+<div class="bg-secondary h-full rounded-full" style="width: 92%;"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-space-md pt-space-xs flex items-center gap-space-xs text-on-surface-variant font-label-md text-label-md">
+<span class="material-symbols-outlined text-primary text-sm">check_circle</span>
+<span>Remarkable stability in morning pre-breakfast bolus timing.</span>
+</div>
+</div>
+<!-- Card 4: Common Symptom Clusters Matrix (Col 4) -->
+<div class="lg:col-span-4 rounded-lg bg-surface-container-low/70 backdrop-blur-xl p-space-lg shadow-xl flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md uppercase tracking-wider text-tertiary font-bold flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base">bubble_chart</span> Somatic Matrix
+          </span>
+<span class="font-label-md text-label-md text-on-surface-variant">Self-Reported</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-semibold mt-2">Symptom Clusters</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">
+          Sensory signals most strongly co-logged with glycemic swings.
+        </p>
+<!-- High Symptoms -->
+<div class="mt-space-md">
+<div class="flex items-center justify-between mb-2">
+<span class="font-label-md text-label-md text-tertiary font-semibold flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span> When High / Hyperglycemic
+            </span>
+</div>
+<div class="flex flex-wrap gap-1.5">
+<span class="px-space-sm py-1 rounded-full bg-tertiary-container/20 text-on-surface text-label-md font-label-md flex items-center gap-1 shadow-sm">
+<span>Dry Mouth / Parched</span>
+<strong class="text-tertiary">82%</strong>
+</span>
+<span class="px-space-sm py-1 rounded-full bg-tertiary-container/20 text-on-surface text-label-md font-label-md flex items-center gap-1 shadow-sm">
+<span>Brain Fog / Stupor</span>
+<strong class="text-tertiary">74%</strong>
+</span>
+<span class="px-space-sm py-1 rounded-full bg-tertiary-container/15 text-on-surface-variant text-label-md font-label-md flex items-center gap-1">
+<span>Sluggishness</span>
+<strong class="text-tertiary">65%</strong>
+</span>
+<span class="px-space-sm py-1 rounded-full bg-surface-container text-on-surface-variant text-label-md font-label-md">
+<span>Blurred Focus (40%)</span>
+</span>
+</div>
+</div>
+<!-- Low Symptoms -->
+<div class="mt-space-md pt-space-xs">
+<div class="flex items-center justify-between mb-2">
+<span class="font-label-md text-label-md text-error font-semibold flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span> When Low / Hypoglycemic
+            </span>
+</div>
+<div class="flex flex-wrap gap-1.5">
+<span class="px-space-sm py-1 rounded-full bg-error-container/40 text-on-error-container text-label-md font-label-md flex items-center gap-1">
+<span>Shaky Fingers</span>
+<strong class="text-error">90%</strong>
+</span>
+<span class="px-space-sm py-1 rounded-full bg-error-container/40 text-on-error-container text-label-md font-label-md flex items-center gap-1">
+<span>Sudden Cold Sweat</span>
+<strong class="text-error">85%</strong>
+</span>
+<span class="px-space-sm py-1 rounded-full bg-surface-container text-on-surface-variant text-label-md font-label-md">
+<span>Urgent Sweet Craving (72%)</span>
+</span>
+</div>
+</div>
+</div>
+<div class="mt-space-md text-on-surface-variant font-label-md text-label-md">
+        Recognizing physiological cues allows rapid intervention even prior to testing.
+      </div>
+</div>
+<!-- Card 5: Carb Correlation Diary (Bangalore PG Mess Focus) (Col 4) -->
+<div class="lg:col-span-4 rounded-lg bg-surface-container-low/70 backdrop-blur-xl p-space-lg shadow-xl flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md uppercase tracking-wider text-secondary font-bold flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base">ramen_dining</span> Meal Breakdown
+          </span>
+<span class="font-label-md text-label-md text-secondary font-semibold">PG Mess Log</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-semibold mt-2">Carb Correlation Matrix</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">
+          High glycemic load vs steady sustained releases in local dietary choices.
+        </p>
+<div class="mt-space-md space-y-space-sm">
+<!-- Rice Meals -->
+<div class="p-space-sm rounded bg-surface-container-high/60 flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<span class="text-xl">🍚</span>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md font-semibold text-on-surface">Rice Meals (Mess Lunch)</span>
+<span class="font-label-md text-label-md text-on-surface-variant">Large carb burst · High glycemic spike</span>
+</div>
+</div>
+<span class="font-label-md text-label-md font-bold text-tertiary px-space-xs py-0.5 rounded bg-tertiary-container/20">
+              71% High
+            </span>
+</div>
+<!-- Dosa / Idly -->
+<div class="p-space-sm rounded bg-surface-container-high/60 flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<span class="text-xl">🥞</span>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md font-semibold text-on-surface">Dosa / Idly / Chutney</span>
+<span class="font-label-md text-label-md text-on-surface-variant">Moderate starch · Fermented batter</span>
+</div>
+</div>
+<span class="font-label-md text-label-md font-bold text-primary px-space-xs py-0.5 rounded bg-primary-container/20">
+              34% High
+            </span>
+</div>
+<!-- Oats / Boiled Eggs -->
+<div class="p-space-sm rounded bg-surface-container-high/60 flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<span class="text-xl">🥚</span>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md font-semibold text-on-surface">Boiled Eggs &amp; Chai</span>
+<span class="font-label-md text-label-md text-on-surface-variant">Protein cushion · Student self-prep</span>
+</div>
+</div>
+<span class="font-label-md text-label-md font-bold text-primary px-space-xs py-0.5 rounded bg-primary-container/20">
+              8% High
+            </span>
+</div>
+</div>
+</div>
+<div class="mt-space-md p-space-sm rounded bg-surface-container-lowest/60 text-on-surface-variant font-label-md text-label-md">
+        Swapping second rice serving for extra boiled eggs showed noticeable afternoon smoothing.
+      </div>
+</div>
+</div>
+<!-- Visual Break / Photographic Context Section -->
+<div class="mt-space-lg grid grid-cols-1 md:grid-cols-3 gap-space-md">
+<div class="relative rounded-lg overflow-hidden h-44 shadow-md group">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-70" data-alt="A peaceful misty morning in Cubbon Park Bangalore with lush green bamboo groves, a solitary runner on the trail, morning sunlight piercing the forest canopy, deep emerald greens and serene cool teal morning hues." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCLrn3oxvc5P9B1kJYJCDaewv1_ubKyUCp3zRXeo7qsk5aCebM5UEHXyf5Z-WQF-MOHF4Wit_wM-I1FaNq9CCFCxUUeWogykUNf7CQplsCmjrR9dZxYkapSrso7GvQ3VHDxNJ7FWh1PD2pB0uYcZHtWwfTTB5HuJV8y1tackzhgD_5d3DuP7m2gY79mb3HZZf8JESiPNFIXIXSvTHVlerc84PUMpB3e1nm317tq83F75keUMR8ynElHdw"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background via-surface-container-lowest/60 to-transparent p-space-md flex flex-col justify-end">
+<span class="font-label-md text-label-md text-primary uppercase font-bold tracking-wider">Morning Habit</span>
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">Cubbon Park Runs</span>
+<span class="font-label-md text-label-md text-on-surface-variant">4x this week · 31.4 km logged</span>
+</div>
+</div>
+<div class="relative rounded-lg overflow-hidden h-44 shadow-md group">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-60" data-alt="A warm South Indian student dining hall plate with stainless steel thali containing white rice, fragrant sambar, potato fry, and rasam, cinematic ambient dark dining mood with warm golden accent highlights." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAz6fCL6aiBIZv0d0QNSf9jZTP2OWfxdMxEIytLECyQNJwV3sf22RbBr1wnrRTB38LaxWyuzjwpNCOKCHnbeL_8DzkuMbE02u_2oXqNp4WABUwNHRPdCDeqOaz9pFBA4JZrMeJ9Xlal53nZhNvm8ArxYmtJDA2bO0Fx1IqkUMWE0pKKC_vrIKuMj4_iVYKvAUsqnxjvBbvJEFQ5ch4Sj3ScE7bsgansYnq6aJ3jxFW2u51YTKMP3tzr4A"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background via-surface-container-lowest/60 to-transparent p-space-md flex flex-col justify-end">
+<span class="font-label-md text-label-md text-tertiary uppercase font-bold tracking-wider">Environmental Context</span>
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">PG Mess Lunch Schedule</span>
+<span class="font-label-md text-label-md text-on-surface-variant">Fixed 1:30 PM meal service</span>
+</div>
+</div>
+<div class="relative rounded-lg overflow-hidden h-44 shadow-md group">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-70" data-alt="A minimalist quiet student study desk at dusk in Bangalore with university books, insulin pen resting on a dark felt desk mat, warm glowing desk lamp light, calm contemplative academic atmosphere in deep charcoal and indigo." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC9hPbY9GUp09w6cF2HzkTJz733SBRyG-Qw8dbRO-5209i8ToF-sdIUt314HUZr_JnavNNr0bzDB8-c74pBSZpSxvmgcUgb-vM_ifNK4vTohwr0a0mCDPWGDAFRvkOX6UaEP3VjG2KRJlZgQRbHyjA5R1hpaUEiSv2P4qWwhL59Fm4or-BYx6x9iqec4UrqtP9K61Ubq4XSADJFn7HjQXD3FzBfaIt4amiZdMSR6AvBqMFK8KvCF4x5Gw"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background via-surface-container-lowest/60 to-transparent p-space-md flex flex-col justify-end">
+<span class="font-label-md text-label-md text-secondary uppercase font-bold tracking-wider">Rest &amp; Study</span>
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">Late Evening Study Blocks</span>
+<span class="font-label-md text-label-md text-on-surface-variant">Low mental stress days correlate with steady dawn readings</span>
+</div>
+</div>
+</div>
+<!-- Doctor Preparation Callout Section -->
+<div class="mt-space-lg rounded-lg bg-gradient-to-br from-surface-container-high/90 via-surface-container/80 to-surface-container-low/90 backdrop-blur-2xl p-space-lg shadow-2xl relative overflow-hidden">
+<div class="absolute top-0 right-0 w-96 h-96 bg-secondary/10 rounded-full blur-[110px] pointer-events-none"></div>
+<div class="absolute -bottom-10 -left-10 w-80 h-80 bg-primary/10 rounded-full blur-[100px] pointer-events-none"></div>
+<div class="relative z-10">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-space-md pb-space-md">
+<div class="flex items-center gap-space-md">
+<div class="w-14 h-14 rounded-full bg-secondary/20 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(76,215,246,0.3)]">
+<span class="material-symbols-outlined text-secondary text-2xl">clinical_notes</span>
+</div>
+<div>
+<div class="flex items-center gap-space-xs">
+<span class="font-label-md text-label-md text-secondary uppercase font-bold tracking-wider">Clinical Consult Brief</span>
+<span class="px-space-xs py-0.5 rounded bg-surface-container-highest text-on-surface-variant font-label-md text-label-md">Auto-Compiled</span>
+</div>
+<h2 class="font-headline-xl text-headline-xl text-on-surface font-bold">Dr. Swaminathan / Diabetologist Review Note</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Structured talking points generated from your last 30 daily logs for your next follow-up appointment.</p>
+</div>
+</div>
+<div class="flex items-center gap-space-sm shrink-0">
+<button class="px-space-md py-space-xs rounded-full bg-surface-container-highest hover:bg-surface-bright text-on-surface font-body-md text-body-md font-semibold transition-all flex items-center gap-1.5 shadow-sm active:scale-95">
+<span class="material-symbols-outlined text-lg">content_copy</span>
+<span>Copy Brief</span>
+</button>
+<a class="px-space-md py-space-xs rounded-full bg-primary-container text-on-primary font-body-md text-body-md font-semibold shadow-[0_8px_20px_rgba(16,185,129,0.35)] hover:bg-primary transition-all flex items-center gap-1.5 active:scale-95" data-path="export-and-settings" href="#">
+<span class="material-symbols-outlined text-lg">download</span>
+<span>Export Physician PDF</span>
+</a>
+</div>
+</div>
+<!-- 3 Identified Doctor Discussion Points -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-space-md mt-space-md">
+<!-- Point 1 -->
+<div class="p-space-md rounded bg-surface-container-lowest/80 shadow-inner flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-2 text-tertiary mb-2">
+<span class="w-6 h-6 rounded-full bg-tertiary/20 flex items-center justify-center font-bold text-label-md">1</span>
+<span class="font-label-md text-label-md uppercase tracking-wider font-semibold">Post-Lunch Excursions</span>
+</div>
+<h4 class="font-headline-sm text-headline-sm text-on-surface font-semibold">3–7 PM Glycemic Spike</h4>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2 leading-relaxed">
+              Consistently noting post-prandial lethargy &amp; dry mouth after mess lunch under current <strong>20U Regular</strong> dose. Discuss whether timing injection 20 minutes prior or adjusting carb estimation is advised.
+            </p>
+</div>
+<div class="mt-space-md pt-space-xs flex items-center gap-1.5 text-on-surface-variant font-label-md text-label-md">
+<span class="material-symbols-outlined text-sm text-tertiary">warning</span>
+<span>Flagged on 5 of 7 recent days</span>
+</div>
+</div>
+<!-- Point 2 -->
+<div class="p-space-md rounded bg-surface-container-lowest/80 shadow-inner flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-2 text-secondary mb-2">
+<span class="w-6 h-6 rounded-full bg-secondary/20 flex items-center justify-center font-bold text-label-md">2</span>
+<span class="font-label-md text-label-md uppercase tracking-wider font-semibold">Biphasic Timing Shift</span>
+</div>
+<h4 class="font-headline-sm text-headline-sm text-on-surface font-semibold">PG Dinner Fluctuation</h4>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2 leading-relaxed">
+              Night <strong>25U 30/70</strong> dose shifts between 8:30 PM and 10:15 PM based on Bangalore PG mess operational hours. Inquire regarding tolerance window for biphasic injections with late college assignments.
+            </p>
+</div>
+<div class="mt-space-md pt-space-xs flex items-center gap-1.5 text-on-surface-variant font-label-md text-label-md">
+<span class="material-symbols-outlined text-sm text-secondary">schedule</span>
+<span>Average 42-minute shift</span>
+</div>
+</div>
+<!-- Point 3 -->
+<div class="p-space-md rounded bg-surface-container-lowest/80 shadow-inner flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-2 text-primary mb-2">
+<span class="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center font-bold text-label-md">3</span>
+<span class="font-label-md text-label-md uppercase tracking-wider font-semibold">Aerobic Protocol</span>
+</div>
+<h4 class="font-headline-sm text-headline-sm text-on-surface font-semibold">10km Endurance Strategy</h4>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2 leading-relaxed">
+              Planning half-marathon training. Seeking clinician guidance on pre-run unrefined carb loading and post-exercise delayed hypoglycemic risk without continuous glucose monitoring hardware.
+            </p>
+</div>
+<div class="mt-space-md pt-space-xs flex items-center gap-1.5 text-on-surface-variant font-label-md text-label-md">
+<span class="material-symbols-outlined text-sm text-primary">verified</span>
+<span>Running 3–4 mornings weekly</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Mandatory Inviolable Disclaimer Callout -->
+<div class="mt-space-lg rounded p-space-md bg-surface-container-lowest/90 backdrop-blur-md flex flex-col sm:flex-row items-center gap-space-md text-center sm:text-left">
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-outline text-xl">shield</span>
+</div>
+<div class="flex-1">
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+<strong class="text-on-surface font-semibold">Important Medical Boundary:</strong> Feelog observes behavioral patterns solely derived from your voluntary daily symptom logs and timestamps. It is not an AI diagnostic engine and never provides medical advice, diagnostic assertions, or insulin dosing suggestions. Always present these synthesized trends directly to your endocrinologist or diabetologist for therapeutic adjustments.
+      </p>
+</div>
+</div>
+</div>
+<!-- Simple Vanilla Interactive Range Switcher -->
+<script>
+  function switchRange(range) {
+    const btn7 = document.getElementById('btn-7d');
+    const btn30 = document.getElementById('btn-30d');
+    const btnPg = document.getElementById('btn-pg');
+    
+    // Reset all buttons to inactive style
+    const inactiveClass = "text-on-surface-variant hover:text-on-surface";
+    const activeClass = "bg-surface-container-high text-on-surface shadow-[0_2px_12px_rgba(0,0,0,0.35)]";
+
+    [btn7, btn30, btnPg].forEach(btn => {
+      btn.className = "px-space-md py-space-xs rounded-full font-label-md text-label-md font-semibold transition-all duration-300 " + inactiveClass;
+    });
+
+    if (range === '7d') {
+      btn7.className = "px-space-md py-space-xs rounded-full font-label-md text-label-md font-semibold transition-all duration-300 " + activeClass;
+    } else if (range === '30d') {
+      btn30.className = "px-space-md py-space-xs rounded-full font-label-md text-label-md font-semibold transition-all duration-300 " + activeClass;
+    } else if (range === 'pg') {
+      btnPg.className = "px-space-md py-space-xs rounded-full font-label-md text-label-md font-semibold transition-all duration-300 " + activeClass;
+    }
+  }
+</script></main><footer class="relative z-10 w-full bg-surface-container-lowest/80 backdrop-blur-xl mt-space-xl py-space-lg"><div class="max-w-[1200px] mx-auto px-margin md:px-margin-lg flex flex-col md:flex-row items-center justify-between gap-space-md font-label-md text-label-md text-on-surface-variant"><div class="flex items-center gap-space-sm"><span class="font-headline-sm text-headline-sm text-on-surface font-bold">Feelog</span><span>· Mindful metabolic telemetry &amp; daily rhythm companion</span></div><div class="flex items-center gap-space-lg"><a class="hover:text-primary transition-colors" data-path="patterns-and-insights" href="#">Insights</a><a class="hover:text-primary transition-colors" data-path="export-and-settings" href="#">Physician Export (PDF)</a><span class="text-outline">v2.4.0 Encrypted Offline-First</span></div></div></footer></body></html>

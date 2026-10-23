@@ -120,12 +120,12 @@ export function generateDoctorPDF(
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(
-    `Patient: ${settings.display_name}  |  Age: 20  |  Height: ${settings.height_cm} cm  |  Weight: ${settings.weight_kg} kg`,
+    `Patient: ${settings.display_name}  |  Age: ${settings.age || 20}  |  Height: ${settings.height_cm} cm  |  Weight: ${settings.weight_kg} kg`,
     40,
     62
   );
   doc.text(
-    `Date Range: ${formatISTDate(startDate)} — ${formatISTDate(endDate)}  |  Timezone: Asia/Kolkata (IST)`,
+    `Date Range: ${formatISTDate(startDate)} — ${formatISTDate(endDate)}  |  Location: ${settings.city || 'Bangalore'}  |  Timezone: ${settings.timezone || 'Asia/Kolkata'}`,
     40,
     78
   );
@@ -142,8 +142,12 @@ export function generateDoctorPDF(
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
+  const morningBrand = settings.morning_insulin_brand || 'Regular (R)';
+  const middayBrand = settings.midday_insulin_brand || 'Regular (R)';
+  const nightBrand = settings.night_insulin_brand || '30/70 Biphasic';
+  const middayText = settings.afternoon_regular_units ? `  |  • Midday: ${settings.afternoon_regular_units} U ${middayBrand}` : '';
   doc.text(
-    `• Morning: ${settings.morning_regular_units} Units Regular (R) before meal\n• Night: ${settings.night_30_70_units} Units Biphasic 30/70 before meal`,
+    `• Morning: ${settings.morning_regular_units} U ${morningBrand}  |  • Night: ${settings.night_30_70_units} U ${nightBrand}${middayText}`,
     50,
     142
   );
@@ -160,8 +164,11 @@ export function generateDoctorPDF(
   doc.setTextColor(180, 83, 9);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
+  const doctorNoteText = settings.doctor_name
+    ? `★ Bring this to ${settings.doctor_name}${settings.clinic_name ? ` (${settings.clinic_name})` : ''} to discuss your insulin regimen and patterns.`
+    : '★ Bring this to your endocrinologist to discuss your insulin regimen and afternoon high patterns.';
   doc.text(
-    '★ Bring this to your endocrinologist to discuss your insulin regimen and afternoon high patterns.',
+    doctorNoteText,
     40,
     182
   );
@@ -202,7 +209,15 @@ export function generateDoctorPDF(
 
       if (item.category === 'insulin' && item.insulin) {
         categoryLabel = 'INSULIN';
-        details = `${item.insulin.insulin_type === 'morning_regular' ? 'Morning Regular' : 'Night 30/70'}: ${item.insulin.units} U (Taken: ${item.insulin.taken ? 'Yes' : 'No'})`;
+        const typeLabels: Record<string, string> = {
+          morning_regular: 'Morning Regular (R)',
+          afternoon_regular: 'Midday Regular (R)',
+          night_30_70: 'Night 30/70 Biphasic',
+          correction: 'Correction Dose',
+          other: 'Insulin',
+        };
+        const label = typeLabels[item.insulin.insulin_type] || 'Insulin';
+        details = `${label}: ${item.insulin.units} U (Taken: ${item.insulin.taken ? 'Yes' : 'No'})`;
         note = item.insulin.note || '';
       } else if (item.category === 'food' && item.food) {
         categoryLabel = `FOOD (${item.food.meal.toUpperCase()})`;

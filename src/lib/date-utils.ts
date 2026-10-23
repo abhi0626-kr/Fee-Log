@@ -1,14 +1,37 @@
 import { MealType } from '@/types';
 
-export const TIMEZONE_IST = 'Asia/Kolkata';
+export const TIMEZONE_IST = 'Asia/Kolkata'; // Official IANA IST timezone for India (Bangalore, Chennai, etc.)
 
 /**
- * Returns current date in IST formatted as YYYY-MM-DD
+ * Returns safe user timezone from settings, defaulting to Asia/Kolkata
+ */
+export function getUserTimeZone(): string {
+  try {
+    if (typeof window !== 'undefined') {
+      const raw = localStorage.getItem('t1d_settings');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.timezone) {
+          // Verify it's a valid IANA timezone
+          new Intl.DateTimeFormat(undefined, { timeZone: parsed.timezone });
+          return parsed.timezone;
+        }
+      }
+    }
+  } catch {
+    // fallback
+  }
+  return TIMEZONE_IST;
+}
+
+/**
+ * Returns current date in user timezone formatted as YYYY-MM-DD
  */
 export function getTodayIST(): string {
   const now = new Date();
+  const tz = getUserTimeZone();
   const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: TIMEZONE_IST,
+    timeZone: tz,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -17,12 +40,13 @@ export function getTodayIST(): string {
 }
 
 /**
- * Returns current time in IST formatted as HH:mm
+ * Returns current time in user timezone formatted as HH:mm
  */
 export function getCurrentTimeIST(): string {
   const now = new Date();
+  const tz = getUserTimeZone();
   const formatter = new Intl.DateTimeFormat('en-GB', {
-    timeZone: TIMEZONE_IST,
+    timeZone: tz,
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
@@ -31,7 +55,7 @@ export function getCurrentTimeIST(): string {
 }
 
 /**
- * Gets the current hour in IST (0-23)
+ * Gets the current hour in user timezone (0-23)
  */
 export function getCurrentHourIST(): number {
   const timeStr = getCurrentTimeIST();
@@ -40,15 +64,16 @@ export function getCurrentHourIST(): number {
 }
 
 /**
- * Formats a YYYY-MM-DD date into readable IST string, e.g. "Thursday, Oct 22, 2026"
+ * Formats a YYYY-MM-DD date into readable string, e.g. "Thursday, Oct 22, 2026"
  */
 export function formatISTDate(dateStr: string, options?: Intl.DateTimeFormatOptions): string {
   if (!dateStr) return '';
   const [year, month, day] = dateStr.split('-').map(Number);
   const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-  
+  const tz = getUserTimeZone();
+
   return new Intl.DateTimeFormat('en-IN', {
-    timeZone: TIMEZONE_IST,
+    timeZone: tz,
     weekday: options?.weekday ?? 'short',
     month: options?.month ?? 'short',
     day: options?.day ?? 'numeric',

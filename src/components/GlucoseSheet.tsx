@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Droplets } from 'lucide-react';
 import { GlucoseContext, GlucoseLog } from '@/types';
 import { getCurrentTimeIST } from '@/lib/date-utils';
 import { saveGlucoseLog } from '@/lib/sync-storage';
@@ -71,86 +70,80 @@ export default function GlucoseSheet({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom-6 duration-200">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-md p-0 sm:p-4">
+      <div className="bg-surface-container/95 border border-white/10 text-on-surface w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom-6 duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center">
-              <Droplets className="w-5 h-5" />
+        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-container-high">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-secondary/20 text-secondary border border-secondary/20 flex items-center justify-center">
+              <span className="material-symbols-outlined text-xl">bloodtype</span>
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">
-                {initialData ? 'Edit Glucose Reading' : 'Log Blood Glucose (Optional)'}
+              <h2 className="text-base font-bold text-on-surface">
+                {initialData ? 'Edit Meter Reading' : 'Log Blood Glucose (Optional)'}
               </h2>
-              <p className="text-xs text-slate-500">
-                Enter fingerstick or meter reading if available
+              <p className="text-xs text-on-surface-variant">
+                Zero pressure. Enter spot check if you have an Accu-Chek or lab value.
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
           >
-            <X className="w-5 h-5" />
+            ✕
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
-          {/* Reading Input */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-              Glucose Reading (mg/dL)
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+          {/* Large Reading Input */}
+          <div className="p-4 rounded-2xl bg-surface-container-low border border-secondary/20 text-center">
+            <label className="block text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
+              Blood Glucose Value (mg/dL)
             </label>
-            <div className="relative">
+            <div className="flex items-baseline justify-center gap-2">
               <input
                 type="number"
-                min="20"
-                max="800"
+                min={20}
+                max={800}
                 value={reading}
                 onChange={(e) => setReading(e.target.value)}
-                placeholder="e.g. 185"
-                autoFocus
-                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-2xl font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                placeholder="140"
+                className="w-36 text-center text-4xl font-extrabold bg-transparent text-secondary border-b-2 border-secondary focus:outline-none"
                 required
+                autoFocus
               />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
-                mg/dL
-              </span>
+              <span className="text-base font-semibold text-on-surface-variant">mg/dL</span>
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Accepted range: 20 – 800 mg/dL
-            </p>
           </div>
 
           {/* Time & Context */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
                 Time (IST)
               </label>
               <input
                 type="time"
                 value={logTime}
                 onChange={(e) => setLogTime(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                className="w-full px-4 py-2.5 bg-surface-container-low border border-white/10 rounded-xl text-sm font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary"
                 required
               />
             </div>
-
             <div>
-              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
                 Context
               </label>
               <select
                 value={context}
                 onChange={(e) => setContext(e.target.value as GlucoseContext)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                className="w-full px-4 py-2.5 bg-surface-container-low border border-white/10 rounded-xl text-sm font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary"
               >
                 {contextOptions.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
+                  <option key={opt.id} value={opt.id} className="bg-surface-container">
                     {opt.label}
                   </option>
                 ))}
@@ -158,26 +151,24 @@ export default function GlucoseSheet({
             </div>
           </div>
 
-          {/* Note */}
+          {/* Notes */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
               Note (Optional)
             </label>
             <input
               type="text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="e.g. Checked at pharmacy or friend's glucometer"
-              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-500"
+              placeholder="e.g. Spot-check at friend's room"
+              className="w-full px-4 py-2.5 bg-surface-container-low border border-white/10 rounded-xl text-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-secondary"
             />
           </div>
 
-          {/* Submit */}
           <div className="pt-2">
             <button
               type="submit"
-              disabled={!reading}
-              className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white font-bold rounded-xl shadow-md transition-all active:scale-[0.99] min-h-[48px]"
+              className="w-full py-3 rounded-full bg-secondary-container text-on-secondary-container hover:bg-secondary hover:text-on-secondary font-bold text-sm shadow-lg transition-all active:scale-95"
             >
               {initialData ? 'Update Glucose Reading' : 'Save Glucose Reading'}
             </button>

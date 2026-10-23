@@ -3,51 +3,48 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  CalendarDays,
-  Clock,
-  Sparkles,
-  BarChart3,
-  FileDown,
-  Settings as SettingsIcon,
-} from 'lucide-react';
 
 export default function BottomNav() {
   const pathname = usePathname();
 
   const navItems = [
-    { href: '/', label: 'Today', icon: CalendarDays },
-    { href: '/timeline', label: 'Timeline', icon: Clock },
-    { href: '/patterns', label: 'Patterns', icon: Sparkles },
-    { href: '/summary', label: 'Summary', icon: BarChart3 },
-    { href: '/export', label: 'Export', icon: FileDown },
-    { href: '/settings', label: 'Settings', icon: SettingsIcon },
+    { href: '/', label: 'Quick Log', icon: 'edit_calendar' },
+    { href: '/timeline', label: 'Timeline', icon: 'timeline' },
+    { href: '/patterns', label: 'Patterns', icon: 'insights' },
+    { href: '/export', label: 'Export', icon: 'clinical_notes' },
+    { href: '/settings', label: 'Settings', icon: 'tune' },
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 pb-safe">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface-container-lowest/90 backdrop-blur-2xl border-t border-surface-container-high/60 pb-safe shadow-[0_-8px_30px_rgba(0,0,0,0.5)]">
       <div className="max-w-md mx-auto flex items-center justify-around px-2 py-1.5">
         {navItems.map((item) => {
-          const Icon = item.icon;
           const isActive = pathname === item.href;
 
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all min-h-[48px] min-w-[44px] ${
+              className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-2xl transition-all duration-200 min-h-[48px] min-w-[44px] ${
                 isActive
-                  ? 'text-teal-600 dark:text-teal-400 font-semibold scale-105'
-                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                  ? 'text-primary font-bold scale-105'
+                  : 'text-on-surface-variant hover:text-on-surface'
               }`}
             >
-              <div className="relative">
-                <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5px]' : 'stroke-[1.8px]'}`} />
+              <div className="relative flex items-center justify-center">
+                <span
+                  className={`material-symbols-outlined text-[1.4rem] transition-transform ${
+                    isActive ? 'scale-110' : ''
+                  }`}
+                  style={isActive ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                >
+                  {item.icon}
+                </span>
                 {isActive && (
-                  <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-teal-600 dark:bg-teal-400 rounded-full" />
+                  <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-primary rounded-full shadow-[0_0_8px_rgba(78,222,163,0.8)]" />
                 )}
               </div>
-              <span className="text-[10px] mt-1 tracking-tight">{item.label}</span>
+              <span className="text-[10px] mt-1 font-medium tracking-tight">{item.label}</span>
             </Link>
           );
         })}

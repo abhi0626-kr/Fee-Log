@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_standard" name="shell-type"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = {"darkMode":"class","theme":{"extend":{"colors":{"error-container":"#93000a","inverse-primary":"#006c49","on-secondary-fixed":"#001f26","outline-variant":"#3c4a42","outline":"#86948a","surface-container":"#171f33","primary-container":"#10b981","background":"#0b1326","on-tertiary-fixed":"#2a1700","primary":"#4edea3","tertiary-fixed":"#ffddb8","primary-fixed-dim":"#4edea3","on-surface":"#dae2fd","secondary-fixed":"#acedff","on-secondary-fixed-variant":"#004e5c","on-surface-variant":"#bbcabf","secondary":"#4cd7f6","surface-tint":"#4edea3","on-error":"#690005","surface-container-lowest":"#060e20","on-error-container":"#ffdad6","secondary-container":"#03b5d3","on-primary-fixed":"#002113","on-tertiary-container":"#523200","on-background":"#dae2fd","surface-container-low":"#131b2e","surface-container-high":"#222a3d","primary-fixed":"#6ffbbe","on-secondary-container":"#00424e","on-secondary":"#003640","on-primary":"#003824","surface-container-highest":"#2d3449","tertiary-container":"#e29100","error":"#ffb4ab","inverse-on-surface":"#283044","surface-variant":"#2d3449","tertiary":"#ffb95f","surface":"#0b1326","on-tertiary-fixed-variant":"#653e00","tertiary-fixed-dim":"#ffb95f","surface-dim":"#0b1326","on-tertiary":"#472a00","inverse-surface":"#dae2fd","on-primary-fixed-variant":"#005236","on-primary-container":"#00422b","surface-bright":"#31394d","secondary-fixed-dim":"#4cd7f6"},"borderRadius":{"DEFAULT":"1rem","lg":"2rem","xl":"3rem","full":"9999px"},"spacing":{"space-md":"1rem","margin":"1rem","space-xs":"0.25rem","gutter":"1rem","space-lg":"1.5rem","margin-lg":"3.5rem","gutter-lg":"2rem","gutter-md":"1.5rem","space-sm":"0.5rem","space-xl":"2.5rem","margin-md":"2rem"},"fontFamily":{"headline-sm":["Plus Jakarta Sans"],"body-lg":["Plus Jakarta Sans"],"label-md":["Inter"],"headline-xl":["Plus Jakarta Sans"],"display-lg-mobile":["Plus Jakarta Sans"],"body-md":["Plus Jakarta Sans"],"label-numeric":["Plus Jakarta Sans"],"headline-xl-mobile":["Plus Jakarta Sans"],"display-lg":["Plus Jakarta Sans"]},"fontSize":{"headline-sm":["1.125rem",{"lineHeight":"1.5rem","fontWeight":"600"}],"body-lg":["1rem",{"lineHeight":"1.6rem","fontWeight":"400"}],"label-md":["0.75rem",{"lineHeight":"1rem","letterSpacing":"0.04em","fontWeight":"500"}],"headline-xl":["2rem",{"lineHeight":"2.5rem","letterSpacing":"-0.01em","fontWeight":"600"}],"display-lg-mobile":["2.5rem",{"lineHeight":"3rem","letterSpacing":"-0.01em","fontWeight":"700"}],"body-md":["0.875rem",{"lineHeight":"1.4rem","fontWeight":"400"}],"label-numeric":["1.75rem",{"lineHeight":"2rem","fontWeight":"700"}],"headline-xl-mobile":["1.5rem",{"lineHeight":"2rem","letterSpacing":"-0.01em","fontWeight":"600"}],"display-lg":["3.5rem",{"lineHeight":"4rem","letterSpacing":"-0.02em","fontWeight":"700"}]}}}}</script></head><body class="bg-background font-body-lg text-body-lg text-on-surface antialiased min-h-screen relative selection:bg-primary-container selection:text-on-primary"><div class="fixed inset-0 pointer-events-none z-0 overflow-hidden"><div class="absolute -top-40 left-1/4 w-[48rem] h-[48rem] bg-[#0f766e]/15 rounded-full blur-[140px]"></div><div class="absolute top-1/3 -right-32 w-[40rem] h-[40rem] bg-[#1e1b4b]/25 rounded-full blur-[160px]"></div><div class="absolute -bottom-20 left-10 w-[36rem] h-[36rem] bg-[#083344]/20 rounded-full blur-[130px]"></div></div><header class="fixed top-0 w-full z-50 bg-surface/75 backdrop-blur-2xl shadow-[0_4px_30px_rgba(0,0,0,0.35)]"><div class="h-20 max-w-[1200px] mx-auto px-margin md:px-margin-lg flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-md"><div class="flex items-center gap-space-sm"><span class="font-headline-xl text-headline-xl text-on-surface font-bold tracking-tight">Feelog</span><span class="px-space-sm py-0.5 rounded-full bg-primary-container/20 text-primary font-label-md text-label-md uppercase tracking-wider font-semibold">Type 1 Diary</span></div><div class="hidden xl:flex items-center gap-space-xs text-on-surface-variant font-label-md text-label-md pl-space-sm"><span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span><span>Bangalore PG · IST</span></div></div><nav class="hidden lg:flex items-center p-space-xs bg-surface-container-lowest/80 rounded-full backdrop-blur-md" data-active-classes="bg-surface-container-high text-on-surface font-semibold shadow-inner"><a class="px-space-md py-space-xs rounded-full font-body-md text-body-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all" data-path="quick-log" href="#">Quick Log</a><a aria-current="page" class="px-space-md py-space-xs rounded-full transition-all bg-surface-container-high text-on-surface font-semibold shadow-inner" data-path="day-timeline" href="#">Day Timeline</a><a class="px-space-md py-space-xs rounded-full font-body-md text-body-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all" data-path="patterns-and-insights" href="#">Patterns &amp; Insights</a><a class="px-space-md py-space-xs rounded-full font-body-md text-body-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all" data-path="export-and-settings" href="#">Export &amp; Settings</a></nav><div class="flex items-center gap-space-sm"><div class="hidden sm:flex items-center gap-space-xs px-space-md py-space-xs rounded-full bg-surface-container-low text-tertiary font-label-md text-label-md shadow-[0_0_20px_rgba(255,185,95,0.15)]"><span class="text-tertiary">🔥</span><span class="font-semibold">12 days logged</span></div><button class="flex items-center gap-space-xs px-space-md py-space-xs rounded-full bg-primary-container text-on-primary font-body-md text-body-md font-semibold shadow-[0_10px_25px_-5px_rgba(16,185,129,0.35)] hover:bg-primary transition-all active:scale-95" type="button"><span class="material-symbols-outlined text-[1.125rem]">add</span><span class="hidden md:inline">New Entry</span></button><div class="flex items-center pl-space-xs"><div class="relative flex items-center justify-center"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida/AEtjO1W3V0IZP2c2paUrZgaO1L1NPkJaAKCMBwCMBvKqph8UsqyoNnSBiHwW6BV4E9cSifrpS9j_PsJgGp8v7TIWw5-8r3qRdNIDje4Ee1Xotlq_UrY1DGjZUdCbDkr15JWCQKq_NavdG13yHOISAny-SBIcwwD5svusYqyWbwmjCWN1dbLTkk7LuuVRLTpv-1NMBZli4KmlNWHvmpIMk4gNp9PnVGY8MuuDkpPcx6BWsuXumu3djS0MCePDRBY"/><span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-background"></span></div></div></div></div><div class="w-full bg-surface-container-lowest/60 backdrop-blur-md py-1.5 px-margin text-center font-label-md text-label-md text-on-surface-variant flex items-center justify-center gap-space-xs"><span class="material-symbols-outlined text-secondary text-[1rem]">verified_user</span><span>No medical advice. Pure symptom &amp; rhythm tracking for you and your physician.</span></div></header><main class="relative z-10 w-full pt-20 max-w-[1200px] mx-auto px-margin md:px-margin-lg pb-margin-lg"><div class="flex flex-col w-full">
+<!-- SUB-HEADER / DATE CONTROL STRIP -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-space-md pb-space-lg">
+<!-- Day Switcher -->
+<div class="flex items-center gap-space-sm bg-surface-container-low/90 backdrop-blur-xl p-1.5 rounded-full shadow-lg">
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all active:scale-95" type="button">
+<span class="material-symbols-outlined text-[1.25rem]">chevron_left</span>
+</button>
+<div class="px-space-md py-1 flex items-center gap-space-xs text-center">
+<span class="material-symbols-outlined text-primary text-[1.125rem]">calendar_today</span>
+<span class="font-headline-sm text-headline-sm text-on-surface tracking-tight">Friday, 23 Oct 2026</span>
+<span class="px-space-xs py-0.5 rounded-full bg-primary-container/20 text-primary font-label-md text-label-md font-semibold">Today</span>
+</div>
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant/40 cursor-not-allowed" type="button">
+<span class="material-symbols-outlined text-[1.25rem]">chevron_right</span>
+</button>
+</div>
+<!-- Quick Add Menu Triggers -->
+<div class="flex items-center gap-space-xs flex-wrap">
+<button class="timeline-filter-btn active-filter px-space-md py-1.5 rounded-full font-label-md text-label-md bg-surface-container-high text-primary font-semibold shadow-inner transition-all" onclick="filterTimeline('all')" type="button">All Events (10)</button>
+<button class="timeline-filter-btn px-space-md py-1.5 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all" onclick="filterTimeline('insulin')" type="button">Insulin (2)</button>
+<button class="timeline-filter-btn px-space-md py-1.5 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all" onclick="filterTimeline('feelings')" type="button">Feelings (3)</button>
+<button class="timeline-filter-btn px-space-md py-1.5 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all" onclick="filterTimeline('food')" type="button">Food (2)</button>
+<button class="timeline-filter-btn px-space-md py-1.5 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all" onclick="filterTimeline('activity')" type="button">Workouts (2)</button>
+</div>
+</div>
+<!-- DAILY SUMMARY ACCORDION / METRIC CARDS -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-space-md pb-space-xl">
+<div class="p-space-md rounded-2xl bg-surface-container-low/70 backdrop-blur-xl shadow-lg relative overflow-hidden group hover:bg-surface-container-low transition-all">
+<div class="absolute -right-4 -top-4 w-16 h-16 rounded-full bg-primary/10 blur-xl"></div>
+<div class="flex items-center justify-between pb-space-xs">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Daily Insulin</span>
+<span class="material-symbols-outlined text-primary text-[1.125rem]">vaccines</span>
+</div>
+<div class="font-label-numeric text-label-numeric text-on-surface">45<span class="text-body-md font-body-md text-on-surface-variant ml-1">Units</span></div>
+<div class="font-label-md text-label-md text-primary mt-1">20U R · 25U 30/70 (due)</div>
+</div>
+<div class="p-space-md rounded-2xl bg-surface-container-low/70 backdrop-blur-xl shadow-lg relative overflow-hidden group hover:bg-surface-container-low transition-all">
+<div class="absolute -right-4 -top-4 w-16 h-16 rounded-full bg-tertiary/10 blur-xl"></div>
+<div class="flex items-center justify-between pb-space-xs">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Symptoms</span>
+<span class="material-symbols-outlined text-tertiary text-[1.125rem]">psychology_alt</span>
+</div>
+<div class="font-label-numeric text-label-numeric text-tertiary">2 <span class="text-body-md font-body-md text-on-surface-variant">noted</span></div>
+<div class="font-label-md text-label-md text-tertiary mt-1">Peak 3:45 PM (dry mouth)</div>
+</div>
+<div class="p-space-md rounded-2xl bg-surface-container-low/70 backdrop-blur-xl shadow-lg relative overflow-hidden group hover:bg-surface-container-low transition-all">
+<div class="absolute -right-4 -top-4 w-16 h-16 rounded-full bg-secondary/10 blur-xl"></div>
+<div class="flex items-center justify-between pb-space-xs">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Physical Load</span>
+<span class="material-symbols-outlined text-secondary text-[1.125rem]">directions_run</span>
+</div>
+<div class="font-label-numeric text-label-numeric text-secondary">8.5<span class="text-body-md font-body-md text-on-surface-variant ml-1">km</span></div>
+<div class="font-label-md text-label-md text-secondary mt-1">Cubbon Park + Terrace pull-ups</div>
+</div>
+<div class="p-space-md rounded-2xl bg-surface-container-low/70 backdrop-blur-xl shadow-lg relative overflow-hidden group hover:bg-surface-container-low transition-all">
+<div class="absolute -right-4 -top-4 w-16 h-16 rounded-full bg-tertiary-container/10 blur-xl"></div>
+<div class="flex items-center justify-between pb-space-xs">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Optional Spot Glucose</span>
+<span class="material-symbols-outlined text-tertiary text-[1.125rem]">bloodtype</span>
+</div>
+<div class="font-label-numeric text-label-numeric text-tertiary">198<span class="text-body-md font-body-md text-on-surface-variant ml-1">mg/dL</span></div>
+<div class="font-label-md text-label-md text-on-surface-variant mt-1">1 meter check at 5:00 PM</div>
+</div>
+</div>
+<!-- MAIN 2-COLUMN LAYOUT -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-xl items-start">
+<!-- LEFT: VERTICAL ILLUMINATED BIOMETRIC TIMELINE (Col 1-8) -->
+<div class="lg:col-span-8 relative">
+<!-- Continuous vertical illuminated fiber optic neon trace -->
+<div class="absolute left-6 md:left-8 top-6 bottom-6 w-0.5 bg-gradient-to-b from-secondary via-primary via-tertiary to-primary-container shadow-[0_0_12px_rgba(78,222,163,0.35)] opacity-40 pointer-events-none"></div>
+<!-- TIMELINE ENTRIES -->
+<div class="space-y-space-lg relative" id="timeline-feed">
+<!-- 1. 07:15 AM - CUBBON PARK RUN -->
+<div class="timeline-item activity relative pl-16 md:pl-20 group transition-all duration-300">
+<!-- Illuminated Node -->
+<div class="absolute left-3 md:left-5 top-4 w-6 h-6 rounded-full bg-surface-container-lowest flex items-center justify-center ring-4 ring-background shadow-[0_0_18px_rgba(76,215,246,0.6)]">
+<span class="w-2.5 h-2.5 rounded-full bg-secondary"></span>
+</div>
+<div class="bg-surface-container-low/80 backdrop-blur-2xl p-space-lg rounded-3xl shadow-xl transition-all duration-300 hover:bg-surface-container hover:shadow-[0_12px_30px_rgba(0,0,0,0.45)]">
+<div class="flex flex-wrap items-center justify-between gap-space-sm pb-space-sm">
+<div class="flex items-center gap-space-sm">
+<span class="px-space-sm py-0.5 rounded-full bg-secondary-container/20 text-secondary font-label-md text-label-md font-semibold tracking-wider uppercase">07:15 AM · Activity</span>
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">Morning Run &amp; Calisthenics</span>
+</div>
+<span class="flex items-center gap-1 text-on-surface-variant font-label-md text-label-md">
+<span class="material-symbols-outlined text-[1rem] text-secondary">park</span> Cubbon Park Loop
+              </span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant pb-space-md">
+              High energy, brisk crisp Bangalore morning air. 10-minute dynamic calisthenics stretch on the grass near Queen’s Statue followed by distance pace.
+            </p>
+<div class="grid grid-cols-3 gap-space-sm pt-space-xs pb-space-sm">
+<div class="bg-surface-container-lowest/60 rounded-xl p-space-sm text-center">
+<div class="font-label-md text-label-md text-on-surface-variant uppercase">Distance</div>
+<div class="font-headline-sm text-headline-sm text-secondary font-bold">8.5 km</div>
+</div>
+<div class="bg-surface-container-lowest/60 rounded-xl p-space-sm text-center">
+<div class="font-label-md text-label-md text-on-surface-variant uppercase">Avg Pace</div>
+<div class="font-headline-sm text-headline-sm text-on-surface font-bold">5'08" /km</div>
+</div>
+<div class="bg-surface-container-lowest/60 rounded-xl p-space-sm text-center">
+<div class="font-label-md text-label-md text-on-surface-variant uppercase">Time</div>
+<div class="font-headline-sm text-headline-sm text-on-surface font-bold">43 min</div>
+</div>
+</div>
+<!-- Visual route impression -->
+<div class="mt-space-sm rounded-2xl overflow-hidden relative h-28 bg-surface-container-lowest">
+<img class="w-full h-full object-cover opacity-40 mix-blend-luminosity" data-alt="Atmospheric moody wide view of Bangalore Cubbon park tree canopy with morning mist filtered morning sunlight highlighting runners path deep green lush foliage dark ambient tone" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDB2gE7W3qsS_XwPeFCA9rr9rgD7t_POSJGDukMdIe6PHYg-CQEttTjzySf-EyrKtFHz1Ma2bRmCh8O9LGUDjKmYHaGusf_hD4Rqq3SKa_qxUgDehooi_xwU3NJTlq9_9Lpco-i-XFr4oQ02KcKoPknZCkGv0vSAqCt_Glv4FLLVGLneYFZp4KIo7y6zL-rC_3bYkO2pAeJ7KPHDo_3xe4xyfgudCyDJ03VNPmeGijdW1KHWYEMD5v_3A"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-low via-surface-container-low/40 to-transparent flex items-end p-space-md justify-between">
+<span class="font-label-md text-label-md text-on-surface font-medium flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-secondary animate-ping"></span> Exertion: RPE 6/10 (Aerobic baseline)
+                </span>
+<span class="font-label-md text-label-md text-secondary font-semibold">Buffered for breakfast carbs</span>
+</div>
+</div>
+</div>
+</div>
+<!-- 2. 08:00 AM - MORNING INSULIN (REGULAR) -->
+<div class="timeline-item insulin relative pl-16 md:pl-20 group transition-all duration-300">
+<!-- Emerald Syringe Node -->
+<div class="absolute left-3 md:left-5 top-4 w-6 h-6 rounded-full bg-surface-container-lowest flex items-center justify-center ring-4 ring-background shadow-[0_0_18px_rgba(78,222,163,0.6)]">
+<span class="material-symbols-outlined text-[0.875rem] text-primary">vaccines</span>
+</div>
+<div class="bg-surface-container-low/80 backdrop-blur-2xl p-space-md md:p-space-lg rounded-3xl shadow-xl hover:bg-surface-container transition-all">
+<div class="flex flex-wrap items-center justify-between gap-space-sm pb-space-xs">
+<div class="flex items-center gap-space-sm">
+<span class="px-space-sm py-0.5 rounded-full bg-primary-container/20 text-primary font-label-md text-label-md font-semibold tracking-wider uppercase">08:00 AM · Insulin</span>
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">Morning Bolus Injection</span>
+</div>
+<div class="flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-primary-container/20 text-primary font-label-md text-label-md font-semibold">
+<span class="material-symbols-outlined text-[0.875rem]">done_all</span> Administered
+              </div>
+</div>
+<div class="flex items-center gap-space-md mt-space-sm p-space-sm bg-surface-container-lowest/60 rounded-2xl">
+<div class="w-14 h-14 rounded-xl bg-primary/10 flex flex-col items-center justify-center text-primary">
+<span class="font-headline-xl text-headline-xl leading-none font-bold">20</span>
+<span class="font-label-md text-label-md uppercase font-semibold">Units</span>
+</div>
+<div class="flex-1">
+<div class="font-headline-sm text-headline-sm text-on-surface font-medium">Regular (R) Insulin</div>
+<div class="font-label-md text-label-md text-on-surface-variant">Subcutaneous · Abdomen (Upper Left Quadrant) · Standard pre-meal 30 min timing</div>
+</div>
+</div>
+</div>
+</div>
+<!-- 3. 08:30 AM - BREAKFAST (PG MESS) -->
+<div class="timeline-item food relative pl-16 md:pl-20 group transition-all duration-300">
+<!-- Amber Food Node -->
+<div class="absolute left-3 md:left-5 top-4 w-6 h-6 rounded-full bg-surface-container-lowest flex items-center justify-center ring-4 ring-background shadow-[0_0_18px_rgba(255,185,95,0.5)]">
+<span class="w-2.5 h-2.5 rounded-full bg-tertiary"></span>
+</div>
+<div class="bg-surface-container-low/80 backdrop-blur-2xl p-space-lg rounded-3xl shadow-xl hover:bg-surface-container transition-all">
+<div class="flex flex-wrap items-center justify-between gap-space-sm pb-space-sm">
+<div class="flex items-center gap-space-sm">
+<span class="px-space-sm py-0.5 rounded-full bg-tertiary-container/20 text-tertiary font-label-md text-label-md font-semibold tracking-wider uppercase">08:30 AM · Food &amp; Carbs</span>
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">PG Mess Breakfast</span>
+</div>
+<span class="px-space-sm py-0.5 rounded-full bg-tertiary/10 text-tertiary font-label-md text-label-md font-medium">Medium-High Carb</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface pb-space-sm">
+              4 Plain Crispy Dosas, Fresh Coconut Chutney (thick), Vegetable Tomato Kurma, and 1 glass cutting chai (low sugar request).
+            </p>
+<div class="flex items-center gap-space-xs flex-wrap font-label-md text-label-md pt-space-xs">
+<span class="px-space-sm py-1 rounded-full bg-surface-container-highest text-on-surface-variant">~75g Estimated Carbs</span>
+<span class="px-space-sm py-1 rounded-full bg-surface-container-highest text-on-surface-variant">Mess Dining Hall</span>
+<span class="px-space-sm py-1 rounded-full bg-surface-container-highest text-on-surface-variant">30m post-insulin match ✓</span>
+</div>
+</div>
+</div>
+<!-- 4. 10:45 AM - FEEL CHECK-IN (BALANCED) -->
+<div class="timeline-item feelings relative pl-16 md:pl-20 group transition-all duration-300">
+<!-- Bright Emerald Node -->
+<div class="absolute left-3 md:left-5 top-4 w-6 h-6 rounded-full bg-surface-container-lowest flex items-center justify-center ring-4 ring-background shadow-[0_0_20px_rgba(78,222,163,0.7)]">
+<span class="w-2.5 h-2.5 rounded-full bg-primary animate-pulse"></span>
+</div>
+<div class="bg-surface-container-low/80 backdrop-blur-2xl p-space-md rounded-2xl shadow-md hover:bg-surface-container transition-all">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<span class="px-space-sm py-0.5 rounded-full bg-primary/20 text-primary font-label-md text-label-md font-semibold tracking-wider uppercase">10:45 AM · Mindful State</span>
+<span class="font-headline-sm text-headline-sm text-primary font-semibold flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[1.25rem]">sentiment_satisfied</span> Okay / Balanced
+                </span>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant">Library study slot</span>
+</div>
+<div class="flex items-center gap-space-xs mt-space-sm flex-wrap">
+<span class="px-space-sm py-0.5 rounded-full bg-surface-container text-on-surface font-label-md text-label-md">Clear Mind</span>
+<span class="px-space-sm py-0.5 rounded-full bg-surface-container text-on-surface font-label-md text-label-md">Post-run endorphins</span>
+<span class="px-space-sm py-0.5 rounded-full bg-surface-container text-on-surface font-label-md text-label-md">Zero shakiness</span>
+</div>
+</div>
+</div>
+<!-- 5. 01:15 PM - LUNCH (BANGALORE PG MESS) -->
+<div class="timeline-item food relative pl-16 md:pl-20 group transition-all duration-300">
+<!-- Amber Food Node -->
+<div class="absolute left-3 md:left-5 top-4 w-6 h-6 rounded-full bg-surface-container-lowest flex items-center justify-center ring-4 ring-background shadow-[0_0_18px_rgba(255,185,95,0.5)]">
+<span class="w-2.5 h-2.5 rounded-full bg-tertiary"></span>
+</div>
+<div class="bg-surface-container-low/80 backdrop-blur-2xl p-space-lg rounded-3xl shadow-xl hover:bg-surface-container transition-all">
+<div class="flex flex-wrap items-center justify-between gap-space-sm pb-space-sm">
+<div class="flex items-center gap-space-sm">
+<span class="px-space-sm py-0.5 rounded-full bg-tertiary-container/20 text-tertiary font-label-md text-label-md font-semibold tracking-wider uppercase">01:15 PM · Food &amp; Carbs</span>
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">PG Mess Thali Lunch</span>
+</div>
+<span class="px-space-sm py-0.5 rounded-full bg-tertiary-container/30 text-tertiary font-label-md text-label-md font-semibold">High Carb</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface pb-space-sm">
+              Sona Masoori Rice (2 generous stainless cups), Dal Tadka, Crispy Aloo Fry, Cucumber slices, and fresh Curd. Drank 500ml water.
+            </p>
+<div class="flex items-center gap-space-xs flex-wrap font-label-md text-label-md pt-space-xs">
+<span class="px-space-sm py-1 rounded-full bg-surface-container-highest text-on-surface">~95g Fast Carbs</span>
+<span class="px-space-sm py-1 rounded-full bg-surface-container-highest text-on-surface-variant">Curd helps glycemic absorption speed</span>
+</div>
+</div>
+</div>
+<!-- 6. 03:45 PM - THE 3-7 PM SYMPTOM PEAK (SLIGHTLY HIGH) -->
+<div class="timeline-item feelings relative pl-16 md:pl-20 group transition-all duration-300">
+<!-- Warning Orange Node with Outer Pulse Glow -->
+<div class="absolute left-3 md:left-5 top-4 w-6 h-6 rounded-full bg-surface-container-lowest flex items-center justify-center ring-4 ring-background shadow-[0_0_24px_rgba(255,185,95,0.9)] animate-pulse">
+<span class="w-3 h-3 rounded-full bg-tertiary"></span>
+</div>
+<div class="bg-surface-container-low/90 backdrop-blur-2xl p-space-lg rounded-3xl shadow-2xl relative overflow-hidden">
+<div class="absolute -right-12 -top-12 w-32 h-32 rounded-full bg-tertiary/15 blur-2xl pointer-events-none"></div>
+<div class="flex flex-wrap items-center justify-between gap-space-sm pb-space-sm">
+<div class="flex items-center gap-space-sm">
+<span class="px-space-sm py-0.5 rounded-full bg-tertiary-container/30 text-tertiary font-label-md text-label-md font-semibold tracking-wider uppercase">03:45 PM · Afternoon Shift</span>
+<span class="font-headline-sm text-headline-sm text-tertiary font-semibold flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[1.25rem]">warning_amber</span> Slightly High (Symptom Peak)
+                </span>
+</div>
+<span class="px-space-sm py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-label-md text-label-md">Characteristic 3–7 PM Rise</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface pb-space-sm">
+              Felt the midday lunch rice peak during the 4th-hour university lab project. Eyelids felt heavy, constant dry palate needing chilled water refill, and notable cognitive drag.
+            </p>
+<div class="flex items-center gap-space-xs flex-wrap font-label-md text-label-md pt-space-xs">
+<span class="px-space-md py-1 rounded-full bg-tertiary-container/20 text-tertiary font-semibold">Heavy Eyelids</span>
+<span class="px-space-md py-1 rounded-full bg-tertiary-container/20 text-tertiary font-semibold">Persistent Dry Mouth</span>
+<span class="px-space-md py-1 rounded-full bg-tertiary-container/20 text-tertiary font-semibold">Brain Fog</span>
+<span class="px-space-md py-1 rounded-full bg-surface-container text-on-surface-variant">Drank 750ml water</span>
+</div>
+</div>
+</div>
+<!-- 7. 05:00 PM - OPTIONAL GLAMOUR GLUCOSE POINT -->
+<div class="timeline-item glucose relative pl-16 md:pl-20 group transition-all duration-300">
+<!-- Radiant Frosted Cyan Node -->
+<div class="absolute left-3 md:left-5 top-4 w-6 h-6 rounded-full bg-surface-container-lowest flex items-center justify-center ring-4 ring-background shadow-[0_0_20px_rgba(76,215,246,0.8)]">
+<span class="w-3 h-3 rounded-full bg-secondary"></span>
+</div>
+<div class="bg-gradient-to-r from-surface-container-low/90 to-surface-container-high/90 backdrop-blur-2xl p-space-lg rounded-3xl shadow-2xl relative overflow-hidden">
+<div class="flex flex-wrap items-center justify-between gap-space-sm pb-space-sm">
+<div class="flex items-center gap-space-sm">
+<span class="px-space-sm py-0.5 rounded-full bg-secondary-container/20 text-secondary font-label-md text-label-md font-semibold tracking-wider uppercase">05:00 PM · Physical Telemetry</span>
+<span class="px-space-sm py-0.5 rounded-full bg-secondary-container/30 text-secondary font-label-md text-label-md font-semibold">Optional Meter Reading</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant">Accu-Chek Instant Meter</span>
+</div>
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-space-md pt-space-xs">
+<div>
+<div class="flex items-baseline gap-space-sm">
+<span class="font-display-lg text-display-lg text-secondary font-extrabold tracking-tight">198</span>
+<span class="font-headline-sm text-headline-sm text-on-surface-variant font-medium">mg/dL</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">
+                  Spot-check at friend’s room. Correlates exactly with the 3:45 PM dry mouth observation. Expected post-rice curve.
+                </p>
+</div>
+<!-- Sparkline Gauge Badge -->
+<div class="p-space-md rounded-2xl bg-surface-container-lowest/80 flex flex-col items-center justify-center min-w-[140px]">
+<div class="w-full flex justify-between text-[0.6875rem] font-label-md text-on-surface-variant pb-1">
+<span>Target</span>
+<span>70 - 180</span>
+</div>
+<div class="w-full h-2 rounded-full bg-surface-container-high overflow-hidden">
+<div class="h-full bg-secondary rounded-full" style="width: 78%;"></div>
+</div>
+<div class="font-label-md text-label-md text-secondary font-medium pt-2 text-center">
+                  +18 mg/dL over target
+                </div>
+</div>
+</div>
+</div>
+</div>
+<!-- 8. 06:15 PM - EVENING CALISTHENICS -->
+<div class="timeline-item activity relative pl-16 md:pl-20 group transition-all duration-300">
+<!-- Cyan Activity Node -->
+<div class="absolute left-3 md:left-5 top-4 w-6 h-6 rounded-full bg-surface-container-lowest flex items-center justify-center ring-4 ring-background shadow-[0_0_18px_rgba(76,215,246,0.6)]">
+<span class="material-symbols-outlined text-[0.875rem] text-secondary">fitness_center</span>
+</div>
+<div class="bg-surface-container-low/80 backdrop-blur-2xl p-space-md md:p-space-lg rounded-3xl shadow-xl hover:bg-surface-container transition-all">
+<div class="flex flex-wrap items-center justify-between gap-space-sm pb-space-xs">
+<div class="flex items-center gap-space-sm">
+<span class="px-space-sm py-0.5 rounded-full bg-secondary-container/20 text-secondary font-label-md text-label-md font-semibold tracking-wider uppercase">06:15 PM · Activity</span>
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">Terrace Calisthenics</span>
+</div>
+<span class="font-label-md text-label-md text-secondary font-medium">35 mins</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant pt-space-xs pb-space-sm">
+              PG Rooftop pull-up bar routine (5 sets of 8 pull-ups, 60 bodyweight squats, core planks). Purpose: trigger muscular glucose uptake without cardio exhaustion.
+            </p>
+<div class="flex items-center gap-space-xs flex-wrap font-label-md text-label-md">
+<span class="px-space-sm py-0.5 rounded-full bg-surface-container-highest text-on-surface">Insulin Sensitivity Booster</span>
+<span class="px-space-sm py-0.5 rounded-full bg-surface-container-highest text-on-surface-variant">Hydrated: 1L Water</span>
+</div>
+</div>
+</div>
+<!-- 9. 07:15 PM - FEEL CHECK-IN (RECOVERED) -->
+<div class="timeline-item feelings relative pl-16 md:pl-20 group transition-all duration-300">
+<!-- Green Restored Node -->
+<div class="absolute left-3 md:left-5 top-4 w-6 h-6 rounded-full bg-surface-container-lowest flex items-center justify-center ring-4 ring-background shadow-[0_0_18px_rgba(78,222,163,0.6)]">
+<span class="w-2.5 h-2.5 rounded-full bg-primary"></span>
+</div>
+<div class="bg-surface-container-low/80 backdrop-blur-2xl p-space-md rounded-2xl shadow-md hover:bg-surface-container transition-all">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<span class="px-space-sm py-0.5 rounded-full bg-primary/20 text-primary font-label-md text-label-md font-semibold tracking-wider uppercase">07:15 PM · Mindful State</span>
+<span class="font-headline-sm text-headline-sm text-primary font-semibold flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[1.25rem]">sentiment_calm</span> Back to Baseline
+                </span>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant">Evening cool down</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant pt-space-xs">
+              Mouth dryness completely resolved. Energy leveled back out following calisthenics and cold PG shower. Ready for study &amp; dinner bolus.
+            </p>
+</div>
+</div>
+<!-- 10. 08:30 PM - SCHEDULED UPCOMING (NIGHT INSULIN & DINNER) -->
+<div class="timeline-item insulin relative pl-16 md:pl-20 group transition-all duration-300">
+<!-- Future Pending Node -->
+<div class="absolute left-3 md:left-5 top-4 w-6 h-6 rounded-full bg-surface-container-lowest flex items-center justify-center ring-4 ring-background shadow-[0_0_12px_rgba(255,255,255,0.2)]">
+<span class="w-2 h-2 rounded-full bg-outline animate-ping"></span>
+</div>
+<div class="bg-surface-container-low/40 backdrop-blur-xl p-space-lg rounded-3xl shadow-inner relative overflow-hidden">
+<div class="flex flex-wrap items-center justify-between gap-space-sm pb-space-sm">
+<div class="flex items-center gap-space-sm">
+<span class="px-space-sm py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-label-md text-label-md font-semibold tracking-wider uppercase">08:30 PM · Upcoming</span>
+<span class="font-headline-sm text-headline-sm text-on-surface/90 font-semibold">Night Basal &amp; Mess Dinner</span>
+</div>
+<span class="px-space-sm py-0.5 rounded-full bg-primary/10 text-primary font-label-md text-label-md font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[1rem]">schedule</span> Due in ~45 mins
+              </span>
+</div>
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-space-md p-space-sm bg-surface-container-lowest/40 rounded-2xl">
+<div class="flex items-center gap-space-md">
+<div class="w-12 h-12 rounded-xl bg-surface-container-high flex flex-col items-center justify-center text-primary">
+<span class="font-headline-sm text-headline-sm leading-none font-bold">25</span>
+<span class="font-label-md text-[0.625rem] uppercase">Units</span>
+</div>
+<div>
+<div class="font-body-md text-body-md text-on-surface font-medium">Biphasic 30/70 Suspension Injection</div>
+<div class="font-label-md text-label-md text-on-surface-variant">Thigh site rotation · Pair with Roti &amp; Paneer dinner</div>
+</div>
+</div>
+<button class="px-space-md py-1.5 rounded-full bg-primary text-on-primary font-body-md text-body-md font-semibold shadow-[0_0_20px_rgba(78,222,163,0.3)] hover:scale-105 transition-all text-center" type="button">
+                Log Injection Now
+              </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- RIGHT: INSIGHTS & CONTEXT SIDEBAR (Col 9-12) -->
+<div class="lg:col-span-4 space-y-space-lg">
+<!-- Day Rhythm Snapshot Card -->
+<div class="bg-surface-container-low/80 backdrop-blur-2xl p-space-lg rounded-3xl shadow-xl relative overflow-hidden">
+<div class="flex items-center justify-between pb-space-sm">
+<span class="font-headline-sm text-headline-sm text-on-surface font-bold">Day Rhythm Curve</span>
+<span class="px-space-sm py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-md text-label-md">Felt Energy vs Glycemia</span>
+</div>
+<p class="font-label-md text-label-md text-on-surface-variant pb-space-md">
+          Continuous subjective wellbeing curve synthesized across check-ins and meal timing.
+        </p>
+<!-- Inline SVG Curve Chart (Clean, Under 2KB, Accessible) -->
+<div class="w-full h-40 relative flex items-center justify-center">
+<svg class="w-full h-full overflow-visible" fill="none" viewbox="0 0 320 120" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<lineargradient id="curveGradient" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#4edea3" stop-opacity="0.35"></stop>
+<stop offset="50%" stop-color="#ffb95f" stop-opacity="0.2"></stop>
+<stop offset="100%" stop-color="#4cd7f6" stop-opacity="0.0"></stop>
+</lineargradient>
+</defs>
+<!-- Target Comfort Zone Fill -->
+<rect class="text-primary/5" fill="currentColor" height="45" rx="6" width="320" x="0" y="35"></rect>
+<line class="text-outline-variant/30" stroke="currentColor" stroke-dasharray="3 3" x1="0" x2="320" y1="35" y2="35"></line>
+<line class="text-outline-variant/30" stroke="currentColor" stroke-dasharray="3 3" x1="0" x2="320" y1="80" y2="80"></line>
+<!-- Area under path -->
+<path d="M 0,55 C 40,25 60,30 90,45 C 130,55 160,85 200,98 C 240,110 270,60 320,48 L 320,120 L 0,120 Z" fill="url(#curveGradient)"></path>
+<!-- The spline line -->
+<path d="M 0,55 C 40,25 60,30 90,45 C 130,55 160,85 200,98 C 240,110 270,60 320,48" stroke="#4edea3" stroke-linecap="round" stroke-width="3"></path>
+<!-- Event Highlight Dots -->
+<!-- 7:15 AM Run -->
+<circle cx="25" cy="40" fill="#4cd7f6" r="4" stroke="#0b1326" stroke-width="2"></circle>
+<!-- 8:30 AM Mess Breakfast -->
+<circle cx="70" cy="38" fill="#ffb95f" r="4" stroke="#0b1326" stroke-width="2"></circle>
+<!-- 1:15 PM Rice Lunch -->
+<circle cx="160" cy="85" fill="#ffb95f" r="4" stroke="#0b1326" stroke-width="2"></circle>
+<!-- 3:45 PM Symptom Peak -->
+<circle class="animate-pulse" cx="210" cy="100" fill="#ffb95f" r="6" stroke="#ffddb8" stroke-width="2"></circle>
+<!-- 5:00 PM 198 mg/dL Check -->
+<circle cx="245" cy="88" fill="#4cd7f6" r="5" stroke="#0b1326" stroke-width="2"></circle>
+<!-- 6:15 PM Calisthenics recovery -->
+<circle cx="280" cy="58" fill="#4edea3" r="4" stroke="#0b1326" stroke-width="2"></circle>
+</svg>
+</div>
+<div class="flex justify-between text-[0.6875rem] font-label-md text-on-surface-variant pt-space-xs border-t border-surface-container-high/60 mt-space-sm">
+<span>07:00 AM (Wake)</span>
+<span>01:00 PM (Lunch)</span>
+<span>05:00 PM (Peak)</span>
+<span>10:00 PM (Bed)</span>
+</div>
+</div>
+<!-- Bangalore PG Context Card -->
+<div class="bg-surface-container-low/80 backdrop-blur-2xl p-space-lg rounded-3xl shadow-xl relative">
+<div class="flex items-center gap-space-sm pb-space-sm">
+<span class="material-symbols-outlined text-secondary text-[1.25rem]">apartment</span>
+<span class="font-headline-sm text-headline-sm text-on-surface font-bold">Bangalore Routine Notes</span>
+</div>
+<div class="space-y-space-md text-body-md font-body-md text-on-surface-variant">
+<div class="p-space-sm rounded-2xl bg-surface-container-lowest/60">
+<div class="font-label-md text-label-md text-secondary font-semibold uppercase tracking-wider mb-1">PG Mess Adaptation</div>
+<p>Double Sona Masoori rice at 1:15 PM consistently produces the 3:30–4:30 PM sluggishness. Calisthenics at 6 PM effectively acts as a physical sponge for residual carbohydrates.</p>
+</div>
+<div class="p-space-sm rounded-2xl bg-surface-container-lowest/60">
+<div class="font-label-md text-label-md text-primary font-semibold uppercase tracking-wider mb-1">Hydration Baseline</div>
+<p>Bangalore October weather is cool with dry breezy winds. Dehydration subtly elevates perceived dry mouth symptoms during afternoon university lectures.</p>
+</div>
+</div>
+<!-- PG Meal Timing Reminder -->
+<div class="mt-space-md p-space-md rounded-2xl bg-surface-container flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-tertiary text-[1.5rem]">soup_kitchen</span>
+<div>
+<div class="font-headline-sm text-headline-sm text-on-surface font-semibold">PG Dinner Window</div>
+<div class="font-label-md text-label-md text-on-surface-variant">08:00 PM - 09:30 PM in 2nd Floor Dining</div>
+</div>
+</div>
+</div>
+<!-- Quick Log Action Card -->
+<div class="bg-gradient-to-br from-surface-container to-surface-container-low p-space-lg rounded-3xl shadow-xl text-center">
+<span class="font-headline-sm text-headline-sm text-on-surface font-bold block pb-space-xs">Add Moment to Friday</span>
+<p class="font-body-md text-body-md text-on-surface-variant pb-space-md">Seamlessly append mid-day sips, walks, or feelings in seconds.</p>
+<div class="grid grid-cols-3 gap-space-xs">
+<button class="flex flex-col items-center justify-center p-space-sm rounded-2xl bg-surface-container-lowest/80 text-on-surface hover:bg-primary-container/20 hover:text-primary transition-all active:scale-95 shadow" type="button">
+<span class="material-symbols-outlined text-[1.5rem] mb-1">restaurant</span>
+<span class="font-label-md text-label-md font-semibold">+ Meal</span>
+</button>
+<button class="flex flex-col items-center justify-center p-space-sm rounded-2xl bg-surface-container-lowest/80 text-on-surface hover:bg-tertiary-container/20 hover:text-tertiary transition-all active:scale-95 shadow" type="button">
+<span class="material-symbols-outlined text-[1.5rem] mb-1">mood</span>
+<span class="font-label-md text-label-md font-semibold">+ Feel</span>
+</button>
+<button class="flex flex-col items-center justify-center p-space-sm rounded-2xl bg-surface-container-lowest/80 text-on-surface hover:bg-secondary-container/20 hover:text-secondary transition-all active:scale-95 shadow" type="button">
+<span class="material-symbols-outlined text-[1.5rem] mb-1">directions_run</span>
+<span class="font-label-md text-label-md font-semibold">+ Workout</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Interactive Timeline Filter JavaScript -->
+<script>
+    function filterTimeline(category) {
+      const items = document.querySelectorAll('.timeline-item');
+      const buttons = document.querySelectorAll('.timeline-filter-btn');
+
+      // Update active button state
+      buttons.forEach(btn => {
+        btn.classList.remove('bg-surface-container-high', 'text-primary', 'font-semibold', 'shadow-inner');
+        btn.classList.add('bg-surface-container-low', 'text-on-surface-variant');
+      });
+
+      // Highlight clicked button
+      event.target.classList.remove('bg-surface-container-low', 'text-on-surface-variant');
+      event.target.classList.add('bg-surface-container-high', 'text-primary', 'font-semibold', 'shadow-inner');
+
+      // Show/hide timeline cards
+      items.forEach(item => {
+        if (category === 'all' || item.classList.contains(category)) {
+          item.style.display = 'block';
+          item.style.opacity = '1';
+        } else {
+          item.style.display = 'none';
+          item.style.opacity = '0';
+        }
+      });
+    }
+  </script>
+</div></main><footer class="relative z-10 w-full bg-surface-container-lowest/80 backdrop-blur-xl mt-space-xl py-space-lg"><div class="max-w-[1200px] mx-auto px-margin md:px-margin-lg flex flex-col md:flex-row items-center justify-between gap-space-md font-label-md text-label-md text-on-surface-variant"><div class="flex items-center gap-space-sm"><span class="font-headline-sm text-headline-sm text-on-surface font-bold">Feelog</span><span>· Mindful metabolic telemetry &amp; daily rhythm companion</span></div><div class="flex items-center gap-space-lg"><a class="hover:text-primary transition-colors" data-path="patterns-and-insights" href="#">Insights</a><a class="hover:text-primary transition-colors" data-path="export-and-settings" href="#">Physician Export (PDF)</a><span class="text-outline">v2.4.0 Encrypted Offline-First</span></div></div></footer></body></html>

@@ -1,7 +1,7 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Utensils, Camera, Plus } from 'lucide-react';
 import { MealType, CarbSize, FoodLog, COMMON_FOOD_CHIPS } from '@/types';
 import { getCurrentTimeIST, getDefaultMealTypeByHour, getCurrentHourIST } from '@/lib/date-utils';
 import { saveFoodLog } from '@/lib/sync-storage';
@@ -105,47 +105,47 @@ export default function FoodSheet({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom-6 duration-200">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-md p-0 sm:p-4">
+      <div className="bg-surface-container/95 border border-white/10 text-on-surface w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom-6 duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-              <Utensils className="w-5 h-5" />
+        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-container-high">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-tertiary-container/20 text-tertiary border border-tertiary/20 flex items-center justify-center">
+              <span className="material-symbols-outlined text-xl">restaurant</span>
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">
+              <h2 className="text-base font-bold text-on-surface">
                 {initialData ? 'Edit Food Log' : 'Log Food & Meal'}
               </h2>
-              <p className="text-xs text-slate-500">Quickly capture meal & carb level</p>
+              <p className="text-xs text-on-surface-variant">Capture PG meal &amp; carb estimate</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
           >
-            <X className="w-5 h-5" />
+            ✕
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
           {/* Meal Type Segmented Selector */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
               Meal Type
             </label>
-            <div className="grid grid-cols-4 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+            <div className="grid grid-cols-4 gap-1.5 p-1 bg-surface-container-low rounded-2xl border border-white/5">
               {mealOptions.map((opt) => (
                 <button
                   key={opt.id}
                   type="button"
                   onClick={() => setMeal(opt.id)}
-                  className={`py-2 text-xs font-semibold rounded-lg transition-all ${
+                  className={`py-2 text-xs font-bold rounded-xl transition-all ${
                     meal === opt.id
-                      ? 'bg-white dark:bg-slate-700 text-teal-600 dark:text-teal-400 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                      ? 'bg-primary-container text-on-primary shadow-sm'
+                      : 'text-on-surface-variant hover:text-on-surface'
                   }`}
                 >
                   {opt.label}
@@ -156,21 +156,21 @@ export default function FoodSheet({
 
           {/* Time Selector */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
               Meal Time (IST)
             </label>
             <input
               type="time"
               value={logTime}
               onChange={(e) => setLogTime(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
+              className="w-full px-4 py-2.5 bg-surface-container-low border border-white/10 rounded-xl text-sm font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
               required
             />
           </div>
 
           {/* Items & Quick Chips */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
               Food Items
             </label>
             <input
@@ -178,7 +178,7 @@ export default function FoodSheet({
               value={items}
               onChange={(e) => setItems(e.target.value)}
               placeholder="e.g. 3 idly, sambar or rice with dal"
-              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 mb-2"
+              className="w-full px-4 py-2.5 bg-surface-container-low border border-white/10 rounded-xl text-sm font-medium text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary mb-2.5"
               required
             />
             {/* Quick Chips */}
@@ -188,10 +188,9 @@ export default function FoodSheet({
                   key={chip}
                   type="button"
                   onClick={() => handleChipClick(chip)}
-                  className="px-2.5 py-1 text-xs font-medium bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 rounded-full hover:bg-amber-100 transition-colors flex items-center gap-1 active:scale-95"
+                  className="px-3 py-1 text-xs font-medium bg-tertiary-container/15 border border-tertiary/20 text-tertiary rounded-full hover:bg-tertiary/25 transition-colors active:scale-95"
                 >
-                  <Plus className="w-3 h-3 opacity-60" />
-                  {chip}
+                  + {chip}
                 </button>
               ))}
             </div>
@@ -199,8 +198,8 @@ export default function FoodSheet({
 
           {/* Carb Size Segmented */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-              Carb Portion Size
+            <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
+              Carb Density Portion
             </label>
             <div className="grid grid-cols-3 gap-2">
               {carbOptions.map((opt) => (
@@ -208,76 +207,62 @@ export default function FoodSheet({
                   key={opt.id}
                   type="button"
                   onClick={() => setCarbSize(opt.id)}
-                  className={`p-2.5 rounded-xl border text-left transition-all ${
+                  className={`p-3 rounded-2xl border text-left transition-all ${
                     carbSize === opt.id
-                      ? 'border-amber-500 bg-amber-50/70 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 ring-2 ring-amber-400/30'
-                      : 'border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                      ? 'border-tertiary bg-tertiary-container/20 text-on-surface shadow-md'
+                      : 'border-white/5 bg-surface-container-low text-on-surface-variant hover:text-on-surface'
                   }`}
                 >
-                  <div className="text-xs font-bold">{opt.label}</div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
-                    {opt.desc}
-                  </div>
+                  <div className="text-xs font-bold text-on-surface">{opt.label}</div>
+                  <div className="text-[10px] text-on-surface-variant mt-0.5">{opt.desc}</div>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Photo upload (optional) */}
+          {/* Optional Photo Attachment */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
               Meal Photo (Optional)
             </label>
             {photoPreview ? (
-              <div className="relative w-full h-32 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 mb-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={photoPreview}
-                  alt="Meal preview"
-                  className="w-full h-full object-cover"
-                />
+              <div className="relative w-full h-32 rounded-2xl overflow-hidden border border-white/10 bg-surface-container-low">
+                <img src={photoPreview} alt="Meal preview" className="w-full h-full object-cover" />
                 <button
                   type="button"
                   onClick={() => setPhotoPreview(null)}
-                  className="absolute top-2 right-2 bg-black/70 text-white rounded-full p-1 hover:bg-black"
+                  className="absolute top-2 right-2 px-2.5 py-1 bg-black/70 text-white rounded-full text-xs font-bold"
                 >
-                  <X className="w-4 h-4" />
+                  Remove
                 </button>
               </div>
             ) : (
-              <label className="flex items-center justify-center gap-2 w-full py-2.5 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors text-xs text-slate-600 dark:text-slate-400 font-medium">
-                <Camera className="w-4 h-4 text-slate-500" />
-                <span>Snap or attach photo</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoSelect}
-                  className="hidden"
-                />
+              <label className="flex items-center justify-center gap-2 p-3 rounded-2xl bg-surface-container-low border border-dashed border-white/10 text-on-surface-variant hover:text-on-surface cursor-pointer text-xs font-medium">
+                <span className="material-symbols-outlined text-lg">add_a_photo</span>
+                <span>Attach Quick Photo</span>
+                <input type="file" accept="image/*" onChange={handlePhotoSelect} className="hidden" />
               </label>
             )}
           </div>
 
-          {/* Note */}
+          {/* Note Input */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-              Note (Optional)
+            <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
+              Notes (Optional)
             </label>
             <input
               type="text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="e.g. PG mess food was extra oily or skipped second round"
-              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
+              placeholder="e.g. PG Mess spicy sambar, late dinner"
+              className="w-full px-4 py-2.5 bg-surface-container-low border border-white/10 rounded-xl text-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
 
-          {/* Submit */}
           <div className="pt-2">
             <button
               type="submit"
-              disabled={!items.trim()}
-              className="w-full py-3.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-md transition-all active:scale-[0.99] min-h-[48px]"
+              className="w-full py-3 rounded-full bg-primary-container text-on-primary font-bold text-sm shadow-lg hover:bg-primary transition-all active:scale-95"
             >
               {initialData ? 'Update Food Log' : 'Save Food Log'}
             </button>

@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, HeartPulse, Check } from 'lucide-react';
-import { FeelLevel, FeelLog, FEEL_COLORS, SYMPTOM_OPTIONS } from '@/types';
+import { FeelLevel, FeelLog } from '@/types';
 import { getCurrentTimeIST } from '@/lib/date-utils';
 import { saveFeelLog } from '@/lib/sync-storage';
 
@@ -14,6 +13,50 @@ interface FeelSheetProps {
   initialData?: FeelLog | null;
 }
 
+const FEEL_OPTIONS: {
+  id: FeelLevel;
+  emoji: string;
+  label: string;
+  desc: string;
+  chips: string[];
+}[] = [
+  {
+    id: 'low',
+    emoji: '📉',
+    label: 'Low',
+    desc: 'Under ~70 mg/dL feeling',
+    chips: ['Shaky', 'Cold Sweats', 'Dizziness', 'Sudden Hunger', 'Brain Fog', 'Fast Pulse'],
+  },
+  {
+    id: 'slightly_low',
+    emoji: '🔻',
+    label: 'Slightly low',
+    desc: 'Dipping early signs',
+    chips: ['Mild Tremor', 'Yawning', 'Heavy Legs', 'Anxious Sensation', 'Light Sweating'],
+  },
+  {
+    id: 'okay',
+    emoji: '✨',
+    label: 'Okay',
+    desc: 'Balanced & In-Range',
+    chips: ['High Energy', 'Clear Head', 'Good Focus', 'Calm Pulse', 'Post-Run Endorphins'],
+  },
+  {
+    id: 'slightly_high',
+    emoji: '☕',
+    label: 'Slightly high',
+    desc: 'Post-meal elevation',
+    chips: ['Sluggish', 'Mild Thirst', 'Heavy Eyes', 'PG Mess Rice Aftermath', 'Restless', 'Headache'],
+  },
+  {
+    id: 'high',
+    emoji: '🔥',
+    label: 'High',
+    desc: 'Significant spike',
+    chips: ['Extreme Thirst', 'Dry Mouth', 'Very Heavy Eyes', 'Brain Fog', 'Frequent Urination', 'Fatigue'],
+  },
+];
+
 export default function FeelSheet({
   isOpen,
   onClose,
@@ -21,7 +64,7 @@ export default function FeelSheet({
   dateStr,
   initialData,
 }: FeelSheetProps) {
-  const [feel, setFeel] = useState<FeelLevel | null>('okay');
+  const [feel, setFeel] = useState<FeelLevel>('okay');
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [logTime, setLogTime] = useState<string>(getCurrentTimeIST());
   const [note, setNote] = useState<string>('');
@@ -34,8 +77,8 @@ export default function FeelSheet({
         setLogTime(initialData.log_time);
         setNote(initialData.note || '');
       } else {
-        setFeel(null); // start unselected so user can pick in 1 tap
-        setSelectedSymptoms([]);
+        setFeel('okay');
+        setSelectedSymptoms(['High Energy', 'Clear Head']);
         setLogTime(getCurrentTimeIST());
         setNote('');
       }
@@ -44,22 +87,29 @@ export default function FeelSheet({
 
   if (!isOpen) return null;
 
-  const handleSymptomToggle = (id: string) => {
+  const handleSymptomToggle = (symptom: string) => {
     setSelectedSymptoms((prev) =>
-      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
+      prev.includes(symptom) ? prev.filter((s) => s !== symptom) : [...prev, symptom]
     );
   };
 
-  const handleSave = (customFeel?: FeelLevel) => {
-    const finalFeel = customFeel || feel;
-    if (!finalFeel) return;
+  const handleFeelChange = (lvl: FeelLevel) => {
+    setFeel(lvl);
+    const opt = FEEL_OPTIONS.find((o) => o.id === lvl);
+    if (opt) {
+      setSelectedSymptoms(opt.chips.slice(0, 2));
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
 
     saveFeelLog({
       id: initialData?.id,
       user_id: initialData?.user_id || 'user-1',
       log_date: dateStr,
       log_time: logTime,
-      feel: finalFeel,
+      feel,
       symptoms: selectedSymptoms,
       note: note.trim() || null,
     });
@@ -68,193 +118,125 @@ export default function FeelSheet({
     onClose();
   };
 
-  const feelButtons: { id: FeelLevel; label: string; sublabel: string; colorClass: string; activeClass: string }[] = [
-    {
-      id: 'low',
-      label: 'Low',
-      sublabel: 'Hypo feeling',
-      colorClass: 'border-red-200 text-red-600 bg-red-50/50 hover:bg-red-100/70',
-      activeClass: 'ring-3 ring-red-500 bg-red-600 text-white border-red-600',
-    },
-    {
-      id: 'slightly_low',
-      label: 'Slightly low',
-      sublabel: 'Shaky / empty',
-      colorClass: 'border-amber-200 text-amber-600 bg-amber-50/50 hover:bg-amber-100/70',
-      activeClass: 'ring-3 ring-amber-500 bg-amber-500 text-white border-amber-500',
-    },
-    {
-      id: 'okay',
-      label: 'Okay',
-      sublabel: 'Normal energy',
-      colorClass: 'border-green-200 text-green-600 bg-green-50/50 hover:bg-green-100/70',
-      activeClass: 'ring-3 ring-green-500 bg-green-600 text-white border-green-600',
-    },
-    {
-      id: 'slightly_high',
-      label: 'Slightly high',
-      sublabel: 'Thirsty / heavy',
-      colorClass: 'border-orange-200 text-orange-500 bg-orange-50/50 hover:bg-orange-100/70',
-      activeClass: 'ring-3 ring-orange-400 bg-orange-400 text-white border-orange-400',
-    },
-    {
-      id: 'high',
-      label: 'High',
-      sublabel: 'Hyper feeling',
-      colorClass: 'border-orange-300 text-orange-700 bg-orange-100/50 hover:bg-orange-200/70',
-      activeClass: 'ring-3 ring-orange-600 bg-orange-600 text-white border-orange-600',
-    },
-  ];
-
-  const isHypo = feel === 'low' || feel === 'slightly_low';
-  const isHyper = feel === 'high' || feel === 'slightly_high';
-  const relevantSymptoms = isHypo
-    ? SYMPTOM_OPTIONS.hypo
-    : isHyper
-    ? SYMPTOM_OPTIONS.hyper
-    : [];
+  const currentOption = FEEL_OPTIONS.find((o) => o.id === feel) || FEEL_OPTIONS[2];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom-6 duration-200">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-md p-0 sm:p-4">
+      <div className="bg-surface-container/95 border border-white/10 text-on-surface w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom-6 duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
-              <HeartPulse className="w-5 h-5" />
+        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-container-high">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/20 text-primary border border-primary/20 flex items-center justify-center">
+              <span className="material-symbols-outlined text-xl">vital_signs</span>
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">
-                {initialData ? 'Edit Feel Log' : 'How Are You Feeling?'}
+              <h2 className="text-base font-bold text-on-surface">
+                {initialData ? 'Edit Feel Check-in' : 'Record Sensory Feel'}
               </h2>
-              <p className="text-xs text-slate-500">Subjective symptom log (≤2 taps to save)</p>
+              <p className="text-xs text-on-surface-variant">5-second somatic feedback</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
           >
-            <X className="w-5 h-5" />
+            ✕
           </button>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {/* Time Picker */}
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+          {/* Time Selector */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-              Log Time (IST)
+            <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
+              Time of Check-in (IST)
             </label>
             <input
               type="time"
               value={logTime}
               onChange={(e) => setLogTime(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full px-4 py-2.5 bg-surface-container-low border border-white/10 rounded-xl text-sm font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
               required
             />
           </div>
 
-          {/* 5 Big Feel Buttons */}
+          {/* 5 Feel Buttons */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-              Select Feeling
+            <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
+              How does your body feel?
             </label>
-            <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
-              {feelButtons.map((btn) => {
-                const isSelected = feel === btn.id;
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+              {FEEL_OPTIONS.map((opt) => {
+                const isActive = feel === opt.id;
                 return (
                   <button
-                    key={btn.id}
+                    key={opt.id}
                     type="button"
-                    onClick={() => {
-                      setFeel(btn.id);
-                      if (btn.id === 'okay') {
-                        // Quick 2-tap save if user feels okay
-                        setSelectedSymptoms([]);
-                      }
-                    }}
-                    className={`flex flex-col items-center justify-center py-3 px-1 rounded-xl border text-center transition-all min-h-[64px] active:scale-95 ${
-                      isSelected ? btn.activeClass : btn.colorClass
+                    onClick={() => handleFeelChange(opt.id)}
+                    className={`p-3 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                      isActive
+                        ? 'border-tertiary bg-tertiary-container/20 text-on-surface shadow-md font-bold'
+                        : 'border-white/5 bg-surface-container-low text-on-surface-variant hover:text-on-surface'
                     }`}
                   >
-                    <span className="text-xs font-bold leading-tight">{btn.label}</span>
-                    <span
-                      className={`text-[9px] mt-1 line-clamp-1 ${
-                        isSelected ? 'text-white/90' : 'opacity-70'
-                      }`}
-                    >
-                      {btn.sublabel}
-                    </span>
+                    <span className="text-xl">{opt.emoji}</span>
+                    <span className="text-xs font-bold leading-tight">{opt.label}</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Symptom Checkboxes (shown only if feel selected & not okay) */}
-          {relevantSymptoms.length > 0 && (
-            <div className="animate-in fade-in duration-200 p-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl">
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-                What symptoms are you experiencing?
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {relevantSymptoms.map((sym) => {
-                  const isChecked = selectedSymptoms.includes(sym.id);
-                  return (
-                    <button
-                      key={sym.id}
-                      type="button"
-                      onClick={() => handleSymptomToggle(sym.id)}
-                      className={`flex items-center gap-2 p-2 rounded-lg border text-xs font-medium transition-all text-left ${
-                        isChecked
-                          ? 'border-purple-600 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-semibold'
-                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                      }`}
-                    >
-                      <div
-                        className={`w-4 h-4 rounded flex items-center justify-center border ${
-                          isChecked
-                            ? 'bg-purple-600 border-purple-600 text-white'
-                            : 'border-slate-300 dark:border-slate-600'
-                        }`}
-                      >
-                        {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
-                      </div>
-                      <span className="truncate">{sym.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Note */}
+          {/* Symptoms chips */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-              Note (Optional)
+            <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
+              Symptoms / Bodily Cues ({currentOption.label})
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {currentOption.chips.map((symptom) => {
+                const isSelected = selectedSymptoms.includes(symptom);
+                return (
+                  <button
+                    key={symptom}
+                    type="button"
+                    onClick={() => handleSymptomToggle(symptom)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                      isSelected
+                        ? 'bg-tertiary/20 text-tertiary border border-tertiary/30 font-bold'
+                        : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border border-white/5'
+                    }`}
+                  >
+                    {isSelected ? `✓ ${symptom}` : `+ ${symptom}`}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
+              Notes (Optional)
             </label>
             <input
               type="text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="e.g. In PG room study desk, felt heavy thirst"
-              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="e.g. Post-lunch rice, during exam"
+              className="w-full px-4 py-2.5 bg-surface-container-low border border-white/10 rounded-xl text-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
 
-          {/* Save Button */}
           <div className="pt-2">
             <button
-              type="button"
-              disabled={!feel}
-              onClick={() => handleSave()}
-              className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white font-bold rounded-xl shadow-md transition-all active:scale-[0.99] min-h-[48px]"
+              type="submit"
+              className="w-full py-3 rounded-full bg-primary-container text-on-primary font-bold text-sm shadow-lg hover:bg-primary transition-all active:scale-95"
             >
-              {initialData ? 'Update Feel Log' : feel ? `Save "${FEEL_COLORS[feel].label}" Log` : 'Select a Feeling Above'}
+              {initialData ? 'Update Feel Check-in' : 'Save Feel Check-in'}
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );

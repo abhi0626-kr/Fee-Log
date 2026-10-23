@@ -2,14 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  BarChart3,
-  Calendar,
-  Clock,
-  Activity as ActivityIcon,
-  HeartPulse,
-  TrendingUp,
-} from 'lucide-react';
-import {
   BarChart,
   Bar,
   XAxis,
@@ -64,7 +56,7 @@ export default function SummaryPage() {
         name: FEEL_COLORS[fKey].label,
         key: fKey,
         count,
-        color: FEEL_COLORS[fKey].hex,
+        color: fKey === 'okay' ? '#4edea3' : fKey === 'slightly_low' || fKey === 'slightly_high' ? '#ffb95f' : fKey === 'high' ? '#e29100' : '#ffb4ab',
       };
     });
     setFeelDistribution(dist);
@@ -97,7 +89,7 @@ export default function SummaryPage() {
     setRunDaysCount(runCount);
     setNonRunDaysCount(nonRunCount);
 
-    // 5. Weekly trend: High-feel count per week over the last 4 weeks
+    // 5. Weekly trend
     const trends: { week: string; highCount: number }[] = [];
     for (let w = 3; w >= 0; w--) {
       const wEnd = new Date(end.getTime() - w * 7 * 24 * 60 * 60 * 1000);
@@ -113,7 +105,7 @@ export default function SummaryPage() {
       ).length;
 
       trends.push({
-        week: `W-${w === 0 ? 'Current' : `${w}w ago`}`,
+        week: `${w === 0 ? 'Current' : `${w}w ago`}`,
         highCount,
       });
     }
@@ -121,146 +113,130 @@ export default function SummaryPage() {
   }, [windowDays]);
 
   return (
-    <div className="pb-28 max-w-lg mx-auto px-4 pt-4">
+    <div className="max-w-[1240px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-6">
       {/* Header */}
-      <div className="mb-4">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-teal-600 dark:text-teal-400 uppercase tracking-wider">
-          <BarChart3 className="w-4 h-4" />
-          <span>Health Metrics</span>
-        </div>
-        <h1 className="text-xl font-black text-slate-900 dark:text-slate-50 tracking-tight">
-          Weekly Summary
-        </h1>
-        <p className="text-xs text-slate-500 mt-0.5">
-          High-level overview of meals, habits, and symptoms
-        </p>
-      </div>
-
-      {/* Window Selector */}
-      <div className="flex items-center justify-between mb-5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-        {[
-          { label: 'Past 7 Days', val: 7 },
-          { label: 'Past 14 Days', val: 14 },
-          { label: 'Past 30 Days', val: 30 },
-        ].map((opt) => (
-          <button
-            key={opt.val}
-            type="button"
-            onClick={() => setWindowDays(opt.val)}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-              windowDays === opt.val
-                ? 'bg-white dark:bg-slate-700 text-teal-600 dark:text-teal-300 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-
-      {/* 4 Quick Stat Metric Cards */}
-      <div className="grid grid-cols-2 gap-3 mb-5">
-        {/* Days Logged */}
-        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700/80 p-3.5 shadow-sm">
-          <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold mb-1">
-            <Calendar className="w-3.5 h-3.5 text-teal-600" />
-            <span>Logging Consistency</span>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pt-2">
+        <div>
+          <div className="flex items-center gap-2 text-primary font-label-md text-xs uppercase tracking-wider mb-1 font-bold">
+            <span className="material-symbols-outlined text-[1rem]">bar_chart</span>
+            <span>Health Metrics &amp; Aggregates</span>
           </div>
-          <div className="text-2xl font-black text-slate-900 dark:text-slate-100">
-            {daysLogged} / {windowDays}
-          </div>
-          <p className="text-[10px] text-slate-400 mt-0.5">days with recorded logs</p>
+          <h1 className="font-headline-xl text-2xl md:text-3xl text-on-surface font-extrabold tracking-tight">
+            Metabolic Summary
+          </h1>
+          <p className="font-body-md text-sm text-on-surface-variant mt-1">
+            High-level overview of meals, habits, and subjective symptoms across chosen window.
+          </p>
         </div>
 
-        {/* Average Lunch Time */}
-        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700/80 p-3.5 shadow-sm">
-          <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold mb-1">
-            <Clock className="w-3.5 h-3.5 text-amber-500" />
-            <span>Avg Lunch Time</span>
+        {/* Window Selector */}
+        <div className="inline-flex p-1 rounded-full bg-surface-container-lowest border border-white/5 backdrop-blur-xl shadow-inner">
+          {[
+            { label: 'Past 7 Days', val: 7 },
+            { label: 'Past 14 Days', val: 14 },
+            { label: 'Past 30 Days', val: 30 },
+          ].map((opt) => (
+            <button
+              key={opt.val}
+              type="button"
+              onClick={() => setWindowDays(opt.val)}
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                windowDays === opt.val
+                  ? 'bg-surface-container-high text-on-surface shadow-md border border-white/10 font-bold'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Metric Cards Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="p-4 rounded-2xl bg-surface-container-low/70 border border-white/5 backdrop-blur-xl shadow-lg">
+          <span className="font-label-md text-xs text-on-surface-variant uppercase">Tracking Consistency</span>
+          <div className="font-label-numeric text-2xl text-primary font-bold mt-1">
+            {daysLogged} / {windowDays} <span className="text-sm font-normal text-on-surface-variant">days</span>
           </div>
-          <div className="text-xl font-black text-slate-900 dark:text-slate-100">
+          <div className="text-[0.7rem] text-primary mt-1 font-semibold">Active PG habit</div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-surface-container-low/70 border border-white/5 backdrop-blur-xl shadow-lg">
+          <span className="font-label-md text-xs text-on-surface-variant uppercase">Avg Lunch Timing</span>
+          <div className="font-label-numeric text-2xl text-on-surface font-bold mt-1">
             {avgLunchTimeStr}
           </div>
-          <p className="text-[10px] text-slate-400 mt-0.5">IST lunch schedule</p>
+          <div className="text-[0.7rem] text-on-surface-variant mt-1">Bangalore PG mess window</div>
         </div>
 
-        {/* Run vs Non-Run */}
-        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700/80 p-3.5 shadow-sm">
-          <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold mb-1">
-            <ActivityIcon className="w-3.5 h-3.5 text-blue-600" />
-            <span>Running Days</span>
+        <div className="p-4 rounded-2xl bg-surface-container-low/70 border border-white/5 backdrop-blur-xl shadow-lg">
+          <span className="font-label-md text-xs text-on-surface-variant uppercase">Run vs Non-Run</span>
+          <div className="font-label-numeric text-2xl text-secondary font-bold mt-1">
+            {runDaysCount} : {nonRunDaysCount}
           </div>
-          <div className="text-2xl font-black text-slate-900 dark:text-slate-100">
-            {runDaysCount} <span className="text-xs text-slate-400 font-normal">vs {nonRunDaysCount} rest</span>
-          </div>
-          <p className="text-[10px] text-slate-400 mt-0.5">5–10 km morning runs</p>
+          <div className="text-[0.7rem] text-secondary mt-1 font-semibold">Cubbon park aerobic days</div>
         </div>
 
-        {/* High Feelings */}
-        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700/80 p-3.5 shadow-sm">
-          <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold mb-1">
-            <HeartPulse className="w-3.5 h-3.5 text-orange-600" />
-            <span>High Feelings</span>
+        <div className="p-4 rounded-2xl bg-surface-container-low/70 border border-white/5 backdrop-blur-xl shadow-lg">
+          <span className="font-label-md text-xs text-on-surface-variant uppercase">Post-Meal Spikes</span>
+          <div className="font-label-numeric text-2xl text-tertiary font-bold mt-1">
+            {feelDistribution.find((d) => d.key === 'slightly_high')?.count || 0}
           </div>
-          <div className="text-2xl font-black text-orange-600">
-            {feelDistribution.find((f) => f.key === 'high')?.count || 0 + (feelDistribution.find((f) => f.key === 'slightly_high')?.count || 0)}
-          </div>
-          <p className="text-[10px] text-slate-400 mt-0.5">total high symptom events</p>
+          <div className="text-[0.7rem] text-tertiary mt-1 font-semibold">Slightly high check-ins</div>
         </div>
       </div>
 
-      {/* Feel Ratings Distribution Chart */}
-      <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700/80 p-4 shadow-sm mb-5">
-        <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
-          Feel Rating Distribution
-        </h3>
-        <p className="text-[11px] text-slate-500 mb-3">
-          Breakdown of logged subjective feelings over the selected period
-        </p>
-
-        <div className="h-44 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={feelDistribution}
-              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-            >
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                {feelDistribution.map((entry) => (
-                  <Cell key={entry.key} fill={entry.color} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* High-Feel Weekly Trend */}
-      <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700/80 p-4 shadow-sm mb-5">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-            High-Feel Trend (Last 4 Weeks)
+      {/* Visual Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Feel Distribution */}
+        <div className="p-6 rounded-3xl bg-surface-container-low/70 border border-white/5 backdrop-blur-xl shadow-xl">
+          <h3 className="font-headline-sm text-sm font-bold text-on-surface mb-1">
+            Sensory Feel Distribution
           </h3>
-          <TrendingUp className="w-4 h-4 text-orange-500" />
-        </div>
-        <p className="text-[11px] text-slate-500 mb-3">
-          Weekly count of slightly high & high feelings
-        </p>
+          <p className="text-xs text-on-surface-variant mb-4">
+            Aggregated tally across Low, Okay, and High check-in sensations.
+          </p>
 
-        <div className="h-40 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={weeklyTrends}
-              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-            >
-              <XAxis dataKey="week" tick={{ fontSize: 10 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Bar dataKey="highCount" name="High Symptoms" fill="#f97316" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="h-60 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={feelDistribution} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                <XAxis dataKey="name" tick={{ fill: '#bbcabf', fontSize: 11 }} />
+                <YAxis tick={{ fill: '#bbcabf', fontSize: 11 }} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#171f33', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '1rem', color: '#dae2fd' }}
+                />
+                <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                  {feelDistribution.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Weekly High-Feel Trends */}
+        <div className="p-6 rounded-3xl bg-surface-container-low/70 border border-white/5 backdrop-blur-xl shadow-xl">
+          <h3 className="font-headline-sm text-sm font-bold text-on-surface mb-1">
+            Weekly Afternoon High Trends
+          </h3>
+          <p className="text-xs text-on-surface-variant mb-4">
+            Count of 3–7 PM high/sluggish feeling episodes week-by-week.
+          </p>
+
+          <div className="h-60 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={weeklyTrends} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                <XAxis dataKey="week" tick={{ fill: '#bbcabf', fontSize: 11 }} />
+                <YAxis tick={{ fill: '#bbcabf', fontSize: 11 }} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#171f33', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '1rem', color: '#dae2fd' }}
+                />
+                <Bar dataKey="highCount" fill="#ffb95f" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
     </div>

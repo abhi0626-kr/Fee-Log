@@ -35,6 +35,15 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Never intercept or cache Next.js internal chunks, HMR, or API calls
+  if (
+    event.request.url.includes('/_next/') ||
+    event.request.url.includes('/api/') ||
+    event.request.url.includes('webpack')
+  ) {
+    return;
+  }
+
   // Navigation requests: stale-while-revalidate or network-first
   if (event.request.mode === 'navigate') {
     event.respondWith(

@@ -1,4 +1,9 @@
-export type InsulinType = 'morning_regular' | 'night_30_70';
+export type InsulinType =
+  | 'morning_regular'
+  | 'afternoon_regular'
+  | 'night_30_70'
+  | 'correction'
+  | 'other';
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 export type CarbSize = 'small' | 'medium' | 'large';
 export type ActivityType = 'run' | 'calisthenics' | 'walk' | 'other';
@@ -93,12 +98,52 @@ export interface UnifiedLogItem {
 }
 
 export interface UserSettings {
+  // Personal & Identity
   display_name: string;
+  email?: string;
+  avatar_url?: string;
+  auth_provider?: 'google' | 'guest';
+  age?: number;
+  gender?: string;
   height_cm: number;
   weight_kg: number;
+
+  // Location & Context
+  city: string; // e.g. "Bangalore"
+  residence_area?: string; // e.g. "Koramangala PG"
+  native_location?: string; // e.g. "Coimbatore, Tamil Nadu"
+  lifestyle_note?: string; // e.g. "Studying & Running away from native Tamil Nadu"
+  timezone: string; // e.g. "Asia/Kolkata"
+
+  // Emergency / Clinical Contact
+  doctor_name?: string;
+  doctor_phone?: string;
+  clinic_name?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+
+  // Morning Dose Config
+  morning_insulin_brand: string; // e.g. "Regular (R)"
   morning_regular_units: number;
+  morning_target_time: string; // e.g. "08:00"
+  morning_meal_note?: string; // e.g. "Before breakfast (Idly / Dosa)"
+
+  // Midday Dose Config
+  midday_insulin_brand: string; // e.g. "Regular (R)"
+  afternoon_regular_units?: number;
+  midday_target_time: string; // e.g. "13:30"
+  midday_meal_note?: string; // e.g. "Before lunch / body condition"
+
+  // Night Dose Config
+  night_insulin_brand: string; // e.g. "30/70 Biphasic Mix"
   night_30_70_units: number;
-  timezone: string;
+  night_target_time: string; // e.g. "20:30"
+  night_meal_note?: string; // e.g. "Before dinner (Chapati / Rice)"
+
+  // Correction Dose Config
+  correction_insulin_brand?: string; // e.g. "Regular / Rapid"
+  correction_default_units?: number;
+
   activity_chips: string[];
   food_chips: string[];
 }
