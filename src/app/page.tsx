@@ -297,56 +297,80 @@ export default function QuickLogPage() {
   const activityItems = todayLogs.filter((l) => l.category === 'activity');
 
   return (
-    <div className="max-w-[1240px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-6">
+    <div className="max-w-[1240px] mx-auto px-3 sm:px-6 lg:px-8 flex flex-col gap-4 sm:gap-6">
       {/* 1. TOP OVERVIEW BAR */}
       <section className="w-full">
-        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 p-5 md:p-6 rounded-3xl bg-surface-container-low/70 backdrop-blur-xl border border-surface-container-high/50 shadow-xl shadow-surface-container-lowest/40">
+        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 sm:gap-4 p-4 sm:p-5 md:p-6 rounded-2xl sm:rounded-3xl bg-surface-container-low/70 backdrop-blur-xl border border-surface-container-high/50 shadow-xl shadow-surface-container-lowest/40">
           {/* Date, Identity & Bangalore Context */}
-          <div className="flex flex-col md:flex-row md:items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-primary shadow-inner shrink-0 border border-primary/20">
-              <span className="material-symbols-outlined text-[1.75rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-surface-container flex items-center justify-center text-primary shadow-inner shrink-0 border border-primary/20">
+              <span className="material-symbols-outlined text-[1.4rem] sm:text-[1.75rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
                 calendar_today
               </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-headline-sm text-headline-sm text-on-surface font-bold tracking-tight">
-                  {formatISTDate(todayStr, { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <span className="font-headline-sm text-sm sm:text-headline-sm text-on-surface font-bold tracking-tight">
+                  <span className="hidden sm:inline">
+                    {formatISTDate(todayStr, { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                  <span className="sm:hidden">
+                    {formatISTDate(todayStr, { weekday: 'short', day: 'numeric', month: 'short' })}
+                  </span>
                 </span>
                 <span className="text-outline-variant font-label-md text-xs">·</span>
-                <span className="font-label-md text-xs text-secondary font-semibold">
+                <span className="font-label-md text-[11px] sm:text-xs text-secondary font-semibold truncate">
                   {settings.city || 'Bangalore'} ({settings.timezone?.includes('Kolkata') ? 'IST' : settings.timezone || 'IST'})
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-primary/15 text-primary text-[0.7rem] font-bold tracking-wide border border-primary/20">
-                  {streak > 0 ? `Day ${streak} Streak` : 'Start streak'}
+                <span className="px-2 py-0.5 rounded-full bg-primary/15 text-primary text-[0.65rem] sm:text-[0.7rem] font-bold tracking-wide border border-primary/20 shrink-0">
+                  {streak > 0 ? `🔥 ${streak}d Streak` : '🔥 0d'}
                 </span>
               </div>
-              <p className="font-body-md text-sm text-on-surface-variant flex items-center gap-2 mt-0.5">
-                <span>{settings.display_name ? `${settings.display_name} · ` : ''}{settings.lifestyle_note || 'Flexible diabetes routine'}</span>
+
+              {/* Mobile Compact Identity & Regimen */}
+              <div className="flex items-center gap-1.5 mt-1 sm:hidden flex-wrap text-xs">
+                <span className="font-bold text-on-surface truncate max-w-[140px]">
+                  {settings.display_name || 'You'}
+                </span>
+                <span className="text-outline-variant">·</span>
+                <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold text-[10px] border border-primary/20 shrink-0">
+                  ⚡ 2–3 Doses/Day
+                </span>
+                {settings.lifestyle_note && (
+                  <span className="text-[10px] text-on-surface-variant truncate max-w-[120px]" title={settings.lifestyle_note}>
+                    ({settings.lifestyle_note})
+                  </span>
+                )}
+              </div>
+
+              {/* Desktop Full Context */}
+              <p className="hidden sm:flex font-body-md text-sm text-on-surface-variant items-center gap-2 mt-0.5">
+                <span className="font-bold text-on-surface">{settings.display_name ? `${settings.display_name} · ` : ''}</span>
+                <span>{settings.lifestyle_note || 'Flexible diabetes routine'}</span>
                 <span className="text-outline-variant">·</span>
                 <span className="text-primary font-medium">Flexible 2–3 Doses / Day Regimen</span>
               </p>
             </div>
           </div>
 
-          {/* Telemetry Summary Chips */}
-          <div className="flex items-center gap-2 md:gap-3 flex-wrap xl:justify-end">
+          {/* Telemetry Summary Chips (3-column on mobile, inline flex on desktop) */}
+          <div className="grid grid-cols-3 gap-2 w-full xl:w-auto xl:flex xl:items-center">
             <button
               onClick={() => {
                 const el = document.getElementById('insulin-section');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               }}
               type="button"
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface-container-high/60 hover:bg-surface-container-high border border-white/5 backdrop-blur-md transition-all text-left cursor-pointer"
+              className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-xl sm:rounded-full bg-surface-container-high/60 hover:bg-surface-container-high border border-white/5 backdrop-blur-md transition-all text-center sm:text-left cursor-pointer"
             >
-              <span className="material-symbols-outlined text-primary text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
+              <span className="material-symbols-outlined text-primary text-[1rem] sm:text-[1.125rem] shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
                 vaccines
               </span>
-              <div className="flex flex-col text-left">
-                <span className="font-label-md text-xs text-on-surface font-bold leading-none">
+              <div className="flex flex-col text-left truncate">
+                <span className="font-label-md text-[11px] sm:text-xs text-on-surface font-bold leading-none truncate">
                   {totalDosesLogged} Dose{totalDosesLogged === 1 ? '' : 's'}
                 </span>
-                <span className="text-[0.65rem] text-on-surface-variant leading-tight">
+                <span className="text-[0.65rem] text-on-surface-variant leading-tight hidden sm:block truncate">
                   {totalDosesLogged === 0
                     ? 'Pending doses'
                     : totalDosesLogged === 1
@@ -365,16 +389,16 @@ export default function QuickLogPage() {
                 else setIsFeelOpen(true);
               }}
               type="button"
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface-container-high/60 hover:bg-surface-container-high border border-white/5 backdrop-blur-md transition-all text-left cursor-pointer"
+              className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-xl sm:rounded-full bg-surface-container-high/60 hover:bg-surface-container-high border border-white/5 backdrop-blur-md transition-all text-center sm:text-left cursor-pointer"
             >
-              <span className="material-symbols-outlined text-tertiary text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
+              <span className="material-symbols-outlined text-tertiary text-[1rem] sm:text-[1.125rem] shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
                 mood
               </span>
-              <div className="flex flex-col text-left">
-                <span className="font-label-md text-xs text-on-surface font-bold leading-none">
-                  {feelsCount} Feel Logged
+              <div className="flex flex-col text-left truncate">
+                <span className="font-label-md text-[11px] sm:text-xs text-on-surface font-bold leading-none truncate">
+                  {feelsCount} Feel{feelsCount === 1 ? '' : 's'}
                 </span>
-                <span className="text-[0.65rem] text-tertiary leading-tight">
+                <span className="text-[0.65rem] text-tertiary leading-tight hidden sm:block truncate">
                   {feelsCount > 0 ? 'Recorded today' : 'No feel log yet'}
                 </span>
               </div>
@@ -386,18 +410,18 @@ export default function QuickLogPage() {
                 setIsActivityOpen(true);
               }}
               type="button"
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface-container-high/60 hover:bg-surface-container-high border border-white/5 backdrop-blur-md transition-all text-left group cursor-pointer"
+              className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-xl sm:rounded-full bg-surface-container-high/60 hover:bg-surface-container-high border border-white/5 backdrop-blur-md transition-all text-center sm:text-left group cursor-pointer"
             >
-              <span className="material-symbols-outlined text-secondary text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
+              <span className="material-symbols-outlined text-secondary text-[1rem] sm:text-[1.125rem] shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
                 directions_run
               </span>
-              <div className="flex flex-col text-left">
-                <span className="font-label-md text-xs text-on-surface font-bold leading-none">
+              <div className="flex flex-col text-left truncate">
+                <span className="font-label-md text-[11px] sm:text-xs text-on-surface font-bold leading-none truncate">
                   {activityItems.length > 0
-                    ? `${activityItems[0].activity?.duration_min}m ${activityItems[0].activity?.activity_type}`
-                    : '0 Activity'}
+                    ? `${activityItems[0].activity?.duration_min}m`
+                    : '0 Run'}
                 </span>
-                <span className="text-[0.65rem] text-on-surface-variant leading-tight">
+                <span className="text-[0.65rem] text-on-surface-variant leading-tight hidden sm:block truncate">
                   {activityItems.length > 0
                     ? `${activityItems.length} session${activityItems.length > 1 ? 's' : ''} logged`
                     : 'No run/workout yet'}
@@ -408,13 +432,16 @@ export default function QuickLogPage() {
         </div>
 
         {/* Optional Glucose Zero-Pressure Glass Ribbon */}
-        <div className="mt-2.5 px-4 py-2 rounded-full bg-surface-container-lowest/80 border border-white/5 backdrop-blur-md flex flex-col md:flex-row items-center justify-between gap-2 text-on-surface-variant text-xs shadow-sm">
-          <div className="flex items-center gap-2 text-center md:text-left flex-wrap">
-            <span className="material-symbols-outlined text-secondary text-[1rem]">bloodtype</span>
-            <span className="text-on-surface font-bold">Optional Reading:</span>
-            <span>Got a fingerstick or lab number today?</span>
-            <span className="hidden lg:inline text-outline-variant">
-              Feelog functions 100% on pure symptom &amp; feel rhythms. Zero pressure.
+        <div className="mt-2.5 px-3 sm:px-4 py-2 rounded-xl sm:rounded-full bg-surface-container-lowest/80 border border-white/5 backdrop-blur-md flex items-center justify-between gap-2 text-on-surface-variant text-xs shadow-sm">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            <span className="material-symbols-outlined text-secondary text-[1rem] shrink-0">bloodtype</span>
+            <span className="text-on-surface font-bold shrink-0">
+              <span className="hidden sm:inline">Optional Reading:</span>
+              <span className="sm:hidden">Meter / Lab:</span>
+            </span>
+            <span className="text-[11px] truncate text-on-surface-variant">
+              <span className="hidden sm:inline">Got a fingerstick or lab number today?</span>
+              <span className="sm:hidden">Optional mg/dL</span>
             </span>
           </div>
           <button
@@ -422,25 +449,29 @@ export default function QuickLogPage() {
               setEditingGlucose(null);
               setIsGlucoseOpen(true);
             }}
-            className="flex items-center gap-1 px-4 py-1 rounded-full bg-surface-container hover:bg-surface-container-high text-secondary hover:text-on-surface transition-all active:scale-95 text-xs font-semibold shadow-inner border border-secondary/20"
+            className="flex items-center gap-1 px-3 py-1 rounded-full bg-surface-container hover:bg-surface-container-high text-secondary hover:text-on-surface transition-all active:scale-95 text-xs font-semibold shadow-inner border border-secondary/20 shrink-0"
             type="button"
           >
             <span className="material-symbols-outlined text-[0.875rem]">add</span>
-            <span>Add Meter Value</span>
+            <span className="hidden sm:inline">Add Meter Value</span>
+            <span className="sm:hidden">Add</span>
           </button>
         </div>
       </section>
 
       {/* 2. DYNAMIC PRE-FILLED INSULIN DOSAGE CARDS (SUPPORTS 2-3+ DOSES / DAY & ADJUSTABLE UNITS) */}
       <section id="insulin-section" className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary text-base">vaccines</span>
-            <span className="font-headline-sm text-sm text-on-surface font-bold">
-              Today&apos;s Insulin Doses
+        <div className="flex items-center justify-between px-1 gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            <span className="material-symbols-outlined text-primary text-base shrink-0">vaccines</span>
+            <span className="font-headline-sm text-sm text-on-surface font-bold truncate">
+              Today&apos;s Doses
             </span>
-            <span className="text-xs text-on-surface-variant font-medium">
+            <span className="hidden sm:inline text-xs text-on-surface-variant font-medium">
               (Adjust units anytime based on your body condition)
+            </span>
+            <span className="sm:hidden text-[10px] text-on-surface-variant" title="Tap units anytime to adjust">
+              ℹ️
             </span>
           </div>
           <button
@@ -449,55 +480,59 @@ export default function QuickLogPage() {
               setEditingInsulin(null);
               setIsInsulinOpen(true);
             }}
-            className="flex items-center gap-1 px-3 py-1 rounded-full bg-surface-container-high hover:bg-surface-bright text-secondary text-xs font-semibold transition-all border border-secondary/20"
+            className="flex items-center gap-1 px-3 py-1 rounded-full bg-surface-container-high hover:bg-surface-bright text-secondary text-xs font-semibold transition-all border border-secondary/20 shrink-0"
             type="button"
           >
             <span className="material-symbols-outlined text-[1rem]">add</span>
-            <span>+ Extra Correction Dose</span>
+            <span className="hidden sm:inline">+ Extra Correction Dose</span>
+            <span className="sm:hidden">+ Correction</span>
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
           {/* Card 1: Morning Regimen */}
-          <div className="relative overflow-hidden rounded-3xl bg-surface-container-low/80 backdrop-blur-xl p-5 border border-primary/20 shadow-xl shadow-surface-container-lowest/50 flex flex-col justify-between transition-all group">
+          <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-surface-container-low/80 backdrop-blur-xl p-4 sm:p-5 border border-primary/20 shadow-xl shadow-surface-container-lowest/50 flex flex-col justify-between transition-all group">
             <div className="absolute -right-8 -top-8 w-24 h-24 bg-primary/10 rounded-full blur-2xl pointer-events-none"></div>
             <div>
               <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2">
-                  <span className={`w-2.5 h-2.5 rounded-full ${morningLog ? 'bg-primary shadow-[0_0_12px_rgba(78,222,163,0.8)]' : 'bg-outline'}`}></span>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${morningLog ? 'bg-primary shadow-[0_0_12px_rgba(78,222,163,0.8)]' : 'bg-outline'}`}></span>
                   <span className="font-label-md text-xs text-primary uppercase font-bold tracking-wider">
                     Morning Dose
                   </span>
                 </div>
                 {morningLog ? (
-                  <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary-container/20 text-primary border border-primary/20 font-label-md text-[0.7rem] font-bold">
-                    <span className="material-symbols-outlined text-[0.875rem]">schedule</span>
-                    <span>Taken at</span>
+                  <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full bg-primary-container/20 text-primary border border-primary/20 font-label-md text-[0.65rem] sm:text-[0.7rem] font-bold">
+                    <span className="material-symbols-outlined text-[0.8rem] sm:text-[0.875rem]">schedule</span>
+                    <span className="hidden sm:inline">Taken at</span>
                     <input
                       type="time"
                       value={morningLog.log_time}
                       onChange={(e) => handleUpdateLoggedTime(morningLog, e.target.value)}
-                      className="bg-transparent text-primary font-bold focus:outline-none cursor-pointer border-b border-primary/40 px-0.5"
+                      className="bg-transparent text-primary font-bold focus:outline-none cursor-pointer border-b border-primary/40 px-0.5 text-xs"
                       title="Adjust injection time"
                     />
                   </div>
                 ) : (
-                  <span className="px-2.5 py-0.5 rounded-full font-label-md text-[0.7rem] font-semibold bg-surface-container-high text-on-surface-variant">
+                  <span className="px-2 sm:px-2.5 py-0.5 rounded-full font-label-md text-[0.65rem] sm:text-[0.7rem] font-semibold bg-surface-container-high text-on-surface-variant">
                     Target {formatISTTime(settings.morning_target_time || '08:00')}
                   </span>
                 )}
               </div>
 
-              <h2 className="font-headline-sm text-base text-on-surface font-bold mt-1">
+              <h2 className="font-headline-sm text-sm sm:text-base text-on-surface font-bold mt-1">
                 {settings.morning_insulin_brand || 'Regular (R)'} Insulin
               </h2>
-              <p className="font-body-md text-xs text-on-surface-variant">
+              <p className="font-body-md text-[11px] sm:text-xs text-on-surface-variant line-clamp-1">
                 {settings.morning_meal_note || 'Before PG breakfast (Idly / Dosa)'}
               </p>
 
               {/* Day-to-Day Inline Unit Stepper */}
-              <div className="mt-4 p-3 rounded-2xl bg-surface-container/70 border border-white/5 flex items-center justify-between">
-                <span className="text-xs text-on-surface-variant font-medium">Dose Units:</span>
+              <div className="mt-3 sm:mt-4 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-surface-container/70 border border-white/5 flex items-center justify-between">
+                <span className="text-xs text-on-surface-variant font-medium">
+                  <span className="hidden sm:inline">Dose Units:</span>
+                  <span className="sm:hidden">Units:</span>
+                </span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
@@ -506,7 +541,7 @@ export default function QuickLogPage() {
                       if (morningLog) handleUpdateLoggedUnits(morningLog, next);
                     }}
                     type="button"
-                    className="w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-base shadow-sm"
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-sm sm:text-base shadow-sm"
                     title="Decrease 1 unit"
                   >
                     -
@@ -521,7 +556,7 @@ export default function QuickLogPage() {
                       setMorningUnits(val);
                       if (morningLog) handleUpdateLoggedUnits(morningLog, val);
                     }}
-                    className="w-14 text-center font-label-numeric text-xl text-primary font-extrabold bg-transparent border-b border-primary/40 focus:outline-none"
+                    className="w-12 sm:w-14 text-center font-label-numeric text-lg sm:text-xl text-primary font-extrabold bg-transparent border-b border-primary/40 focus:outline-none"
                   />
                   <button
                     onClick={() => {
@@ -530,7 +565,7 @@ export default function QuickLogPage() {
                       if (morningLog) handleUpdateLoggedUnits(morningLog, next);
                     }}
                     type="button"
-                    className="w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-base shadow-sm"
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-sm sm:text-base shadow-sm"
                     title="Increase 1 unit"
                   >
                     +
@@ -539,9 +574,9 @@ export default function QuickLogPage() {
               </div>
             </div>
 
-            <div className="pt-4 mt-4 border-t border-surface-container-high/40 flex items-center justify-between gap-2">
+            <div className="pt-3 sm:pt-4 mt-3 sm:mt-4 border-t border-surface-container-high/40 flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 text-primary font-label-md text-xs font-semibold">
-                <span className="material-symbols-outlined text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                <span className="material-symbols-outlined text-[1rem] sm:text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
                   {morningLog ? 'check_circle' : 'schedule'}
                 </span>
                 <span>{morningLog ? 'Logged ✓' : 'Scheduled'}</span>
@@ -572,11 +607,12 @@ export default function QuickLogPage() {
                 ) : (
                   <button
                     onClick={() => handleToggleInsulinDose('morning_regular', morningUnits)}
-                    className="flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-primary text-on-primary font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                    className="flex items-center gap-1 px-3 sm:px-3.5 py-1.5 rounded-full bg-primary text-on-primary font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
                     type="button"
                   >
-                    <span className="material-symbols-outlined text-base">alarm_on</span>
-                    <span>Mark as Taken</span>
+                    <span className="material-symbols-outlined text-sm sm:text-base">alarm_on</span>
+                    <span className="hidden sm:inline">Mark as Taken</span>
+                    <span className="sm:hidden">Take Dose</span>
                   </button>
                 )}
               </div>
@@ -584,45 +620,48 @@ export default function QuickLogPage() {
           </div>
 
           {/* Card 2: Afternoon / Midday Dose (Based on Body Condition / Lunch Spike) */}
-          <div className="relative overflow-hidden rounded-3xl bg-surface-container-low/80 backdrop-blur-xl p-5 border border-tertiary/20 shadow-xl shadow-surface-container-lowest/50 flex flex-col justify-between transition-all group">
+          <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-surface-container-low/80 backdrop-blur-xl p-4 sm:p-5 border border-tertiary/20 shadow-xl shadow-surface-container-lowest/50 flex flex-col justify-between transition-all group">
             <div className="absolute -right-8 -top-8 w-24 h-24 bg-tertiary/10 rounded-full blur-2xl pointer-events-none"></div>
             <div>
               <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2">
-                  <span className={`w-2.5 h-2.5 rounded-full ${afternoonLog ? 'bg-tertiary shadow-[0_0_12px_rgba(255,185,95,0.8)]' : 'bg-outline'}`}></span>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${afternoonLog ? 'bg-tertiary shadow-[0_0_12px_rgba(255,185,95,0.8)]' : 'bg-outline'}`}></span>
                   <span className="font-label-md text-xs text-tertiary uppercase font-bold tracking-wider">
                     Midday Dose
                   </span>
                 </div>
                 {afternoonLog ? (
-                  <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-tertiary-container/20 text-tertiary border border-tertiary/20 font-label-md text-[0.7rem] font-bold">
-                    <span className="material-symbols-outlined text-[0.875rem]">schedule</span>
-                    <span>Taken at</span>
+                  <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full bg-tertiary-container/20 text-tertiary border border-tertiary/20 font-label-md text-[0.65rem] sm:text-[0.7rem] font-bold">
+                    <span className="material-symbols-outlined text-[0.8rem] sm:text-[0.875rem]">schedule</span>
+                    <span className="hidden sm:inline">Taken at</span>
                     <input
                       type="time"
                       value={afternoonLog.log_time}
                       onChange={(e) => handleUpdateLoggedTime(afternoonLog, e.target.value)}
-                      className="bg-transparent text-tertiary font-bold focus:outline-none cursor-pointer border-b border-tertiary/40 px-0.5"
+                      className="bg-transparent text-tertiary font-bold focus:outline-none cursor-pointer border-b border-tertiary/40 px-0.5 text-xs"
                       title="Adjust injection time"
                     />
                   </div>
                 ) : (
-                  <span className="px-2.5 py-0.5 rounded-full font-label-md text-[0.7rem] font-semibold bg-surface-container-high text-on-surface-variant">
+                  <span className="px-2 sm:px-2.5 py-0.5 rounded-full font-label-md text-[0.65rem] sm:text-[0.7rem] font-semibold bg-surface-container-high text-on-surface-variant">
                     Target {formatISTTime(settings.midday_target_time || '13:30')}
                   </span>
                 )}
               </div>
 
-              <h2 className="font-headline-sm text-base text-on-surface font-bold mt-1">
+              <h2 className="font-headline-sm text-sm sm:text-base text-on-surface font-bold mt-1">
                 {settings.midday_insulin_brand || 'Regular (R)'} Insulin
               </h2>
-              <p className="font-body-md text-xs text-on-surface-variant">
+              <p className="font-body-md text-[11px] sm:text-xs text-on-surface-variant line-clamp-1">
                 {settings.midday_meal_note || 'Based on PG mess rice carb load or high feel'}
               </p>
 
               {/* Day-to-Day Inline Unit Stepper */}
-              <div className="mt-4 p-3 rounded-2xl bg-surface-container/70 border border-white/5 flex items-center justify-between">
-                <span className="text-xs text-on-surface-variant font-medium">Dose Units:</span>
+              <div className="mt-3 sm:mt-4 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-surface-container/70 border border-white/5 flex items-center justify-between">
+                <span className="text-xs text-on-surface-variant font-medium">
+                  <span className="hidden sm:inline">Dose Units:</span>
+                  <span className="sm:hidden">Units:</span>
+                </span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
@@ -631,7 +670,7 @@ export default function QuickLogPage() {
                       if (afternoonLog) handleUpdateLoggedUnits(afternoonLog, next);
                     }}
                     type="button"
-                    className="w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-base shadow-sm"
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-sm sm:text-base shadow-sm"
                     title="Decrease 1 unit"
                   >
                     -
@@ -646,7 +685,7 @@ export default function QuickLogPage() {
                       setAfternoonUnits(val);
                       if (afternoonLog) handleUpdateLoggedUnits(afternoonLog, val);
                     }}
-                    className="w-14 text-center font-label-numeric text-xl text-tertiary font-extrabold bg-transparent border-b border-tertiary/40 focus:outline-none"
+                    className="w-12 sm:w-14 text-center font-label-numeric text-lg sm:text-xl text-tertiary font-extrabold bg-transparent border-b border-tertiary/40 focus:outline-none"
                   />
                   <button
                     onClick={() => {
@@ -655,7 +694,7 @@ export default function QuickLogPage() {
                       if (afternoonLog) handleUpdateLoggedUnits(afternoonLog, next);
                     }}
                     type="button"
-                    className="w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-base shadow-sm"
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-sm sm:text-base shadow-sm"
                     title="Increase 1 unit"
                   >
                     +
@@ -664,9 +703,9 @@ export default function QuickLogPage() {
               </div>
             </div>
 
-            <div className="pt-4 mt-4 border-t border-surface-container-high/40 flex items-center justify-between gap-2">
+            <div className="pt-3 sm:pt-4 mt-3 sm:mt-4 border-t border-surface-container-high/40 flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 text-tertiary font-label-md text-xs font-semibold">
-                <span className="material-symbols-outlined text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                <span className="material-symbols-outlined text-[1rem] sm:text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
                   {afternoonLog ? 'check_circle' : 'psychology_alt'}
                 </span>
                 <span>{afternoonLog ? 'Logged ✓' : '3rd Dose Option'}</span>
@@ -697,11 +736,12 @@ export default function QuickLogPage() {
                 ) : (
                   <button
                     onClick={() => handleToggleInsulinDose('afternoon_regular', afternoonUnits)}
-                    className="flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-tertiary-container hover:bg-tertiary text-on-tertiary font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                    className="flex items-center gap-1 px-3 sm:px-3.5 py-1.5 rounded-full bg-tertiary-container hover:bg-tertiary text-on-tertiary font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
                     type="button"
                   >
-                    <span className="material-symbols-outlined text-base">alarm_on</span>
-                    <span>Mark as Taken</span>
+                    <span className="material-symbols-outlined text-sm sm:text-base">alarm_on</span>
+                    <span className="hidden sm:inline">Mark as Taken</span>
+                    <span className="sm:hidden">Take Dose</span>
                   </button>
                 )}
               </div>
@@ -709,45 +749,48 @@ export default function QuickLogPage() {
           </div>
 
           {/* Card 3: Scheduled Tonight (30/70 Biphasic) */}
-          <div className="relative overflow-hidden rounded-3xl bg-surface-container-low/80 backdrop-blur-xl p-5 border border-secondary/20 shadow-xl shadow-surface-container-lowest/50 flex flex-col justify-between transition-all group">
+          <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-surface-container-low/80 backdrop-blur-xl p-4 sm:p-5 border border-secondary/20 shadow-xl shadow-surface-container-lowest/50 flex flex-col justify-between transition-all group">
             <div className="absolute -right-8 -top-8 w-24 h-24 bg-secondary/15 rounded-full blur-2xl pointer-events-none"></div>
             <div>
               <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2">
-                  <span className={`w-2.5 h-2.5 rounded-full ${nightLog ? 'bg-secondary' : 'bg-secondary animate-pulse shadow-[0_0_12px_rgba(76,215,246,0.8)]'}`}></span>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${nightLog ? 'bg-secondary' : 'bg-secondary animate-pulse shadow-[0_0_12px_rgba(76,215,246,0.8)]'}`}></span>
                   <span className="font-label-md text-xs text-secondary uppercase font-bold tracking-wider">
                     Night Regimen
                   </span>
                 </div>
                 {nightLog ? (
-                  <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-secondary-container/20 text-secondary border border-secondary/20 font-label-md text-[0.7rem] font-bold">
-                    <span className="material-symbols-outlined text-[0.875rem]">schedule</span>
-                    <span>Taken at</span>
+                  <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full bg-secondary-container/20 text-secondary border border-secondary/20 font-label-md text-[0.65rem] sm:text-[0.7rem] font-bold">
+                    <span className="material-symbols-outlined text-[0.8rem] sm:text-[0.875rem]">schedule</span>
+                    <span className="hidden sm:inline">Taken at</span>
                     <input
                       type="time"
                       value={nightLog.log_time}
                       onChange={(e) => handleUpdateLoggedTime(nightLog, e.target.value)}
-                      className="bg-transparent text-secondary font-bold focus:outline-none cursor-pointer border-b border-secondary/40 px-0.5"
+                      className="bg-transparent text-secondary font-bold focus:outline-none cursor-pointer border-b border-secondary/40 px-0.5 text-xs"
                       title="Adjust injection time"
                     />
                   </div>
                 ) : (
-                  <span className="px-2.5 py-0.5 rounded-full font-label-md text-[0.7rem] font-semibold bg-surface-container-high text-on-surface-variant">
+                  <span className="px-2 sm:px-2.5 py-0.5 rounded-full font-label-md text-[0.65rem] sm:text-[0.7rem] font-semibold bg-surface-container-high text-on-surface-variant">
                     Target {formatISTTime(settings.night_target_time || '20:30')}
                   </span>
                 )}
               </div>
 
-              <h2 className="font-headline-sm text-base text-on-surface font-bold mt-1">
+              <h2 className="font-headline-sm text-sm sm:text-base text-on-surface font-bold mt-1">
                 {settings.night_insulin_brand || '30/70 Biphasic Mix'}
               </h2>
-              <p className="font-body-md text-xs text-on-surface-variant">
+              <p className="font-body-md text-[11px] sm:text-xs text-on-surface-variant line-clamp-1">
                 {settings.night_meal_note || '15m before PG dinner (Chapati / Rice)'}
               </p>
 
               {/* Day-to-Day Inline Unit Stepper */}
-              <div className="mt-4 p-3 rounded-2xl bg-surface-container/70 border border-white/5 flex items-center justify-between">
-                <span className="text-xs text-on-surface-variant font-medium">Dose Units:</span>
+              <div className="mt-3 sm:mt-4 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-surface-container/70 border border-white/5 flex items-center justify-between">
+                <span className="text-xs text-on-surface-variant font-medium">
+                  <span className="hidden sm:inline">Dose Units:</span>
+                  <span className="sm:hidden">Units:</span>
+                </span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
@@ -756,7 +799,7 @@ export default function QuickLogPage() {
                       if (nightLog) handleUpdateLoggedUnits(nightLog, next);
                     }}
                     type="button"
-                    className="w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-base shadow-sm"
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-sm sm:text-base shadow-sm"
                     title="Decrease 1 unit"
                   >
                     -
@@ -771,7 +814,7 @@ export default function QuickLogPage() {
                       setNightUnits(val);
                       if (nightLog) handleUpdateLoggedUnits(nightLog, val);
                     }}
-                    className="w-14 text-center font-label-numeric text-xl text-secondary font-extrabold bg-transparent border-b border-secondary/40 focus:outline-none"
+                    className="w-12 sm:w-14 text-center font-label-numeric text-lg sm:text-xl text-secondary font-extrabold bg-transparent border-b border-secondary/40 focus:outline-none"
                   />
                   <button
                     onClick={() => {
@@ -780,7 +823,7 @@ export default function QuickLogPage() {
                       if (nightLog) handleUpdateLoggedUnits(nightLog, next);
                     }}
                     type="button"
-                    className="w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-base shadow-sm"
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface flex items-center justify-center font-bold text-sm sm:text-base shadow-sm"
                     title="Increase 1 unit"
                   >
                     +
@@ -789,9 +832,9 @@ export default function QuickLogPage() {
               </div>
             </div>
 
-            <div className="pt-4 mt-4 border-t border-surface-container-high/40 flex items-center justify-between gap-2">
+            <div className="pt-3 sm:pt-4 mt-3 sm:mt-4 border-t border-surface-container-high/40 flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 text-secondary font-label-md text-xs font-semibold">
-                <span className="material-symbols-outlined text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                <span className="material-symbols-outlined text-[1rem] sm:text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
                   {nightLog ? 'check_circle' : 'schedule'}
                 </span>
                 <span>{nightLog ? 'Logged ✓' : 'Scheduled'}</span>
@@ -822,11 +865,12 @@ export default function QuickLogPage() {
                 ) : (
                   <button
                     onClick={() => handleToggleInsulinDose('night_30_70', nightUnits)}
-                    className="flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-secondary-container hover:bg-secondary text-on-secondary-container hover:text-on-secondary font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                    className="flex items-center gap-1 px-3 sm:px-3.5 py-1.5 rounded-full bg-secondary-container hover:bg-secondary text-on-secondary-container hover:text-on-secondary font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
                     type="button"
                   >
-                    <span className="material-symbols-outlined text-base">alarm_on</span>
-                    <span>Mark as Taken</span>
+                    <span className="material-symbols-outlined text-sm sm:text-base">alarm_on</span>
+                    <span className="hidden sm:inline">Mark as Taken</span>
+                    <span className="sm:hidden">Take Dose</span>
                   </button>
                 )}
               </div>
@@ -864,7 +908,7 @@ export default function QuickLogPage() {
       {/* 3. FEEL TRACKER (HERO 5-SECOND LOGGING DECK) */}
       <section
         id="feel-section"
-        className="rounded-3xl bg-surface-container-low/70 backdrop-blur-2xl p-5 md:p-8 border border-white/5 shadow-2xl shadow-surface-container-lowest/60 relative overflow-hidden"
+        className="rounded-2xl sm:rounded-3xl bg-surface-container-low/70 backdrop-blur-2xl p-4 sm:p-5 md:p-8 border border-white/5 shadow-2xl shadow-surface-container-lowest/60 relative overflow-hidden"
       >
         {/* Dynamic Ambient Backing Splash */}
         <div
@@ -873,32 +917,34 @@ export default function QuickLogPage() {
         ></div>
 
         {/* Section Title & Intent */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6 relative z-10">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6 relative z-10">
           <div>
             <div className="flex items-center gap-1.5 mb-1">
-              <span className="material-symbols-outlined text-primary text-[1.25rem]">vital_signs</span>
-              <span className="font-label-md text-xs uppercase font-bold tracking-widest text-primary">
-                Sensory Metabolic Feedback
+              <span className="material-symbols-outlined text-primary text-[1.125rem]">vital_signs</span>
+              <span className="font-label-md text-[10px] sm:text-xs uppercase font-bold tracking-widest text-primary">
+                <span className="hidden sm:inline">Sensory Metabolic Feedback</span>
+                <span className="sm:hidden">Sensation Check</span>
               </span>
             </div>
-            <h2 className="font-headline-xl text-headline-xl text-on-surface font-bold tracking-tight">
+            <h2 className="font-headline-xl text-lg sm:text-headline-xl text-on-surface font-bold tracking-tight">
               How does your body feel right now?
             </h2>
-            <p className="font-body-md text-sm text-on-surface-variant">
-              Tap once to log in under 5 seconds. Designed for zero mental fatigue &amp; no finger prick needed.
+            <p className="font-body-md text-xs sm:text-sm text-on-surface-variant">
+              <span className="hidden sm:inline">Tap once to log in under 5 seconds. Designed for zero mental fatigue &amp; no finger prick needed.</span>
+              <span className="sm:hidden">Tap once to record rhythm · Zero prick</span>
             </p>
           </div>
 
           {/* Live Timestamp Slot */}
-          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-surface-container-lowest text-on-surface-variant font-label-md text-xs border border-white/5 shadow-inner">
+          <div className="flex items-center gap-1.5 sm:gap-2 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full bg-surface-container-lowest text-on-surface-variant font-label-md text-[11px] sm:text-xs border border-white/5 shadow-inner shrink-0">
             <span className="w-2 h-2 rounded-full bg-primary animate-ping"></span>
-            <span className="text-on-surface font-semibold">Active Slot:</span>
-            <span>Just now ({formatISTTime(getCurrentTimeIST())} IST)</span>
+            <span className="text-on-surface font-semibold hidden sm:inline">Active Slot:</span>
+            <span>Just now ({formatISTTime(getCurrentTimeIST())})</span>
           </div>
         </div>
 
         {/* The 5 Neumorphic Extruded Feel States (Horizontal Arc) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-6 relative z-10">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4 mb-4 sm:mb-6 relative z-10">
           {(Object.keys(FEEL_CONFIGS) as FeelLevel[]).map((level) => {
             const cfg = FEEL_CONFIGS[level];
             const isActive = selectedFeel === level;
@@ -907,35 +953,35 @@ export default function QuickLogPage() {
                 key={level}
                 onClick={() => handleSelectFeel(level)}
                 type="button"
-                className={`relative text-left p-4 rounded-2xl transition-all duration-300 flex flex-col justify-between h-44 group cursor-pointer overflow-hidden border ${
+                className={`relative text-left p-3 sm:p-4 rounded-xl sm:rounded-2xl transition-all duration-300 flex flex-col justify-between h-32 sm:h-44 group cursor-pointer overflow-hidden border ${
                   isActive
                     ? 'bg-surface-container-high border-tertiary/40 ring-2 ring-tertiary/50 shadow-xl shadow-tertiary/10 scale-[1.02]'
                     : 'bg-surface-container/70 border-white/5 hover:bg-surface-container-high hover:border-white/10 shadow-md'
                 }`}
               >
                 <div className="w-full flex items-center justify-between">
-                  <span className={`text-2xl transition-transform ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
+                  <span className={`text-xl sm:text-2xl transition-transform ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
                     {cfg.emoji}
                   </span>
                   {isActive ? (
-                    <span className="px-2 py-0.5 rounded-full bg-tertiary-container text-on-tertiary-container text-[0.65rem] font-bold uppercase tracking-wider">
+                    <span className="px-1.5 sm:px-2 py-0.5 rounded-full bg-tertiary-container text-on-tertiary-container text-[0.6rem] sm:text-[0.65rem] font-bold uppercase tracking-wider">
                       Active
                     </span>
                   ) : (
-                    <span className={`w-2.5 h-2.5 rounded-full ${cfg.dotColor}`}></span>
+                    <span className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${cfg.dotColor}`}></span>
                   )}
                 </div>
 
                 <div>
-                  <h3 className={`font-headline-sm text-headline-sm font-bold ${isActive ? 'text-tertiary' : 'text-on-surface'}`}>
+                  <h3 className={`font-headline-sm text-xs sm:text-headline-sm font-bold ${isActive ? 'text-tertiary' : 'text-on-surface'}`}>
                     {cfg.title}
                   </h3>
-                  <span className="font-label-md text-[0.7rem] text-on-surface-variant font-medium block">
+                  <span className="font-label-md text-[10px] sm:text-[0.7rem] text-on-surface-variant font-medium block">
                     {cfg.subtitle}
                   </span>
                 </div>
 
-                <div className="text-[0.7rem] text-on-surface-variant font-label-md leading-tight line-clamp-1">
+                <div className="hidden sm:block text-[0.7rem] text-on-surface-variant font-label-md leading-tight line-clamp-1">
                   {cfg.symptoms.slice(0, 2).join(', ')}
                 </div>
               </button>
@@ -944,15 +990,15 @@ export default function QuickLogPage() {
         </div>
 
         {/* Dynamic Symptom Chips Container */}
-        <div className="p-4 rounded-2xl bg-surface-container-lowest/90 border border-white/5 backdrop-blur-md shadow-inner mb-4 relative z-10">
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-surface-container-lowest/90 border border-white/5 backdrop-blur-md shadow-inner mb-4 relative z-10">
+          <div className="flex items-center justify-between mb-2.5 sm:mb-3 flex-wrap gap-2">
             <span className="font-label-md text-xs text-on-surface-variant font-semibold">
-              Contextual Symptoms (<span className="text-tertiary font-bold">{FEEL_CONFIGS[selectedFeel].title}</span> tags)
+              Contextual Symptoms (<span className="text-tertiary font-bold">{FEEL_CONFIGS[selectedFeel].title}</span>)
             </span>
-            <span className="text-[0.7rem] text-outline">Tap any to toggle sensation</span>
+            <span className="text-[10px] sm:text-[0.7rem] text-outline">Tap to toggle</span>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
             {FEEL_CONFIGS[selectedFeel].symptoms.map((symptom) => {
               const isSelected = selectedChips.includes(symptom);
               return (
@@ -960,7 +1006,7 @@ export default function QuickLogPage() {
                   key={symptom}
                   onClick={() => handleToggleChip(symptom)}
                   type="button"
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  className={`px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all ${
                     isSelected
                       ? 'bg-tertiary/20 text-tertiary border border-tertiary/40 font-bold shadow-sm'
                       : 'bg-surface-container text-on-surface-variant hover:text-on-surface border border-white/5'
@@ -974,26 +1020,26 @@ export default function QuickLogPage() {
         </div>
 
         {/* Quick Note & Rapid Commit Button Row */}
-        <div className="flex flex-col md:flex-row items-center gap-3 relative z-10">
+        <div className="flex flex-col sm:flex-row items-center gap-2.5 sm:gap-3 relative z-10">
           <div className="relative flex-1 w-full">
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-[1.25rem]">
+            <span className="material-symbols-outlined absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-[1.125rem] sm:text-[1.25rem]">
               edit_note
             </span>
             <input
               type="text"
               value={feelNote}
               onChange={(e) => setFeelNote(e.target.value)}
-              placeholder="Add a quick note (e.g. 2 dosa, mid-exam, evening run...)"
-              className="w-full pl-12 pr-4 py-3 bg-surface-container border border-white/5 rounded-full text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary font-body-md text-sm shadow-inner transition-all"
+              placeholder="Quick note (e.g. 2 dosa, mid-exam, evening run...)"
+              className="w-full pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 bg-surface-container border border-white/5 rounded-full text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary font-body-md text-xs sm:text-sm shadow-inner transition-all"
             />
           </div>
 
           <button
             onClick={handleSaveSensoryFeel}
             type="button"
-            className="w-full md:w-auto flex items-center justify-center gap-2 px-8 py-3 rounded-full bg-primary-container text-on-primary font-body-md text-sm font-bold shadow-[0_10px_25px_-5px_rgba(16,185,129,0.4)] hover:bg-primary transition-all active:scale-95 shrink-0"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 sm:px-8 py-2.5 sm:py-3 rounded-full bg-primary-container text-on-primary font-body-md text-xs sm:text-sm font-bold shadow-[0_10px_25px_-5px_rgba(16,185,129,0.4)] hover:bg-primary transition-all active:scale-95 shrink-0"
           >
-            <span className="material-symbols-outlined text-[1.25rem]">check</span>
+            <span className="material-symbols-outlined text-[1.125rem] sm:text-[1.25rem]">check</span>
             <span>Save Feel Log</span>
           </button>
         </div>
@@ -1007,15 +1053,15 @@ export default function QuickLogPage() {
       </section>
 
       {/* 4. SPLIT BENTO: QUICK EVENT LAUNCHERS & TODAY'S ACTIVITY STREAM */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
         {/* Left Column (4 cols): Fast Add Shortcuts & Origin Blueprint */}
-        <div className="lg:col-span-4 flex flex-col gap-4">
+        <div className="lg:col-span-4 flex flex-col gap-3 sm:gap-4">
           <div className="flex items-center justify-between px-1">
-            <span className="font-headline-sm text-headline-sm text-on-surface font-bold">Fast Add</span>
-            <span className="font-label-md text-xs text-outline">1-Tap Shortcuts</span>
+            <span className="font-headline-sm text-sm sm:text-headline-sm text-on-surface font-bold">Fast Add</span>
+            <span className="font-label-md text-[11px] sm:text-xs text-outline">1-Tap Shortcuts</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-2 sm:gap-3">
             {/* + Food */}
             <button
               onClick={() => {
@@ -1023,14 +1069,14 @@ export default function QuickLogPage() {
                 setIsFoodOpen(true);
               }}
               type="button"
-              className="p-4 rounded-2xl bg-surface-container-low/80 hover:bg-surface-container border border-white/5 backdrop-blur-md shadow-lg flex flex-col items-start justify-between h-32 text-left group transition-all cursor-pointer active:scale-95"
+              className="p-2 sm:p-4 rounded-xl sm:rounded-2xl bg-surface-container-low/80 hover:bg-surface-container border border-white/5 backdrop-blur-md shadow-lg flex flex-col items-center sm:items-start justify-center sm:justify-between h-20 sm:h-32 text-center sm:text-left group transition-all cursor-pointer active:scale-95"
             >
-              <div className="w-10 h-10 rounded-full bg-tertiary-container/20 text-tertiary border border-tertiary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <span className="material-symbols-outlined text-[1.5rem]">restaurant</span>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-tertiary-container/20 text-tertiary border border-tertiary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <span className="material-symbols-outlined text-[1.2rem] sm:text-[1.5rem]">restaurant</span>
               </div>
               <div>
-                <span className="font-headline-sm text-sm text-on-surface font-bold block">+ Food</span>
-                <span className="text-[0.7rem] text-on-surface-variant font-label-md">Rice, Dosa, Idly</span>
+                <span className="font-headline-sm text-xs sm:text-sm text-on-surface font-bold block">+ Food</span>
+                <span className="text-[0.7rem] text-on-surface-variant font-label-md hidden sm:block">Rice, Dosa, Idly</span>
               </div>
             </button>
 
@@ -1041,14 +1087,14 @@ export default function QuickLogPage() {
                 setIsActivityOpen(true);
               }}
               type="button"
-              className="p-4 rounded-2xl bg-surface-container-low/80 hover:bg-surface-container border border-white/5 backdrop-blur-md shadow-lg flex flex-col items-start justify-between h-32 text-left group transition-all cursor-pointer active:scale-95"
+              className="p-2 sm:p-4 rounded-xl sm:rounded-2xl bg-surface-container-low/80 hover:bg-surface-container border border-white/5 backdrop-blur-md shadow-lg flex flex-col items-center sm:items-start justify-center sm:justify-between h-20 sm:h-32 text-center sm:text-left group transition-all cursor-pointer active:scale-95"
             >
-              <div className="w-10 h-10 rounded-full bg-secondary-container/20 text-secondary border border-secondary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <span className="material-symbols-outlined text-[1.5rem]">directions_run</span>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-secondary-container/20 text-secondary border border-secondary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <span className="material-symbols-outlined text-[1.2rem] sm:text-[1.5rem]">directions_run</span>
               </div>
               <div>
-                <span className="font-headline-sm text-sm text-on-surface font-bold block">+ Activity</span>
-                <span className="text-[0.7rem] text-on-surface-variant font-label-md">5-10k run, Walk</span>
+                <span className="font-headline-sm text-xs sm:text-sm text-on-surface font-bold block">+ Activity</span>
+                <span className="text-[0.7rem] text-on-surface-variant font-label-md hidden sm:block">Run, Walk</span>
               </div>
             </button>
 
@@ -1059,14 +1105,14 @@ export default function QuickLogPage() {
                 setIsFeelOpen(true);
               }}
               type="button"
-              className="p-4 rounded-2xl bg-surface-container-low/80 hover:bg-surface-container border border-white/5 backdrop-blur-md shadow-lg flex flex-col items-start justify-between h-32 text-left group transition-all cursor-pointer active:scale-95"
+              className="p-2 sm:p-4 rounded-xl sm:rounded-2xl bg-surface-container-low/80 hover:bg-surface-container border border-white/5 backdrop-blur-md shadow-lg flex flex-col items-center sm:items-start justify-center sm:justify-between h-20 sm:h-32 text-center sm:text-left group transition-all cursor-pointer active:scale-95"
             >
-              <div className="w-10 h-10 rounded-full bg-primary/20 text-primary border border-primary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <span className="material-symbols-outlined text-[1.5rem]">sentiment_satisfied</span>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/20 text-primary border border-primary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <span className="material-symbols-outlined text-[1.2rem] sm:text-[1.5rem]">sentiment_satisfied</span>
               </div>
               <div>
-                <span className="font-headline-sm text-sm text-on-surface font-bold block">+ Feel Log</span>
-                <span className="text-[0.7rem] text-on-surface-variant font-label-md">Additional time</span>
+                <span className="font-headline-sm text-xs sm:text-sm text-on-surface font-bold block">+ Feel</span>
+                <span className="text-[0.7rem] text-on-surface-variant font-label-md hidden sm:block">Extra slot</span>
               </div>
             </button>
 
@@ -1077,20 +1123,20 @@ export default function QuickLogPage() {
                 setIsGlucoseOpen(true);
               }}
               type="button"
-              className="p-4 rounded-2xl bg-surface-container-low/80 hover:bg-surface-container border border-white/5 backdrop-blur-md shadow-lg flex flex-col items-start justify-between h-32 text-left group transition-all cursor-pointer active:scale-95"
+              className="p-2 sm:p-4 rounded-xl sm:rounded-2xl bg-surface-container-low/80 hover:bg-surface-container border border-white/5 backdrop-blur-md shadow-lg flex flex-col items-center sm:items-start justify-center sm:justify-between h-20 sm:h-32 text-center sm:text-left group transition-all cursor-pointer active:scale-95"
             >
-              <div className="w-10 h-10 rounded-full bg-secondary/20 text-secondary border border-secondary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <span className="material-symbols-outlined text-[1.5rem]">water_drop</span>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-secondary/20 text-secondary border border-secondary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <span className="material-symbols-outlined text-[1.2rem] sm:text-[1.5rem]">water_drop</span>
               </div>
               <div>
-                <span className="font-headline-sm text-sm text-on-surface font-bold block">+ Glucose</span>
-                <span className="text-[0.7rem] text-on-surface-variant font-label-md">Optional mg/dL</span>
+                <span className="font-headline-sm text-xs sm:text-sm text-on-surface font-bold block">+ Sugar</span>
+                <span className="text-[0.7rem] text-on-surface-variant font-label-md hidden sm:block">mg/dL</span>
               </div>
             </button>
           </div>
 
-          {/* Prototype Origin Blueprint Badge */}
-          <div className="p-4 rounded-2xl bg-surface-container-lowest/80 border border-white/5 backdrop-blur-md shadow-sm flex items-center gap-3">
+          {/* Prototype Origin Blueprint Badge (Desktop only) */}
+          <div className="hidden md:flex p-4 rounded-2xl bg-surface-container-lowest/80 border border-white/5 backdrop-blur-md shadow-sm items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center text-primary shrink-0 border border-primary/20">
               <span className="material-symbols-outlined text-[1.25rem]">architecture</span>
             </div>
@@ -1107,27 +1153,28 @@ export default function QuickLogPage() {
             </div>
           </div>
 
-          {/* Medical Guardrail Note */}
-          <div className="p-3.5 rounded-2xl bg-surface-container-low/40 border border-white/5 text-[0.72rem] text-on-surface-variant leading-relaxed">
+          {/* Medical Guardrail Note (Desktop only) */}
+          <div className="hidden md:block p-3.5 rounded-2xl bg-surface-container-low/40 border border-white/5 text-[0.72rem] text-on-surface-variant leading-relaxed">
             <span className="text-secondary font-semibold">Diary Note:</span> Feelog does not offer clinical insulin titration or predictive medical advice. All data belongs locally to you and your diabetologist.
           </div>
         </div>
 
         {/* Right Column (8 cols): Today's Activity & Metabolic Rhythm Stream */}
-        <div className="lg:col-span-8 rounded-3xl bg-surface-container-low/70 backdrop-blur-xl p-5 md:p-6 border border-white/5 shadow-xl shadow-surface-container-lowest/40 flex flex-col justify-between">
+        <div className="lg:col-span-8 rounded-2xl sm:rounded-3xl bg-surface-container-low/70 backdrop-blur-xl p-4 sm:p-5 md:p-6 border border-white/5 shadow-xl shadow-surface-container-lowest/40 flex flex-col justify-between">
           <div>
             {/* Timeline Header */}
-            <div className="flex items-center justify-between pb-4 mb-4 border-b border-surface-container-high/40">
+            <div className="flex items-center justify-between pb-3 sm:pb-4 mb-3 sm:mb-4 border-b border-surface-container-high/40">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-secondary text-[1.25rem]">timeline</span>
-                <span className="font-headline-sm text-headline-sm text-on-surface font-bold">
-                  Today&apos;s Timeline Stream
+                <span className="material-symbols-outlined text-secondary text-[1.125rem] sm:text-[1.25rem]">timeline</span>
+                <span className="font-headline-sm text-sm sm:text-headline-sm text-on-surface font-bold">
+                  <span className="hidden sm:inline">Today&apos;s Timeline Stream</span>
+                  <span className="sm:hidden">Today&apos;s Stream</span>
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-[0.7rem] font-semibold border border-white/5">
-                  {todayLogs.length} Events
+                <span className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-[0.65rem] sm:text-[0.7rem] font-semibold border border-white/5">
+                  {todayLogs.length}
                 </span>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 {todayLogs.length === 0 && (
                   <button
                     onClick={() => {
@@ -1137,40 +1184,43 @@ export default function QuickLogPage() {
                     type="button"
                     className="text-xs text-primary font-bold hover:underline"
                   >
-                    Load Demo PG Data
+                    <span className="hidden sm:inline">Load Demo PG Data</span>
+                    <span className="sm:hidden">Load Demo</span>
                   </button>
                 )}
                 <Link
                   href="/timeline"
-                  className="font-body-md text-xs text-primary hover:underline flex items-center gap-1 font-semibold"
+                  className="font-body-md text-xs text-primary hover:underline flex items-center gap-0.5 sm:gap-1 font-semibold"
                 >
-                  <span>Full 24h View</span>
-                  <span className="material-symbols-outlined text-[1rem]">arrow_forward</span>
+                  <span className="hidden sm:inline">Full 24h View</span>
+                  <span className="sm:hidden">View All</span>
+                  <span className="material-symbols-outlined text-[0.95rem] sm:text-[1rem]">arrow_forward</span>
                 </Link>
               </div>
             </div>
 
             {/* Timeline Items List */}
             {todayLogs.length === 0 ? (
-              <div className="py-12 text-center flex flex-col items-center justify-center">
-                <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-outline mb-3">
-                  <span className="material-symbols-outlined text-[1.5rem]">schedule</span>
+              <div className="py-8 sm:py-12 text-center flex flex-col items-center justify-center">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-surface-container flex items-center justify-center text-outline mb-2 sm:mb-3">
+                  <span className="material-symbols-outlined text-[1.25rem] sm:text-[1.5rem]">schedule</span>
                 </div>
-                <p className="font-headline-sm text-sm text-on-surface font-bold">
+                <p className="font-headline-sm text-xs sm:text-sm text-on-surface font-bold">
                   No logs recorded for today yet.
                 </p>
-                <p className="text-xs text-on-surface-variant mt-1 max-w-sm">
-                  Tap any 5-second feel card or Fast Add shortcut above, or load the realistic 14-day Bangalore PG student sample dataset.
+                <p className="text-[11px] sm:text-xs text-on-surface-variant mt-1 max-w-sm">
+                  <span className="hidden sm:inline">Tap any 5-second feel card or Fast Add shortcut above, or load the realistic 14-day Bangalore PG student sample dataset.</span>
+                  <span className="sm:hidden">Tap a button above to log or load sample data.</span>
                 </p>
                 <button
                   onClick={() => {
                     seedRealisticPGData();
                     refreshData();
                   }}
-                  className="mt-4 px-4 py-2 rounded-full bg-primary-container text-on-primary text-xs font-bold shadow-md hover:bg-primary transition-all active:scale-95"
+                  className="mt-3 sm:mt-4 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full bg-primary-container text-on-primary text-xs font-bold shadow-md hover:bg-primary transition-all active:scale-95"
                   type="button"
                 >
-                  Seed Realistic PG Dataset
+                  Seed Demo Data
                 </button>
               </div>
             ) : (
@@ -1276,13 +1326,13 @@ export default function QuickLogPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                         <span className="hidden sm:inline text-xs font-semibold text-primary">
                           {rightTag}
                         </span>
                         <button
                           onClick={() => handleEditItem(item)}
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-opacity"
+                          className="opacity-70 sm:opacity-0 sm:group-hover:opacity-100 p-1 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-opacity"
                           title="Edit"
                           type="button"
                         >
@@ -1290,7 +1340,7 @@ export default function QuickLogPage() {
                         </button>
                         <button
                           onClick={() => setDeleteTarget(item)}
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-error hover:bg-error-container/20 transition-opacity"
+                          className="opacity-70 sm:opacity-0 sm:group-hover:opacity-100 p-1 rounded-lg text-error hover:bg-error-container/20 transition-opacity"
                           title="Delete"
                           type="button"
                         >

@@ -48,15 +48,16 @@ export default function Header({ onNewEntry }: HeaderProps) {
   return (
     <>
       <header className="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-2xl border-b border-surface-container-high/40 shadow-[0_4px_30px_rgba(0,0,0,0.35)]">
-        <div className="h-20 max-w-[1240px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
+        <div className="h-16 sm:h-20 max-w-[1240px] mx-auto px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-3 sm:gap-4">
           {/* Logo & Identity */}
-          <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2 group">
-              <span className="font-headline-xl text-headline-xl text-on-surface font-extrabold tracking-tight group-hover:text-primary transition-colors">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <Link href="/" className="flex items-center gap-1.5 sm:gap-2 group">
+              <span className="font-headline-xl text-xl sm:text-headline-xl text-on-surface font-extrabold tracking-tight group-hover:text-primary transition-colors">
                 Feelog
               </span>
-              <span className="px-2.5 py-0.5 rounded-full bg-primary-container/20 text-primary font-label-md text-xs uppercase tracking-wider font-bold border border-primary/20">
-                Type 1 Diary
+              <span className="px-2 py-0.5 rounded-full bg-primary-container/20 text-primary font-label-md text-[10px] sm:text-xs uppercase tracking-wider font-bold border border-primary/20">
+                <span className="hidden sm:inline">Type 1 Diary</span>
+                <span className="sm:hidden">T1D</span>
               </span>
             </Link>
             <div className="hidden xl:flex items-center gap-2 text-on-surface-variant font-label-md text-xs pl-2 border-l border-surface-container-highest">
@@ -138,9 +139,10 @@ export default function Header({ onNewEntry }: HeaderProps) {
         </div>
 
         {/* Quiet Medical Guardrail Banner */}
-        <div className="w-full bg-surface-container-lowest/80 border-t border-surface-container-high/30 py-1 px-4 text-center font-label-md text-[11px] text-on-surface-variant flex items-center justify-center gap-1.5">
-          <span className="material-symbols-outlined text-secondary text-[14px]">verified_user</span>
-          <span>No medical advice. Pure symptom & rhythm tracking for you and your physician.</span>
+        <div className="w-full bg-surface-container-lowest/80 border-t border-surface-container-high/30 py-1 px-3 sm:px-4 text-center font-label-md text-[10px] sm:text-[11px] text-on-surface-variant flex items-center justify-center gap-1.5">
+          <span className="material-symbols-outlined text-secondary text-[13px] sm:text-[14px]">verified_user</span>
+          <span className="hidden sm:inline">No medical advice. Pure symptom & rhythm tracking for you and your physician.</span>
+          <span className="sm:hidden">Symptom Tracker · Non-Clinical</span>
         </div>
       </header>
     </>

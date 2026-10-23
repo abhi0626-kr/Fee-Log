@@ -58,7 +58,7 @@ export default function RootLayout({
         <SyncBanner />
         <Header />
 
-        <main className="relative z-10 w-full pt-28 pb-20 md:pb-12 flex-1">
+        <main className="relative z-10 w-full pt-24 sm:pt-28 pb-20 md:pb-12 flex-1">
           <AuthGuard>{children}</AuthGuard>
         </main>
 

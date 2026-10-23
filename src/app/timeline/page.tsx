@@ -142,13 +142,18 @@ export default function TimelinePage() {
             <span className="material-symbols-outlined text-[1.25rem]">chevron_left</span>
           </button>
 
-          <div className="px-4 py-1 flex items-center gap-2 text-center">
-            <span className="material-symbols-outlined text-primary text-[1.125rem]">calendar_today</span>
-            <span className="font-headline-sm text-sm sm:text-base text-on-surface tracking-tight font-bold">
-              {formatISTDate(selectedDate, { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+          <div className="px-3 sm:px-4 py-1 flex items-center gap-1.5 sm:gap-2 text-center">
+            <span className="material-symbols-outlined text-primary text-[1rem] sm:text-[1.125rem]">calendar_today</span>
+            <span className="font-headline-sm text-xs sm:text-base text-on-surface tracking-tight font-bold">
+              <span className="hidden sm:inline">
+                {formatISTDate(selectedDate, { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+              <span className="sm:hidden">
+                {formatISTDate(selectedDate, { weekday: 'short', day: 'numeric', month: 'short' })}
+              </span>
             </span>
             {isToday && (
-              <span className="px-2 py-0.5 rounded-full bg-primary-container/20 text-primary font-label-md text-xs font-bold border border-primary/20">
+              <span className="px-2 py-0.5 rounded-full bg-primary-container/20 text-primary font-label-md text-[10px] sm:text-xs font-bold border border-primary/20">
                 Today
               </span>
             )}
@@ -168,24 +173,25 @@ export default function TimelinePage() {
         <div className="flex items-center gap-1.5 flex-wrap">
           {(
             [
-              { key: 'all', label: `All Events (${logs.length})` },
-              { key: 'insulin', label: `Insulin (${insulinLogs.length})` },
-              { key: 'feelings', label: `Feelings (${feelItems.length})` },
-              { key: 'food', label: `Food (${logs.filter((l) => l.category === 'food').length})` },
-              { key: 'activity', label: `Workouts (${activityItems.length})` },
-            ] as { key: FilterType; label: string }[]
+              { key: 'all', label: `All Events (${logs.length})`, shortLabel: `All (${logs.length})` },
+              { key: 'insulin', label: `Insulin (${insulinLogs.length})`, shortLabel: `💉 ${insulinLogs.length}` },
+              { key: 'feelings', label: `Feelings (${feelItems.length})`, shortLabel: `😊 ${feelItems.length}` },
+              { key: 'food', label: `Food (${logs.filter((l) => l.category === 'food').length})`, shortLabel: `🍱 ${logs.filter((l) => l.category === 'food').length}` },
+              { key: 'activity', label: `Workouts (${activityItems.length})`, shortLabel: `🏃 ${activityItems.length}` },
+            ] as { key: FilterType; label: string; shortLabel: string }[]
           ).map((filter) => (
             <button
               key={filter.key}
               onClick={() => setActiveFilter(filter.key)}
               type="button"
-              className={`px-3.5 py-1.5 rounded-full font-label-md text-xs font-semibold transition-all ${
+              className={`px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full font-label-md text-[11px] sm:text-xs font-semibold transition-all ${
                 activeFilter === filter.key
                   ? 'bg-surface-container-high text-primary shadow-inner border border-primary/30'
                   : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container border border-white/5'
               }`}
             >
-              {filter.label}
+              <span className="hidden sm:inline">{filter.label}</span>
+              <span className="sm:hidden">{filter.shortLabel}</span>
             </button>
           ))}
         </div>
@@ -376,7 +382,7 @@ export default function TimelinePage() {
                           )}
                           <button
                             onClick={() => handleEditItem(item)}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-on-surface-variant hover:text-on-surface transition-opacity"
+                            className="opacity-70 sm:opacity-0 sm:group-hover:opacity-100 p-1 text-on-surface-variant hover:text-on-surface transition-opacity"
                             title="Edit"
                             type="button"
                           >
@@ -384,7 +390,7 @@ export default function TimelinePage() {
                           </button>
                           <button
                             onClick={() => setDeleteTarget(item)}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-error hover:text-error transition-opacity"
+                            className="opacity-70 sm:opacity-0 sm:group-hover:opacity-100 p-1 text-error hover:text-error transition-opacity"
                             title="Delete"
                             type="button"
                           >

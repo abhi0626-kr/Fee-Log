@@ -131,17 +131,17 @@ export default function SettingsPage() {
       )}
 
       {/* Account & Sync Bar */}
-      <div className="rounded-3xl bg-surface-container/70 border border-white/5 backdrop-blur-xl p-5 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center text-primary font-extrabold text-base shrink-0">
+      <div className="rounded-2xl sm:rounded-3xl bg-surface-container/70 border border-white/5 backdrop-blur-xl p-3.5 sm:p-5 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center text-primary font-extrabold text-sm sm:text-base shrink-0">
             {settings.display_name?.slice(0, 2).toUpperCase() || 'AB'}
           </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-headline-sm text-base text-on-surface font-bold">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <span className="font-headline-sm text-sm sm:text-base text-on-surface font-bold truncate">
                 {settings.display_name || 'Abhishek'}
               </span>
-              <span className={`px-2.5 py-0.5 rounded-full text-[0.65rem] font-bold border ${
+              <span className={`px-2 py-0.5 rounded-full text-[0.65rem] font-bold border ${
                 isSignedInGoogle
                   ? 'bg-primary-container/20 text-primary border-primary/20'
                   : 'bg-surface-container-high text-on-surface-variant border-white/5'
@@ -149,29 +149,38 @@ export default function SettingsPage() {
                 {isSignedInGoogle ? 'Google Account' : 'Guest / Local Mode'}
               </span>
             </div>
-            <p className="text-xs text-on-surface-variant mt-0.5">
-              {isSignedInGoogle ? settings.email : 'Your logs are stored securely in local browser storage.'}
+            <p className="text-xs text-on-surface-variant mt-0.5 truncate">
+              {isSignedInGoogle ? (
+                settings.email
+              ) : (
+                <>
+                  <span className="hidden sm:inline">Your logs are stored securely in local browser storage.</span>
+                  <span className="sm:hidden">Private local storage</span>
+                </>
+              )}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
           <button
             type="button"
             onClick={handleManualSync}
             disabled={isSyncingServer}
-            className="px-4 py-2 rounded-full bg-surface-container-high hover:bg-surface-bright text-secondary text-xs font-semibold transition-all border border-secondary/20 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-surface-container-high hover:bg-surface-bright text-secondary text-xs font-semibold transition-all border border-secondary/20 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
             <span className={`material-symbols-outlined text-sm ${isSyncingServer ? 'animate-spin' : ''}`}>sync</span>
-            <span>{isSyncingServer ? 'Syncing...' : 'Sync Now'}</span>
+            <span className="hidden sm:inline">{isSyncingServer ? 'Syncing...' : 'Sync Now'}</span>
+            <span className="sm:hidden">{isSyncingServer ? 'Syncing...' : 'Sync'}</span>
           </button>
 
           <Link
             href="/login"
-            className="px-4 py-2 rounded-full bg-primary text-on-primary font-bold text-xs transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-primary text-on-primary font-bold text-xs transition-all shadow-md active:scale-95 flex items-center gap-1.5"
           >
             <span className="material-symbols-outlined text-sm">account_circle</span>
-            <span>{isSignedInGoogle ? 'Account Details' : 'Sign in with Google'}</span>
+            <span className="hidden sm:inline">{isSignedInGoogle ? 'Account Details' : 'Sign in with Google'}</span>
+            <span className="sm:hidden">{isSignedInGoogle ? 'Account' : 'Sign In'}</span>
           </Link>
         </div>
       </div>

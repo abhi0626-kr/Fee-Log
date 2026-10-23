@@ -81,11 +81,12 @@ export default function PatternsPage() {
               </span>
               <span className="text-on-surface-variant font-label-md text-xs">· Baseline v2.4</span>
             </div>
-            <h1 className="font-display-lg text-2xl md:text-4xl text-on-surface font-extrabold tracking-tight">
+            <h1 className="font-display-lg text-xl sm:text-2xl md:text-4xl text-on-surface font-extrabold tracking-tight">
               Symptom &amp; Rhythm Patterns
             </h1>
-            <p className="font-body-lg text-sm text-on-surface-variant mt-1 leading-relaxed">
-              Observing your body&apos;s rhythm without judgment or moral grades. These correlations represent experiential notes mapped to daily lifestyle inputs in your Bangalore PG.
+            <p className="font-body-lg text-xs sm:text-sm text-on-surface-variant mt-1 leading-relaxed">
+              <span className="hidden sm:inline">Observing your body&apos;s rhythm without judgment or moral grades. These correlations represent experiential notes mapped to daily lifestyle inputs in your Bangalore PG.</span>
+              <span className="sm:hidden">Non-judgmental symptom trends &amp; daily rhythm correlations.</span>
             </p>
           </div>
 
@@ -94,35 +95,38 @@ export default function PatternsPage() {
             <button
               onClick={() => setWindowDays(7)}
               type="button"
-              className={`px-4 py-1.5 rounded-full font-label-md text-xs font-semibold transition-all duration-300 ${
+              className={`px-3 sm:px-4 py-1.5 rounded-full font-label-md text-xs font-semibold transition-all duration-300 ${
                 windowDays === 7
                   ? 'bg-surface-container-high text-on-surface shadow-[0_2px_12px_rgba(0,0,0,0.35)] border border-white/10'
                   : 'text-on-surface-variant hover:text-on-surface'
               }`}
             >
-              Last 7 Days
+              <span className="hidden sm:inline">Last 7 Days</span>
+              <span className="sm:hidden">7 Days</span>
             </button>
             <button
               onClick={() => setWindowDays(30)}
               type="button"
-              className={`px-4 py-1.5 rounded-full font-label-md text-xs font-semibold transition-all duration-300 ${
+              className={`px-3 sm:px-4 py-1.5 rounded-full font-label-md text-xs font-semibold transition-all duration-300 ${
                 windowDays === 30
                   ? 'bg-surface-container-high text-on-surface shadow-[0_2px_12px_rgba(0,0,0,0.35)] border border-white/10'
                   : 'text-on-surface-variant hover:text-on-surface'
               }`}
             >
-              Last 30 Days
+              <span className="hidden sm:inline">Last 30 Days</span>
+              <span className="sm:hidden">30 Days</span>
             </button>
             <button
               onClick={() => setWindowDays(14)}
               type="button"
-              className={`px-4 py-1.5 rounded-full font-label-md text-xs font-semibold transition-all duration-300 ${
+              className={`px-3 sm:px-4 py-1.5 rounded-full font-label-md text-xs font-semibold transition-all duration-300 ${
                 windowDays === 14
                   ? 'bg-surface-container-high text-on-surface shadow-[0_2px_12px_rgba(0,0,0,0.35)] border border-white/10'
                   : 'text-on-surface-variant hover:text-on-surface'
               }`}
             >
-              Bangalore PG Baseline (14d)
+              <span className="hidden sm:inline">Bangalore PG Baseline (14d)</span>
+              <span className="sm:hidden">14d Base</span>
             </button>
           </div>
         </div>
