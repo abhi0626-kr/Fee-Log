@@ -75,6 +75,8 @@ export interface SyncQueueItem {
   timestamp: string;
 }
 
+let flushPromise: Promise<{ synced: number; failed: number }> | null = null;
+
 export function getIsOnline(): boolean {
   if (typeof window === 'undefined') return true;
   return navigator.onLine;
@@ -230,7 +232,7 @@ export function clearOfflineQueue() {
 }
 
 // Synchronize queue with Supabase Postgres
-export async function flushOfflineQueue(): Promise<{ synced: number; failed: number }> {
+async function flushOfflineQueueInternal(): Promise<{ synced: number; failed: number }> {
   if (!getIsOnline()) {
     return { synced: 0, failed: 0 };
   }
@@ -296,19 +298,32 @@ export async function flushOfflineQueue(): Promise<{ synced: number; failed: num
     remainingQueue.push(...queue);
   }
 
-  // 2. Also ping server endpoint as graceful fallback
-  try {
-    await fetch('/api/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: queue }),
-    });
-  } catch {
-    // Ignore server file fallback errors on Vercel
+  // The file-backed endpoint is only useful for local development. On a
+  // deployed app it is process-local and must not be treated as durable
+  // cross-device storage.
+  if (!isSupabaseConfigured || !supabase) {
+    try {
+      await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: queue }),
+      });
+    } catch (error) {
+      console.warn('Server fallback sync failed:', error);
+    }
   }
 
   saveLocalArray(STORAGE_KEYS.QUEUE, remainingQueue);
   return { synced, failed };
+}
+
+export function flushOfflineQueue(): Promise<{ synced: number; failed: number }> {
+  if (!flushPromise) {
+    flushPromise = flushOfflineQueueInternal().finally(() => {
+      flushPromise = null;
+    });
+  }
+  return flushPromise;
 }
 
 // Hydrate local cache from Supabase Postgres with two-way sync
@@ -335,6 +350,21 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       supabase.from('glucose_logs').select('*').eq('user_id', userId),
     ]);
 
+    const queryErrors = [
+      insulinRes.error,
+      foodRes.error,
+      activityRes.error,
+      feelRes.error,
+      glucoseRes.error,
+    ].filter(Boolean);
+    if (queryErrors.length > 0) {
+      throw new Error(
+        `Unable to load logs from Supabase: ${queryErrors
+          .map((error) => error?.message)
+          .join('; ')}`
+      );
+    }
+
     // 1. Two-way Insulin Sync: upload any local logs missing from Supabase, then merge
     const localInsulin = getInsulinLogs();
     const remoteInsulin = (insulinRes.data as InsulinLog[]) || [];
@@ -344,10 +374,9 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       .map((l) => ({ ...l, user_id: userId }));
 
     if (unuploadedInsulin.length > 0) {
-      try {
-        await supabase.from('insulin_logs').upsert(unuploadedInsulin);
-      } catch (err) {
-        console.warn('Failed to upsert unuploaded insulin logs:', err);
+      const { error } = await supabase.from('insulin_logs').upsert(unuploadedInsulin);
+      if (error) {
+        console.warn('Failed to upsert unuploaded insulin logs:', error.message);
       }
     }
     const mergedInsulin = mergeRecordsById(localInsulin, remoteInsulin);
@@ -362,10 +391,9 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       .map((l) => ({ ...l, user_id: userId }));
 
     if (unuploadedFood.length > 0) {
-      try {
-        await supabase.from('food_logs').upsert(unuploadedFood);
-      } catch (err) {
-        console.warn('Failed to upsert unuploaded food logs:', err);
+      const { error } = await supabase.from('food_logs').upsert(unuploadedFood);
+      if (error) {
+        console.warn('Failed to upsert unuploaded food logs:', error.message);
       }
     }
     const mergedFood = mergeRecordsById(localFood, remoteFood);
@@ -380,10 +408,9 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       .map((l) => ({ ...l, user_id: userId }));
 
     if (unuploadedActivity.length > 0) {
-      try {
-        await supabase.from('activity_logs').upsert(unuploadedActivity);
-      } catch (err) {
-        console.warn('Failed to upsert unuploaded activity logs:', err);
+      const { error } = await supabase.from('activity_logs').upsert(unuploadedActivity);
+      if (error) {
+        console.warn('Failed to upsert unuploaded activity logs:', error.message);
       }
     }
     const mergedActivity = mergeRecordsById(localActivity, remoteActivity);
@@ -398,10 +425,9 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       .map((l) => ({ ...l, user_id: userId }));
 
     if (unuploadedFeel.length > 0) {
-      try {
-        await supabase.from('feel_logs').upsert(unuploadedFeel);
-      } catch (err) {
-        console.warn('Failed to upsert unuploaded feel logs:', err);
+      const { error } = await supabase.from('feel_logs').upsert(unuploadedFeel);
+      if (error) {
+        console.warn('Failed to upsert unuploaded feel logs:', error.message);
       }
     }
     const mergedFeel = mergeRecordsById(localFeel, remoteFeel);
@@ -416,10 +442,9 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       .map((l) => ({ ...l, user_id: userId }));
 
     if (unuploadedGlucose.length > 0) {
-      try {
-        await supabase.from('glucose_logs').upsert(unuploadedGlucose);
-      } catch (err) {
-        console.warn('Failed to upsert unuploaded glucose logs:', err);
+      const { error } = await supabase.from('glucose_logs').upsert(unuploadedGlucose);
+      if (error) {
+        console.warn('Failed to upsert unuploaded glucose logs:', error.message);
       }
     }
     const mergedGlucose = mergeRecordsById(localGlucose, remoteGlucose);
@@ -441,6 +466,10 @@ export async function hydrateFromServerDatabase(): Promise<boolean> {
   if (isSupabaseConfigured && supabase) {
     const supabaseHydrated = await hydrateFromSupabase();
     if (supabaseHydrated) return true;
+  }
+
+  if (isSupabaseConfigured) {
+    return false;
   }
 
   // 2. Fallback to /api/logs
@@ -500,7 +529,9 @@ export function saveInsulinLog(log: Omit<InsulinLog, 'id' | 'created_at'> & { id
 
   saveLocalArray(STORAGE_KEYS.INSULIN, existing);
   if (typeof window !== 'undefined' && getIsOnline()) {
-    flushOfflineQueue().catch(() => {});
+    flushOfflineQueue().catch((error) => {
+      console.warn('Failed to sync insulin log:', error);
+    });
   }
   return fullLog;
 }
@@ -510,7 +541,9 @@ export function deleteInsulinLog(id: string): void {
   saveLocalArray(STORAGE_KEYS.INSULIN, existing);
   addToQueue({ id, table: 'insulin_logs', action: 'delete', payload: null });
   if (typeof window !== 'undefined' && getIsOnline()) {
-    flushOfflineQueue().catch(() => {});
+    flushOfflineQueue().catch((error) => {
+      console.warn('Failed to sync insulin deletion:', error);
+    });
   }
 }
 
@@ -541,7 +574,9 @@ export function saveFoodLog(log: Omit<FoodLog, 'id' | 'created_at'> & { id?: str
 
   saveLocalArray(STORAGE_KEYS.FOOD, existing);
   if (typeof window !== 'undefined' && getIsOnline()) {
-    flushOfflineQueue().catch(() => {});
+    flushOfflineQueue().catch((error) => {
+      console.warn('Failed to sync food log:', error);
+    });
   }
   return fullLog;
 }
@@ -551,7 +586,9 @@ export function deleteFoodLog(id: string): void {
   saveLocalArray(STORAGE_KEYS.FOOD, existing);
   addToQueue({ id, table: 'food_logs', action: 'delete', payload: null });
   if (typeof window !== 'undefined' && getIsOnline()) {
-    flushOfflineQueue().catch(() => {});
+    flushOfflineQueue().catch((error) => {
+      console.warn('Failed to sync food deletion:', error);
+    });
   }
 }
 
@@ -582,7 +619,9 @@ export function saveActivityLog(log: Omit<ActivityLog, 'id' | 'created_at'> & { 
 
   saveLocalArray(STORAGE_KEYS.ACTIVITY, existing);
   if (typeof window !== 'undefined' && getIsOnline()) {
-    flushOfflineQueue().catch(() => {});
+    flushOfflineQueue().catch((error) => {
+      console.warn('Failed to sync activity log:', error);
+    });
   }
   return fullLog;
 }
@@ -592,7 +631,9 @@ export function deleteActivityLog(id: string): void {
   saveLocalArray(STORAGE_KEYS.ACTIVITY, existing);
   addToQueue({ id, table: 'activity_logs', action: 'delete', payload: null });
   if (typeof window !== 'undefined' && getIsOnline()) {
-    flushOfflineQueue().catch(() => {});
+    flushOfflineQueue().catch((error) => {
+      console.warn('Failed to sync activity deletion:', error);
+    });
   }
 }
 
@@ -623,7 +664,9 @@ export function saveFeelLog(log: Omit<FeelLog, 'id' | 'created_at'> & { id?: str
 
   saveLocalArray(STORAGE_KEYS.FEEL, existing);
   if (typeof window !== 'undefined' && getIsOnline()) {
-    flushOfflineQueue().catch(() => {});
+    flushOfflineQueue().catch((error) => {
+      console.warn('Failed to sync feel log:', error);
+    });
   }
   return fullLog;
 }
@@ -633,7 +676,9 @@ export function deleteFeelLog(id: string): void {
   saveLocalArray(STORAGE_KEYS.FEEL, existing);
   addToQueue({ id, table: 'feel_logs', action: 'delete', payload: null });
   if (typeof window !== 'undefined' && getIsOnline()) {
-    flushOfflineQueue().catch(() => {});
+    flushOfflineQueue().catch((error) => {
+      console.warn('Failed to sync feel deletion:', error);
+    });
   }
 }
 
@@ -664,7 +709,9 @@ export function saveGlucoseLog(log: Omit<GlucoseLog, 'id' | 'created_at'> & { id
 
   saveLocalArray(STORAGE_KEYS.GLUCOSE, existing);
   if (typeof window !== 'undefined' && getIsOnline()) {
-    flushOfflineQueue().catch(() => {});
+    flushOfflineQueue().catch((error) => {
+      console.warn('Failed to sync glucose log:', error);
+    });
   }
   return fullLog;
 }
@@ -674,7 +721,9 @@ export function deleteGlucoseLog(id: string): void {
   saveLocalArray(STORAGE_KEYS.GLUCOSE, existing);
   addToQueue({ id, table: 'glucose_logs', action: 'delete', payload: null });
   if (typeof window !== 'undefined' && getIsOnline()) {
-    flushOfflineQueue().catch(() => {});
+    flushOfflineQueue().catch((error) => {
+      console.warn('Failed to sync glucose deletion:', error);
+    });
   }
 }
 

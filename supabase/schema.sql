@@ -32,12 +32,18 @@ create table if not exists insulin_logs (
   user_id uuid references auth.users(id) on delete cascade not null,
   log_date date not null,              -- local IST date
   log_time time not null,              -- local IST time
-  insulin_type text not null check (insulin_type in ('morning_regular','night_30_70')),
+  insulin_type text not null check (insulin_type in ('morning_regular','afternoon_regular','night_30_70','correction','other')),
   units numeric not null,
   taken boolean not null default true,
   note text,
   created_at timestamptz default now()
 );
+
+-- Keep existing installations in sync with the supported insulin types.
+alter table insulin_logs drop constraint if exists insulin_logs_insulin_type_check;
+alter table insulin_logs
+  add constraint insulin_logs_insulin_type_check
+  check (insulin_type in ('morning_regular','afternoon_regular','night_30_70','correction','other'));
 
 create index if not exists idx_insulin_logs_user_date on insulin_logs(user_id, log_date);
 alter table insulin_logs enable row level security;

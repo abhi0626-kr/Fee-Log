@@ -96,3 +96,9 @@ Run the SQL schema script in the Supabase SQL Editor:
 # File: supabase/schema.sql
 ```
 This sets up all 6 tables (`profiles`, `insulin_logs`, `food_logs`, `activity_logs`, `feel_logs`, `glucose_logs`), indices on `(user_id, log_date)`, strict Row Level Security (RLS) policies (`auth.uid() = user_id`), and the private storage bucket `food-photos`.
+
+### Cross-device log persistence
+
+Logs are written optimistically to the browser cache and queued for Supabase. When the user is signed in with the same Supabase account on another device, the queue is uploaded and that device hydrates the account's logs from Postgres.
+
+After pulling this version, run the complete [schema.sql](./supabase/schema.sql) in the Supabase SQL Editor. The migration updates the insulin type constraint so morning, afternoon, night, correction, and other insulin logs can all be stored. The **Offline Guest** option intentionally has no account and therefore cannot share logs between devices; use Email/Password or Google sign-in for cross-device access.
