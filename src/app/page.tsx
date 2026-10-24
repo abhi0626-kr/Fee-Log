@@ -321,17 +321,18 @@ export default function QuickLogPage() {
     <div className="max-w-[1240px] mx-auto px-3 sm:px-6 lg:px-8 flex flex-col gap-4 sm:gap-6">
       {/* 1. TOP OVERVIEW BAR */}
       <section className="w-full">
-        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 sm:gap-4 p-4 sm:p-5 md:p-6 rounded-2xl sm:rounded-3xl bg-surface-container-low/70 backdrop-blur-xl border border-surface-container-high/50 shadow-xl shadow-surface-container-lowest/40">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto] items-stretch gap-4 sm:gap-5 p-4 sm:p-5 md:p-6 rounded-2xl sm:rounded-3xl bg-surface-container-low/80 backdrop-blur-xl border border-surface-container-high/50 shadow-xl shadow-surface-container-lowest/40 relative overflow-hidden">
+          <div className="absolute -top-24 -left-16 w-56 h-56 rounded-full bg-primary/10 blur-3xl pointer-events-none"></div>
           {/* Date, Identity & Bangalore Context */}
-          <div className="flex items-center gap-3 sm:gap-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-surface-container flex items-center justify-center text-primary shadow-inner shrink-0 border border-primary/20">
+          <div className="relative flex items-start gap-3 sm:gap-4 min-w-0">
+            <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] shrink-0 border border-primary/25">
               <span className="material-symbols-outlined text-[1.4rem] sm:text-[1.75rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
                 calendar_today
               </span>
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                <span className="font-headline-sm text-sm sm:text-headline-sm text-on-surface font-bold tracking-tight">
+            <div className="min-w-0 flex-1 pt-0.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-headline-sm text-base sm:text-lg text-on-surface font-extrabold tracking-tight">
                   <span className="hidden sm:inline">
                     {formatISTDate(todayStr, { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
                   </span>
@@ -339,8 +340,7 @@ export default function QuickLogPage() {
                     {formatISTDate(todayStr, { weekday: 'short', day: 'numeric', month: 'short' })}
                   </span>
                 </span>
-                <span className="text-outline-variant font-label-md text-xs">·</span>
-                <span className="font-label-md text-[11px] sm:text-xs text-secondary font-semibold truncate">
+                <span className="px-2 py-0.5 rounded-full bg-secondary/10 border border-secondary/20 font-label-md text-[10px] sm:text-xs text-secondary font-bold truncate">
                   {settings.city || 'Bangalore'} ({settings.timezone?.includes('Kolkata') ? 'IST' : settings.timezone || 'IST'})
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-primary/15 text-primary text-[0.65rem] sm:text-[0.7rem] font-bold tracking-wide border border-primary/20 shrink-0">
@@ -365,24 +365,26 @@ export default function QuickLogPage() {
               </div>
 
               {/* Desktop Full Context */}
-              <p className="hidden sm:flex font-body-md text-sm text-on-surface-variant items-center gap-2 mt-0.5">
-                <span className="font-bold text-on-surface">{settings.display_name ? `${settings.display_name} · ` : ''}</span>
-                <span>{settings.lifestyle_note || 'Flexible diabetes routine'}</span>
-                <span className="text-outline-variant">·</span>
-                <span className="text-primary font-medium">Flexible 2–3 Doses / Day Regimen</span>
-              </p>
+              <div className="hidden sm:flex items-center gap-2 mt-2 flex-wrap">
+                <span className="text-sm font-bold text-on-surface">{settings.display_name || 'You'}</span>
+                <span className="w-1 h-1 rounded-full bg-outline-variant"></span>
+                <span className="text-xs text-on-surface-variant truncate max-w-[260px]">{settings.lifestyle_note || 'Flexible diabetes routine'}</span>
+                <span className="px-2 py-1 rounded-lg bg-primary/10 border border-primary/15 text-[10px] text-primary font-bold tracking-wide">
+                  FLEXIBLE 2–3 DOSES
+                </span>
+              </div>
             </div>
           </div>
 
           {/* Telemetry Summary Chips (3-column on mobile, inline flex on desktop) */}
-          <div className="grid grid-cols-3 gap-2 w-full xl:w-auto xl:flex xl:items-center">
+          <div className="relative grid grid-cols-3 gap-2 w-full xl:w-[390px] xl:self-center">
             <button
               onClick={() => {
                 const el = document.getElementById('insulin-section');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               }}
               type="button"
-              className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-xl sm:rounded-full bg-surface-container-high/60 hover:bg-surface-container-high border border-white/5 backdrop-blur-md transition-all text-center sm:text-left cursor-pointer"
+              className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-2 sm:px-3 py-2.5 rounded-2xl bg-surface-container-high/60 hover:bg-surface-container-high border border-white/5 backdrop-blur-md transition-all text-center sm:text-left cursor-pointer hover:-translate-y-0.5"
             >
               <span className="material-symbols-outlined text-primary text-[1rem] sm:text-[1.125rem] shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
                 vaccines
@@ -410,7 +412,7 @@ export default function QuickLogPage() {
                 else setIsFeelOpen(true);
               }}
               type="button"
-              className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-xl sm:rounded-full bg-surface-container-high/60 hover:bg-surface-container-high border border-white/5 backdrop-blur-md transition-all text-center sm:text-left cursor-pointer"
+              className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-2 sm:px-3 py-2.5 rounded-2xl bg-surface-container-high/60 hover:bg-surface-container-high border border-white/5 backdrop-blur-md transition-all text-center sm:text-left cursor-pointer hover:-translate-y-0.5"
             >
               <span className="material-symbols-outlined text-tertiary text-[1rem] sm:text-[1.125rem] shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
                 mood
@@ -431,7 +433,7 @@ export default function QuickLogPage() {
                 setIsActivityOpen(true);
               }}
               type="button"
-              className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-xl sm:rounded-full bg-surface-container-high/60 hover:bg-surface-container-high border border-white/5 backdrop-blur-md transition-all text-center sm:text-left group cursor-pointer"
+              className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-2 sm:px-3 py-2.5 rounded-2xl bg-surface-container-high/60 hover:bg-surface-container-high border border-white/5 backdrop-blur-md transition-all text-center sm:text-left group cursor-pointer hover:-translate-y-0.5"
             >
               <span className="material-symbols-outlined text-secondary text-[1rem] sm:text-[1.125rem] shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
                 directions_run
