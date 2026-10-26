@@ -89,7 +89,7 @@ export default function SettingsPage() {
       const remaining = getOfflineQueue().length;
       if (res.failed > 0 || remaining > 0) {
         setDataMessage(
-          `Sync incomplete: ${res.synced} processed, ${remaining} still pending. Check your connection and account sign-in.`
+          `Sync incomplete: ${res.synced} processed, ${remaining} still pending. Sign in again if your account session expired.`
         );
       } else {
         setDataMessage(

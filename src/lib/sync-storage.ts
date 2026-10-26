@@ -312,8 +312,12 @@ async function flushOfflineQueueInternal(): Promise<{ synced: number; failed: nu
       }
     }
   } else {
-    // Retain in offline queue until user is logged in with Supabase
+    // Retain in offline queue until the Supabase session is restored. Report
+    // these as failures so the UI does not claim that zero items were synced.
     remainingQueue.push(...queue);
+    if (isSupabaseConfigured && supabase) {
+      failed = queue.length;
+    }
   }
 
   // The file-backed endpoint is only useful for local development. On a
