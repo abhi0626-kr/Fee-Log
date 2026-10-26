@@ -84,6 +84,16 @@ export default function SettingsPage() {
   const handleManualSync = async () => {
     setIsSyncingServer(true);
     try {
+      if (isSupabaseConfigured && supabase) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData.session) {
+          const { data: refreshed, error } = await supabase.auth.refreshSession();
+          if (error || !refreshed.session) {
+            setDataMessage('Sync blocked: no active cloud session. Open Account and sign in again.');
+            return;
+          }
+        }
+      }
       const hydrated = await hydrateFromSupabase();
       const res = await flushOfflineQueue();
       const remaining = getOfflineQueue().length;

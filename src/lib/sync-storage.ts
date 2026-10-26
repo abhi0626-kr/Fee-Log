@@ -261,10 +261,14 @@ async function flushOfflineQueueInternal(): Promise<{ synced: number; failed: nu
   let authUserId: string | null = null;
   if (isSupabaseConfigured && supabase) {
     try {
-      const { data } = await supabase.auth.getSession();
+      let { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        const refreshed = await supabase.auth.refreshSession();
+        data = refreshed.data;
+      }
       authUserId = data.session?.user?.id || null;
     } catch {
-      // ignore session lookup errors
+      authUserId = null;
     }
   }
 
