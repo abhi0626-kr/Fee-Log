@@ -11,6 +11,14 @@ interface FoodScanResult {
   explanation: string;
 }
 
+const isImageCapableModel = (modelName: string): boolean => {
+  const normalizedName = modelName.toLowerCase();
+  return (
+    normalizedName.startsWith('gemini-') &&
+    !/(?:tts|audio|embedding|embed|aqa|image-generation|robotics)/.test(normalizedName)
+  );
+};
+
 /**
  * Dynamically queries available models from Google for this specific API key,
  * or returns a ranked list of robust fallback candidates.
@@ -29,7 +37,8 @@ async function getCandidateModels(apiKey: string): Promise<string[]> {
             (m: { supportedGenerationMethods?: string[]; name?: string }) =>
               Array.isArray(m.supportedGenerationMethods) &&
               m.supportedGenerationMethods.includes('generateContent') &&
-              m.name
+              m.name &&
+              isImageCapableModel(m.name)
           )
           .map((m: { name: string }) => m.name.replace(/^models\//, ''));
 
@@ -218,7 +227,15 @@ Respond strictly in valid JSON matching this schema:
         }
 
         // If it's a 404 or model not found, try the next model candidate
-        if (response.status === 404 || lastErrorMsg.toLowerCase().includes('not found')) {
+        const lowerErrorMessage = lastErrorMsg.toLowerCase();
+        const isUnsupportedModel =
+          response.status === 404 ||
+          lowerErrorMessage.includes('not found') ||
+          lowerErrorMessage.includes('image input modality') ||
+          lowerErrorMessage.includes('does not support image') ||
+          lowerErrorMessage.includes('modality is not enabled');
+
+        if (isUnsupportedModel) {
           continue;
         } else {
           // If it's a key/quota error (e.g. 400 or 403), stop retrying
