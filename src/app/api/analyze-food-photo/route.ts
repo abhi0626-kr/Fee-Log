@@ -189,8 +189,8 @@ Respond strictly in valid JSON matching this schema:
                 parts: [
                   { text: systemPrompt },
                   {
-                    inline_data: {
-                      mime_type: mimeType,
+                    inlineData: {
+                      mimeType,
                       data: rawBase64,
                     },
                   },
@@ -198,7 +198,7 @@ Respond strictly in valid JSON matching this schema:
               },
             ],
             generationConfig: {
-              response_mime_type: 'application/json',
+              responseMimeType: 'application/json',
               temperature: 0.2,
             },
           }),
