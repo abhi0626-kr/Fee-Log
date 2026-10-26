@@ -10,6 +10,7 @@ import {
   seedRealisticPGData,
   clearAllLocalData,
   flushOfflineQueue,
+  getOfflineQueue,
   setUserLoggedIn,
   isUserLoggedIn,
 } from '@/lib/sync-storage';
@@ -81,9 +82,21 @@ export default function SettingsPage() {
 
   const handleManualSync = async () => {
     setIsSyncingServer(true);
-    const res = await flushOfflineQueue();
-    setIsSyncingServer(false);
-    setDataMessage(`Database synchronized: ${res.synced} items processed.`);
+    try {
+      const res = await flushOfflineQueue();
+      const remaining = getOfflineQueue().length;
+      if (res.failed > 0 || remaining > 0) {
+        setDataMessage(
+          `Sync incomplete: ${res.synced} processed, ${remaining} still pending. Check your connection and account sign-in.`
+        );
+      } else {
+        setDataMessage(`Sync complete: ${res.synced} items processed.`);
+      }
+    } catch (error) {
+      setDataMessage(`Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}.`);
+    } finally {
+      setIsSyncingServer(false);
+    }
     setTimeout(() => setDataMessage(null), 3500);
   };
 
@@ -718,6 +731,23 @@ export default function SettingsPage() {
         <div className="flex items-center gap-2 font-headline-sm text-sm text-on-surface font-bold pb-3 border-b border-surface-container-high/40 mb-4">
           <span className="material-symbols-outlined text-secondary">database</span>
           <span>Data Storage &amp; Demo Rhythms</span>
+        </div>
+
+        <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-2xl bg-secondary-container/15 border border-secondary/20 p-4">
+          <div className="space-y-1">
+            <div className="font-headline-sm text-xs text-on-surface font-bold">Cloud Sync</div>
+            <p className="font-body-md text-[11px] text-on-surface-variant max-w-lg">
+              Retry sending local updates that are waiting to sync.
+            </p>
+          </div>
+          <button
+            onClick={handleManualSync}
+            type="button"
+            disabled={isSyncingServer}
+            className="px-4 py-2 rounded-full bg-secondary-container hover:bg-secondary text-on-secondary-container font-label-md text-xs font-bold transition-all whitespace-nowrap disabled:opacity-60"
+          >
+            {isSyncingServer ? 'Syncing...' : 'Sync Pending Logs Now'}
+          </button>
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
