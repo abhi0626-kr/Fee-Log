@@ -884,7 +884,7 @@ export function seedRealisticPGData(): void {
 
     // 2. Breakfast (08:15)
     const breakfastItems = i % 2 === 0 ? '3 idly, sambar' : '2 dosa, coconut chutney';
-    const breakfastCarbSize: 'medium' = 'medium';
+    const breakfastCarbSize = 'medium' as const;
     const breakfastNutrients = estimateNutrientsFromItems(breakfastItems, breakfastCarbSize);
     foodList.push({
       id: crypto.randomUUID(),
@@ -939,7 +939,7 @@ export function seedRealisticPGData(): void {
       } else {
         // Day 9: Delayed lunch after 2pm (at 14:30)
         const lateLunchItems = 'rice with dal, curd';
-        const lateLunchCarb: 'large' = 'large';
+        const lateLunchCarb = 'large' as const;
         foodList.push({
           id: crypto.randomUUID(),
           user_id: userId,
@@ -1051,7 +1051,7 @@ export function seedRealisticPGData(): void {
     // 6. Dinner (20:45)
     if (!isToday) {
       const dinnerItems = 'chapathi with veg kurma, egg';
-      const dinnerCarb: 'medium' = 'medium';
+      const dinnerCarb = 'medium' as const;
       foodList.push({
         id: crypto.randomUUID(),
         user_id: userId,

@@ -283,7 +283,7 @@ export default function DailyMacroTracker({
                   </div>
 
                   <div className="text-right shrink-0">
-                    <div className="text-xs font-bold text-primary">{carbs}g C</div>
+                    <div className="text-xs font-bold text-primary">{carbs}g C ({cals} kcal)</div>
                     <div className="text-[10px] text-on-surface-variant">
                       {protein}g P · {fiber}g F · {sodium}mg Na
                     </div>
