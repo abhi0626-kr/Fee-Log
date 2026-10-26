@@ -11,6 +11,7 @@ import {
   clearAllLocalData,
   flushOfflineQueue,
   getOfflineQueue,
+  hydrateFromSupabase,
   setUserLoggedIn,
   isUserLoggedIn,
 } from '@/lib/sync-storage';
@@ -83,6 +84,7 @@ export default function SettingsPage() {
   const handleManualSync = async () => {
     setIsSyncingServer(true);
     try {
+      const hydrated = await hydrateFromSupabase();
       const res = await flushOfflineQueue();
       const remaining = getOfflineQueue().length;
       if (res.failed > 0 || remaining > 0) {
@@ -90,7 +92,11 @@ export default function SettingsPage() {
           `Sync incomplete: ${res.synced} processed, ${remaining} still pending. Check your connection and account sign-in.`
         );
       } else {
-        setDataMessage(`Sync complete: ${res.synced} items processed.`);
+        setDataMessage(
+          hydrated
+            ? 'Sync complete: local logs reconciled with your cloud account.'
+            : `Sync complete: ${res.synced} pending items processed.`
+        );
       }
     } catch (error) {
       setDataMessage(`Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}.`);
