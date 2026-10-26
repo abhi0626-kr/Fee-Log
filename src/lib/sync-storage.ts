@@ -22,6 +22,7 @@ const STORAGE_KEYS = {
   SETTINGS: 't1d_settings',
   QUEUE: 't1d_offline_queue',
   DISMISSED_GLUCOSE_PROMPT: 't1d_dismissed_glucose_prompt_date',
+  DELETED_IDS: 't1d_deleted_ids',
 };
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -298,10 +299,87 @@ function isMissingColumnError(error?: { message?: string } | null): boolean {
   );
 }
 
+// Deletion Tombstone Tracking
+export interface DeletedIdRecord {
+  table: SyncQueueItem['table'];
+  deletedAt: string;
+}
+
+export function getDeletedIdsMap(): Record<string, DeletedIdRecord> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.DELETED_IDS);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function markIdAsDeleted(id: string, table: SyncQueueItem['table']): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const map = getDeletedIdsMap();
+    map[id] = { table, deletedAt: new Date().toISOString() };
+    localStorage.setItem(STORAGE_KEYS.DELETED_IDS, JSON.stringify(map));
+  } catch (err) {
+    console.error('Failed to mark ID as deleted:', err);
+  }
+}
+
+export function isIdDeleted(id: string): boolean {
+  const map = getDeletedIdsMap();
+  return Boolean(map[id]);
+}
+
+export async function executeDirectDelete(
+  table: SyncQueueItem['table'],
+  id: string
+): Promise<boolean> {
+  if (typeof window === 'undefined' || !getIsOnline() || !isSupabaseConfigured || !supabase) {
+    return false;
+  }
+  try {
+    const { error } = await supabase.from(table).delete().eq('id', id);
+    if (error) {
+      console.warn(`Direct delete failed for ${table}/${id}:`, error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn(`Direct delete network failure for ${table}/${id}:`, err);
+    return false;
+  }
+}
+
+function removeDeleteFromQueue(table: SyncQueueItem['table'], id: string): void {
+  const queue = getOfflineQueue();
+  const remaining = queue.filter(
+    (item) => !(item.table === table && item.id === id && item.action === 'delete')
+  );
+  if (remaining.length !== queue.length) {
+    saveLocalArray(STORAGE_KEYS.QUEUE, remaining);
+  }
+}
+
 function acknowledgeSyncedRecords(table: SyncQueueItem['table'], ids: Set<string>): void {
   if (ids.size === 0) return;
   const queue = getOfflineQueue();
-  const remaining = queue.filter((item) => !(item.table === table && ids.has(item.id)));
+  // ONLY acknowledge inserts and updates when their ID is confirmed present on the server.
+  // NEVER acknowledge 'delete' here, because if ids.has(item.id) is true, the server still has the record!
+  const remaining = queue.filter(
+    (item) => !(item.table === table && item.action !== 'delete' && ids.has(item.id))
+  );
+  if (remaining.length !== queue.length) {
+    saveLocalArray(STORAGE_KEYS.QUEUE, remaining);
+  }
+}
+
+function acknowledgeDeletedRecords(table: SyncQueueItem['table'], remoteIds: Set<string>): void {
+  const queue = getOfflineQueue();
+  // Acknowledge delete actions when the server confirmed no longer has the record
+  const remaining = queue.filter(
+    (item) => !(item.table === table && item.action === 'delete' && !remoteIds.has(item.id))
+  );
   if (remaining.length !== queue.length) {
     saveLocalArray(STORAGE_KEYS.QUEUE, remaining);
   }
@@ -374,8 +452,7 @@ async function flushOfflineQueueInternal(): Promise<SyncResult> {
           const { error } = await supabase
             .from(item.table)
             .delete()
-            .eq('id', item.id)
-            .eq('user_id', authUserId);
+            .eq('id', item.id);
           if (error) throw error;
           synced++;
         }
@@ -429,12 +506,20 @@ async function flushOfflineQueueInternal(): Promise<SyncResult> {
   };
 }
 
+let pendingReFlush = false;
+
 export function flushOfflineQueue(): Promise<SyncResult> {
-  if (!flushPromise) {
-    flushPromise = flushOfflineQueueInternal().finally(() => {
-      flushPromise = null;
-    });
+  if (flushPromise) {
+    pendingReFlush = true;
+    return flushPromise;
   }
+  flushPromise = flushOfflineQueueInternal().finally(() => {
+    flushPromise = null;
+    if (pendingReFlush) {
+      pendingReFlush = false;
+      flushOfflineQueue().catch(() => {});
+    }
+  });
   return flushPromise;
 }
 
@@ -481,12 +566,28 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       );
     }
 
-    // 1. Two-way Insulin Sync: upload any local logs missing from Supabase, then merge
-    const localInsulin = getInsulinLogs();
-    const remoteInsulin = (insulinRes.data as InsulinLog[]) || [];
+    const deletedMap = getDeletedIdsMap();
+    const queue = getOfflineQueue();
+
+    // 1. Two-way Insulin Sync
+    const rawRemoteInsulin = (insulinRes.data as InsulinLog[]) || [];
+    for (const r of rawRemoteInsulin) {
+      if (deletedMap[r.id]) {
+        executeDirectDelete('insulin_logs', r.id);
+      }
+    }
+    const remoteInsulin = rawRemoteInsulin.filter((r) => !deletedMap[r.id]);
     const remoteInsulinIds = new Set(remoteInsulin.map((r) => r.id));
+    const localInsulin = getInsulinLogs().filter((l) => !deletedMap[l.id]);
+
+    const pendingInsulinIds = new Set(
+      queue
+        .filter((q) => q.table === 'insulin_logs' && (q.action === 'insert' || q.action === 'update'))
+        .map((q) => q.id)
+    );
+
     const unuploadedInsulin = localInsulin
-      .filter((l) => !remoteInsulinIds.has(l.id))
+      .filter((l) => !remoteInsulinIds.has(l.id) && (pendingInsulinIds.has(l.id) || !l.user_id || l.user_id !== userId))
       .map((l) => ({ ...l, user_id: userId }));
 
     let insulinUploadSucceeded = true;
@@ -501,18 +602,32 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       unuploadedInsulin.forEach((record) => remoteInsulinIds.add(record.id));
     }
     acknowledgeSyncedRecords('insulin_logs', remoteInsulinIds);
+    acknowledgeDeletedRecords('insulin_logs', remoteInsulinIds);
     const mergedInsulin = mergeRecordsById(
       localInsulin.map((record) => ({ ...record, user_id: userId })),
       remoteInsulin
-    );
+    ).filter((r) => !deletedMap[r.id]);
     saveLocalArray(STORAGE_KEYS.INSULIN, mergedInsulin);
 
     // 2. Two-way Food Sync
-    const localFood = getFoodLogs();
-    const remoteFood = (foodRes.data as FoodLog[]) || [];
+    const rawRemoteFood = (foodRes.data as FoodLog[]) || [];
+    for (const r of rawRemoteFood) {
+      if (deletedMap[r.id]) {
+        executeDirectDelete('food_logs', r.id);
+      }
+    }
+    const remoteFood = rawRemoteFood.filter((r) => !deletedMap[r.id]);
     const remoteFoodIds = new Set(remoteFood.map((r) => r.id));
+    const localFood = getFoodLogs().filter((l) => !deletedMap[l.id]);
+
+    const pendingFoodIds = new Set(
+      queue
+        .filter((q) => q.table === 'food_logs' && (q.action === 'insert' || q.action === 'update'))
+        .map((q) => q.id)
+    );
+
     const unuploadedFood = localFood
-      .filter((l) => !remoteFoodIds.has(l.id))
+      .filter((l) => !remoteFoodIds.has(l.id) && (pendingFoodIds.has(l.id) || !l.user_id || l.user_id !== userId))
       .map((l) => ({ ...l, user_id: userId }));
 
     let foodUploadSucceeded = true;
@@ -532,18 +647,32 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       unuploadedFood.forEach((record) => remoteFoodIds.add(record.id));
     }
     acknowledgeSyncedRecords('food_logs', remoteFoodIds);
+    acknowledgeDeletedRecords('food_logs', remoteFoodIds);
     const mergedFood = mergeFoodRecords(
       localFood.map((record) => ({ ...record, user_id: userId })),
       remoteFood
-    );
+    ).filter((r) => !deletedMap[r.id]);
     saveLocalArray(STORAGE_KEYS.FOOD, mergedFood);
 
     // 3. Two-way Activity Sync
-    const localActivity = getActivityLogs();
-    const remoteActivity = (activityRes.data as ActivityLog[]) || [];
+    const rawRemoteActivity = (activityRes.data as ActivityLog[]) || [];
+    for (const r of rawRemoteActivity) {
+      if (deletedMap[r.id]) {
+        executeDirectDelete('activity_logs', r.id);
+      }
+    }
+    const remoteActivity = rawRemoteActivity.filter((r) => !deletedMap[r.id]);
     const remoteActivityIds = new Set(remoteActivity.map((r) => r.id));
+    const localActivity = getActivityLogs().filter((l) => !deletedMap[l.id]);
+
+    const pendingActivityIds = new Set(
+      queue
+        .filter((q) => q.table === 'activity_logs' && (q.action === 'insert' || q.action === 'update'))
+        .map((q) => q.id)
+    );
+
     const unuploadedActivity = localActivity
-      .filter((l) => !remoteActivityIds.has(l.id))
+      .filter((l) => !remoteActivityIds.has(l.id) && (pendingActivityIds.has(l.id) || !l.user_id || l.user_id !== userId))
       .map((l) => ({ ...l, user_id: userId }));
 
     let activityUploadSucceeded = true;
@@ -558,18 +687,32 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       unuploadedActivity.forEach((record) => remoteActivityIds.add(record.id));
     }
     acknowledgeSyncedRecords('activity_logs', remoteActivityIds);
+    acknowledgeDeletedRecords('activity_logs', remoteActivityIds);
     const mergedActivity = mergeRecordsById(
       localActivity.map((record) => ({ ...record, user_id: userId })),
       remoteActivity
-    );
+    ).filter((r) => !deletedMap[r.id]);
     saveLocalArray(STORAGE_KEYS.ACTIVITY, mergedActivity);
 
     // 4. Two-way Feel Sync
-    const localFeel = getFeelLogs();
-    const remoteFeel = (feelRes.data as FeelLog[]) || [];
+    const rawRemoteFeel = (feelRes.data as FeelLog[]) || [];
+    for (const r of rawRemoteFeel) {
+      if (deletedMap[r.id]) {
+        executeDirectDelete('feel_logs', r.id);
+      }
+    }
+    const remoteFeel = rawRemoteFeel.filter((r) => !deletedMap[r.id]);
     const remoteFeelIds = new Set(remoteFeel.map((r) => r.id));
+    const localFeel = getFeelLogs().filter((l) => !deletedMap[l.id]);
+
+    const pendingFeelIds = new Set(
+      queue
+        .filter((q) => q.table === 'feel_logs' && (q.action === 'insert' || q.action === 'update'))
+        .map((q) => q.id)
+    );
+
     const unuploadedFeel = localFeel
-      .filter((l) => !remoteFeelIds.has(l.id))
+      .filter((l) => !remoteFeelIds.has(l.id) && (pendingFeelIds.has(l.id) || !l.user_id || l.user_id !== userId))
       .map((l) => ({ ...l, user_id: userId }));
 
     let feelUploadSucceeded = true;
@@ -584,18 +727,32 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       unuploadedFeel.forEach((record) => remoteFeelIds.add(record.id));
     }
     acknowledgeSyncedRecords('feel_logs', remoteFeelIds);
+    acknowledgeDeletedRecords('feel_logs', remoteFeelIds);
     const mergedFeel = mergeRecordsById(
       localFeel.map((record) => ({ ...record, user_id: userId })),
       remoteFeel
-    );
+    ).filter((r) => !deletedMap[r.id]);
     saveLocalArray(STORAGE_KEYS.FEEL, mergedFeel);
 
     // 5. Two-way Glucose Sync
-    const localGlucose = getGlucoseLogs();
-    const remoteGlucose = (glucoseRes.data as GlucoseLog[]) || [];
+    const rawRemoteGlucose = (glucoseRes.data as GlucoseLog[]) || [];
+    for (const r of rawRemoteGlucose) {
+      if (deletedMap[r.id]) {
+        executeDirectDelete('glucose_logs', r.id);
+      }
+    }
+    const remoteGlucose = rawRemoteGlucose.filter((r) => !deletedMap[r.id]);
     const remoteGlucoseIds = new Set(remoteGlucose.map((r) => r.id));
+    const localGlucose = getGlucoseLogs().filter((l) => !deletedMap[l.id]);
+
+    const pendingGlucoseIds = new Set(
+      queue
+        .filter((q) => q.table === 'glucose_logs' && (q.action === 'insert' || q.action === 'update'))
+        .map((q) => q.id)
+    );
+
     const unuploadedGlucose = localGlucose
-      .filter((l) => !remoteGlucoseIds.has(l.id))
+      .filter((l) => !remoteGlucoseIds.has(l.id) && (pendingGlucoseIds.has(l.id) || !l.user_id || l.user_id !== userId))
       .map((l) => ({ ...l, user_id: userId }));
 
     let glucoseUploadSucceeded = true;
@@ -610,10 +767,11 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       unuploadedGlucose.forEach((record) => remoteGlucoseIds.add(record.id));
     }
     acknowledgeSyncedRecords('glucose_logs', remoteGlucoseIds);
+    acknowledgeDeletedRecords('glucose_logs', remoteGlucoseIds);
     const mergedGlucose = mergeRecordsById(
       localGlucose.map((record) => ({ ...record, user_id: userId })),
       remoteGlucose
-    );
+    ).filter((r) => !deletedMap[r.id]);
     saveLocalArray(STORAGE_KEYS.GLUCOSE, mergedGlucose);
 
     window.dispatchEvent(new CustomEvent('t1d-data-updated'));
@@ -703,10 +861,14 @@ export function saveInsulinLog(log: Omit<InsulinLog, 'id' | 'created_at'> & { id
 }
 
 export function deleteInsulinLog(id: string): void {
+  markIdAsDeleted(id, 'insulin_logs');
   const existing = getInsulinLogs().filter((item) => item.id !== id);
   saveLocalArray(STORAGE_KEYS.INSULIN, existing);
   addToQueue({ id, table: 'insulin_logs', action: 'delete', payload: null });
   if (typeof window !== 'undefined' && getIsOnline()) {
+    executeDirectDelete('insulin_logs', id).then((ok) => {
+      if (ok) removeDeleteFromQueue('insulin_logs', id);
+    }).catch(() => {});
     flushOfflineQueue().catch((error) => {
       console.warn('Failed to sync insulin deletion:', error);
     });
@@ -748,10 +910,14 @@ export function saveFoodLog(log: Omit<FoodLog, 'id' | 'created_at'> & { id?: str
 }
 
 export function deleteFoodLog(id: string): void {
+  markIdAsDeleted(id, 'food_logs');
   const existing = getFoodLogs().filter((item) => item.id !== id);
   saveLocalArray(STORAGE_KEYS.FOOD, existing);
   addToQueue({ id, table: 'food_logs', action: 'delete', payload: null });
   if (typeof window !== 'undefined' && getIsOnline()) {
+    executeDirectDelete('food_logs', id).then((ok) => {
+      if (ok) removeDeleteFromQueue('food_logs', id);
+    }).catch(() => {});
     flushOfflineQueue().catch((error) => {
       console.warn('Failed to sync food deletion:', error);
     });
@@ -793,10 +959,14 @@ export function saveActivityLog(log: Omit<ActivityLog, 'id' | 'created_at'> & { 
 }
 
 export function deleteActivityLog(id: string): void {
+  markIdAsDeleted(id, 'activity_logs');
   const existing = getActivityLogs().filter((item) => item.id !== id);
   saveLocalArray(STORAGE_KEYS.ACTIVITY, existing);
   addToQueue({ id, table: 'activity_logs', action: 'delete', payload: null });
   if (typeof window !== 'undefined' && getIsOnline()) {
+    executeDirectDelete('activity_logs', id).then((ok) => {
+      if (ok) removeDeleteFromQueue('activity_logs', id);
+    }).catch(() => {});
     flushOfflineQueue().catch((error) => {
       console.warn('Failed to sync activity deletion:', error);
     });
@@ -838,10 +1008,14 @@ export function saveFeelLog(log: Omit<FeelLog, 'id' | 'created_at'> & { id?: str
 }
 
 export function deleteFeelLog(id: string): void {
+  markIdAsDeleted(id, 'feel_logs');
   const existing = getFeelLogs().filter((item) => item.id !== id);
   saveLocalArray(STORAGE_KEYS.FEEL, existing);
   addToQueue({ id, table: 'feel_logs', action: 'delete', payload: null });
   if (typeof window !== 'undefined' && getIsOnline()) {
+    executeDirectDelete('feel_logs', id).then((ok) => {
+      if (ok) removeDeleteFromQueue('feel_logs', id);
+    }).catch(() => {});
     flushOfflineQueue().catch((error) => {
       console.warn('Failed to sync feel deletion:', error);
     });
@@ -883,10 +1057,14 @@ export function saveGlucoseLog(log: Omit<GlucoseLog, 'id' | 'created_at'> & { id
 }
 
 export function deleteGlucoseLog(id: string): void {
+  markIdAsDeleted(id, 'glucose_logs');
   const existing = getGlucoseLogs().filter((item) => item.id !== id);
   saveLocalArray(STORAGE_KEYS.GLUCOSE, existing);
   addToQueue({ id, table: 'glucose_logs', action: 'delete', payload: null });
   if (typeof window !== 'undefined' && getIsOnline()) {
+    executeDirectDelete('glucose_logs', id).then((ok) => {
+      if (ok) removeDeleteFromQueue('glucose_logs', id);
+    }).catch(() => {});
     flushOfflineQueue().catch((error) => {
       console.warn('Failed to sync glucose deletion:', error);
     });
@@ -978,6 +1156,115 @@ export function getAllLoggedDates(): string[] {
   return Array.from(dates);
 }
 
+export interface DeduplicateResult {
+  insulin: number;
+  food: number;
+  activity: number;
+  feel: number;
+  glucose: number;
+  total: number;
+}
+
+// Clean duplicate logs across local storage and cloud database
+export function deduplicateLogs(): DeduplicateResult {
+  const result: DeduplicateResult = {
+    insulin: 0,
+    food: 0,
+    activity: 0,
+    feel: 0,
+    glucose: 0,
+    total: 0,
+  };
+
+  // 1. Food duplicate resolution (same date, time, meal, and items)
+  const foods = getFoodLogs();
+  const seenFood = new Map<string, FoodLog>();
+  const duplicateFoodIds: string[] = [];
+  for (const f of foods) {
+    const key = `${f.log_date}_${f.log_time}_${f.meal}_${(f.items || '').trim().toLowerCase()}`;
+    if (seenFood.has(key)) {
+      duplicateFoodIds.push(f.id);
+    } else {
+      seenFood.set(key, f);
+    }
+  }
+  for (const id of duplicateFoodIds) {
+    deleteFoodLog(id);
+    result.food++;
+  }
+
+  // 2. Insulin duplicate resolution (same date, time, insulin_type, and units)
+  const insulins = getInsulinLogs();
+  const seenInsulin = new Map<string, InsulinLog>();
+  const duplicateInsulinIds: string[] = [];
+  for (const ins of insulins) {
+    const key = `${ins.log_date}_${ins.log_time}_${ins.insulin_type}_${ins.units}`;
+    if (seenInsulin.has(key)) {
+      duplicateInsulinIds.push(ins.id);
+    } else {
+      seenInsulin.set(key, ins);
+    }
+  }
+  for (const id of duplicateInsulinIds) {
+    deleteInsulinLog(id);
+    result.insulin++;
+  }
+
+  // 3. Activity duplicate resolution (same date, time, activity_type, and duration)
+  const activities = getActivityLogs();
+  const seenActivity = new Map<string, ActivityLog>();
+  const duplicateActivityIds: string[] = [];
+  for (const a of activities) {
+    const key = `${a.log_date}_${a.log_time}_${a.activity_type}_${a.duration_min}`;
+    if (seenActivity.has(key)) {
+      duplicateActivityIds.push(a.id);
+    } else {
+      seenActivity.set(key, a);
+    }
+  }
+  for (const id of duplicateActivityIds) {
+    deleteActivityLog(id);
+    result.activity++;
+  }
+
+  // 4. Feel duplicate resolution (same date, time, and feel level)
+  const feels = getFeelLogs();
+  const seenFeel = new Map<string, FeelLog>();
+  const duplicateFeelIds: string[] = [];
+  for (const fl of feels) {
+    const key = `${fl.log_date}_${fl.log_time}_${fl.feel}`;
+    if (seenFeel.has(key)) {
+      duplicateFeelIds.push(fl.id);
+    } else {
+      seenFeel.set(key, fl);
+    }
+  }
+  for (const id of duplicateFeelIds) {
+    deleteFeelLog(id);
+    result.feel++;
+  }
+
+  // 5. Glucose duplicate resolution (same date, time, and reading)
+  const glucoses = getGlucoseLogs();
+  const seenGlucose = new Map<string, GlucoseLog>();
+  const duplicateGlucoseIds: string[] = [];
+  for (const g of glucoses) {
+    const key = `${g.log_date}_${g.log_time}_${g.reading_mgdl}`;
+    if (seenGlucose.has(key)) {
+      duplicateGlucoseIds.push(g.id);
+    } else {
+      seenGlucose.set(key, g);
+    }
+  }
+  for (const id of duplicateGlucoseIds) {
+    deleteGlucoseLog(id);
+    result.glucose++;
+  }
+
+  result.total = result.insulin + result.food + result.activity + result.feel + result.glucose;
+  return result;
+}
+
 // Reset / Clear all data
 export function clearAllLocalData(): void {
   if (typeof window === 'undefined') return;
@@ -988,6 +1275,7 @@ export function clearAllLocalData(): void {
   localStorage.removeItem(STORAGE_KEYS.GLUCOSE);
   localStorage.removeItem(STORAGE_KEYS.QUEUE);
   localStorage.removeItem(STORAGE_KEYS.DISMISSED_GLUCOSE_PROMPT);
+  localStorage.removeItem(STORAGE_KEYS.DELETED_IDS);
 }
 
 // DEMO DATA SEEDER

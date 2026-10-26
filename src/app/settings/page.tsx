@@ -15,6 +15,7 @@ import {
   hydrateFromSupabase,
   setUserLoggedIn,
   isUserLoggedIn,
+  deduplicateLogs,
 } from '@/lib/sync-storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { UserSettings } from '@/types';
@@ -182,6 +183,18 @@ export default function SettingsPage() {
       setDataMessage('All local log data cleared.');
       setTimeout(() => setDataMessage(null), 3000);
     }
+  };
+
+  const handleDeduplicate = () => {
+    const res = deduplicateLogs();
+    if (res.total > 0) {
+      setDataMessage(
+        `Cleaned up ${res.total} duplicate log${res.total > 1 ? 's' : ''} across your food, insulin, and telemetry records.`
+      );
+    } else {
+      setDataMessage('No duplicate entries found. Your logs are completely clean!');
+    }
+    setTimeout(() => setDataMessage(null), 4000);
   };
 
   const handleSaveSupabase = async (e: React.FormEvent) => {
@@ -855,6 +868,23 @@ export default function SettingsPage() {
             className="px-4 py-2 rounded-full bg-surface-container-high hover:bg-surface-bright text-primary border border-primary/20 font-label-md text-xs font-bold transition-all whitespace-nowrap"
           >
             Load 14-Day Sample Data
+          </button>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-surface-container-high/30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="font-headline-sm text-xs text-on-surface font-bold">Deduplicate Log Entries</div>
+            <p className="font-body-md text-[11px] text-on-surface-variant max-w-lg">
+              Safely clean up duplicate dinner or meal entries across your local cache and Supabase cloud database.
+            </p>
+          </div>
+          <button
+            onClick={handleDeduplicate}
+            type="button"
+            className="px-4 py-2 rounded-full bg-surface-container-high hover:bg-surface-bright text-secondary border border-secondary/20 font-label-md text-xs font-bold transition-all whitespace-nowrap flex items-center justify-center gap-1.5"
+          >
+            <span className="material-symbols-outlined text-sm">auto_fix_high</span>
+            <span>Clean Duplicates</span>
           </button>
         </div>
 
