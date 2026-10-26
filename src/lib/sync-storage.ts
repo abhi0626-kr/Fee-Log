@@ -257,6 +257,47 @@ function mergeRecordsById<T extends { id: string }>(existing: T[], incoming: T[]
   return Array.from(map.values());
 }
 
+// Helper to preserve locally stored macros if the remote Supabase table lacks them
+function mergeFoodRecords(existing: FoodLog[], incoming: FoodLog[]): FoodLog[] {
+  const map = new Map<string, FoodLog>();
+  existing.forEach((item) => map.set(item.id, item));
+  incoming.forEach((remote) => {
+    const local = map.get(remote.id);
+    if (local) {
+      map.set(remote.id, {
+        ...remote,
+        carbs_g: remote.carbs_g ?? local.carbs_g,
+        protein_g: remote.protein_g ?? local.protein_g,
+        fiber_g: remote.fiber_g ?? local.fiber_g,
+        sodium_mg: remote.sodium_mg ?? local.sodium_mg,
+        calories: remote.calories ?? local.calories,
+      });
+    } else {
+      map.set(remote.id, remote);
+    }
+  });
+  return Array.from(map.values());
+}
+
+function sanitizeFoodPayload<T extends Record<string, unknown>>(payload: T): Record<string, unknown> {
+  const base = { ...payload };
+  delete base.carbs_g;
+  delete base.protein_g;
+  delete base.fiber_g;
+  delete base.sodium_mg;
+  delete base.calories;
+  return base;
+}
+
+function isMissingColumnError(error?: { message?: string } | null): boolean {
+  if (!error?.message) return false;
+  const msg = error.message.toLowerCase();
+  return (
+    msg.includes('column') &&
+    (msg.includes('does not exist') || msg.includes('schema cache') || msg.includes('could not find'))
+  );
+}
+
 function acknowledgeSyncedRecords(table: SyncQueueItem['table'], ids: Set<string>): void {
   if (ids.size === 0) return;
   const queue = getOfflineQueue();
@@ -321,7 +362,12 @@ async function flushOfflineQueueInternal(): Promise<SyncResult> {
             ...(item.payload as Record<string, unknown>),
             user_id: authUserId,
           };
-          const { error } = await supabase.from(item.table).upsert([payload]);
+          let { error } = await supabase.from(item.table).upsert([payload]);
+          if (error && item.table === 'food_logs' && isMissingColumnError(error)) {
+            const basePayload = sanitizeFoodPayload(payload);
+            const retryRes = await supabase.from(item.table).upsert([basePayload]);
+            error = retryRes.error;
+          }
           if (error) throw error;
           synced++;
         } else if (item.action === 'delete') {
@@ -471,7 +517,12 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
 
     let foodUploadSucceeded = true;
     if (unuploadedFood.length > 0) {
-      const { error } = await supabase.from('food_logs').upsert(unuploadedFood);
+      let { error } = await supabase.from('food_logs').upsert(unuploadedFood);
+      if (error && isMissingColumnError(error)) {
+        const baseFoodLogs = unuploadedFood.map(sanitizeFoodPayload);
+        const retryRes = await supabase.from('food_logs').upsert(baseFoodLogs);
+        error = retryRes.error;
+      }
       if (error) {
         foodUploadSucceeded = false;
         console.warn('Failed to upsert unuploaded food logs:', error.message);
@@ -481,7 +532,7 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       unuploadedFood.forEach((record) => remoteFoodIds.add(record.id));
     }
     acknowledgeSyncedRecords('food_logs', remoteFoodIds);
-    const mergedFood = mergeRecordsById(
+    const mergedFood = mergeFoodRecords(
       localFood.map((record) => ({ ...record, user_id: userId })),
       remoteFood
     );
