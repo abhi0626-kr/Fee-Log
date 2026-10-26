@@ -222,6 +222,15 @@ function mergeRecordsById<T extends { id: string }>(existing: T[], incoming: T[]
   return Array.from(map.values());
 }
 
+function acknowledgeSyncedRecords(table: SyncQueueItem['table'], ids: Set<string>): void {
+  if (ids.size === 0) return;
+  const queue = getOfflineQueue();
+  const remaining = queue.filter((item) => !(item.table === table && ids.has(item.id)));
+  if (remaining.length !== queue.length) {
+    saveLocalArray(STORAGE_KEYS.QUEUE, remaining);
+  }
+}
+
 // Queue management
 export function getOfflineQueue(): SyncQueueItem[] {
   return getLocalArray<SyncQueueItem>(STORAGE_KEYS.QUEUE);
@@ -382,13 +391,22 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       .filter((l) => !remoteInsulinIds.has(l.id))
       .map((l) => ({ ...l, user_id: userId }));
 
+    let insulinUploadSucceeded = true;
     if (unuploadedInsulin.length > 0) {
       const { error } = await supabase.from('insulin_logs').upsert(unuploadedInsulin);
       if (error) {
+        insulinUploadSucceeded = false;
         console.warn('Failed to upsert unuploaded insulin logs:', error.message);
       }
     }
-    const mergedInsulin = mergeRecordsById(localInsulin, remoteInsulin);
+    if (insulinUploadSucceeded) {
+      unuploadedInsulin.forEach((record) => remoteInsulinIds.add(record.id));
+    }
+    acknowledgeSyncedRecords('insulin_logs', remoteInsulinIds);
+    const mergedInsulin = mergeRecordsById(
+      localInsulin.map((record) => ({ ...record, user_id: userId })),
+      remoteInsulin
+    );
     saveLocalArray(STORAGE_KEYS.INSULIN, mergedInsulin);
 
     // 2. Two-way Food Sync
@@ -399,13 +417,22 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       .filter((l) => !remoteFoodIds.has(l.id))
       .map((l) => ({ ...l, user_id: userId }));
 
+    let foodUploadSucceeded = true;
     if (unuploadedFood.length > 0) {
       const { error } = await supabase.from('food_logs').upsert(unuploadedFood);
       if (error) {
+        foodUploadSucceeded = false;
         console.warn('Failed to upsert unuploaded food logs:', error.message);
       }
     }
-    const mergedFood = mergeRecordsById(localFood, remoteFood);
+    if (foodUploadSucceeded) {
+      unuploadedFood.forEach((record) => remoteFoodIds.add(record.id));
+    }
+    acknowledgeSyncedRecords('food_logs', remoteFoodIds);
+    const mergedFood = mergeRecordsById(
+      localFood.map((record) => ({ ...record, user_id: userId })),
+      remoteFood
+    );
     saveLocalArray(STORAGE_KEYS.FOOD, mergedFood);
 
     // 3. Two-way Activity Sync
@@ -416,13 +443,22 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       .filter((l) => !remoteActivityIds.has(l.id))
       .map((l) => ({ ...l, user_id: userId }));
 
+    let activityUploadSucceeded = true;
     if (unuploadedActivity.length > 0) {
       const { error } = await supabase.from('activity_logs').upsert(unuploadedActivity);
       if (error) {
+        activityUploadSucceeded = false;
         console.warn('Failed to upsert unuploaded activity logs:', error.message);
       }
     }
-    const mergedActivity = mergeRecordsById(localActivity, remoteActivity);
+    if (activityUploadSucceeded) {
+      unuploadedActivity.forEach((record) => remoteActivityIds.add(record.id));
+    }
+    acknowledgeSyncedRecords('activity_logs', remoteActivityIds);
+    const mergedActivity = mergeRecordsById(
+      localActivity.map((record) => ({ ...record, user_id: userId })),
+      remoteActivity
+    );
     saveLocalArray(STORAGE_KEYS.ACTIVITY, mergedActivity);
 
     // 4. Two-way Feel Sync
@@ -433,13 +469,22 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       .filter((l) => !remoteFeelIds.has(l.id))
       .map((l) => ({ ...l, user_id: userId }));
 
+    let feelUploadSucceeded = true;
     if (unuploadedFeel.length > 0) {
       const { error } = await supabase.from('feel_logs').upsert(unuploadedFeel);
       if (error) {
+        feelUploadSucceeded = false;
         console.warn('Failed to upsert unuploaded feel logs:', error.message);
       }
     }
-    const mergedFeel = mergeRecordsById(localFeel, remoteFeel);
+    if (feelUploadSucceeded) {
+      unuploadedFeel.forEach((record) => remoteFeelIds.add(record.id));
+    }
+    acknowledgeSyncedRecords('feel_logs', remoteFeelIds);
+    const mergedFeel = mergeRecordsById(
+      localFeel.map((record) => ({ ...record, user_id: userId })),
+      remoteFeel
+    );
     saveLocalArray(STORAGE_KEYS.FEEL, mergedFeel);
 
     // 5. Two-way Glucose Sync
@@ -450,13 +495,22 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       .filter((l) => !remoteGlucoseIds.has(l.id))
       .map((l) => ({ ...l, user_id: userId }));
 
+    let glucoseUploadSucceeded = true;
     if (unuploadedGlucose.length > 0) {
       const { error } = await supabase.from('glucose_logs').upsert(unuploadedGlucose);
       if (error) {
+        glucoseUploadSucceeded = false;
         console.warn('Failed to upsert unuploaded glucose logs:', error.message);
       }
     }
-    const mergedGlucose = mergeRecordsById(localGlucose, remoteGlucose);
+    if (glucoseUploadSucceeded) {
+      unuploadedGlucose.forEach((record) => remoteGlucoseIds.add(record.id));
+    }
+    acknowledgeSyncedRecords('glucose_logs', remoteGlucoseIds);
+    const mergedGlucose = mergeRecordsById(
+      localGlucose.map((record) => ({ ...record, user_id: userId })),
+      remoteGlucose
+    );
     saveLocalArray(STORAGE_KEYS.GLUCOSE, mergedGlucose);
 
     window.dispatchEvent(new CustomEvent('t1d-data-updated'));
