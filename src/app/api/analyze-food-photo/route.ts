@@ -43,14 +43,16 @@ async function getCandidateModels(apiKey: string): Promise<string[]> {
           .map((m: { name: string }) => m.name.replace(/^models\//, ''));
 
         if (valid.length > 0) {
-          // Rank preferred models: flash models first, then 1.5, then 2.0
+          // Prefer broadly available stable Flash models over restricted or preview models.
           return valid.sort((a: string, b: string) => {
             const getScore = (name: string) => {
               let score = 0;
               if (name.includes('flash')) score += 20;
-              if (name.includes('1.5')) score += 10;
-              if (name.includes('2.0') || name.includes('2.5')) score += 8;
-              if (name.includes('latest')) score += 5;
+              if (name === 'gemini-2.0-flash') score += 20;
+              if (name.includes('2.0')) score += 10;
+              if (name.includes('1.5')) score += 5;
+              if (name.includes('latest')) score += 2;
+              if (name.includes('2.5')) score -= 10;
               if (name.includes('pro')) score += 2;
               return score;
             };
@@ -64,14 +66,13 @@ async function getCandidateModels(apiKey: string): Promise<string[]> {
   }
 
   return [
-    'gemini-1.5-flash-latest',
     'gemini-2.0-flash',
+    'gemini-1.5-flash-latest',
     'gemini-1.5-flash',
     'gemini-1.5-flash-002',
     'gemini-1.5-flash-001',
     'gemini-1.5-pro-latest',
     'gemini-1.5-pro',
-    'gemini-2.5-flash',
   ];
 }
 
@@ -166,8 +167,12 @@ Respond strictly in valid JSON matching this schema:
   "explanation": string
 }`;
 
-    // Dynamically discover which Gemini models are available for this user's API key
-    const candidateModels = await getCandidateModels(resolvedApiKey);
+    // Dynamically discover which Gemini models are available for this user's API key.
+    // A server-side override is useful when an API key has a restricted model allowlist.
+    const configuredModel = process.env.GEMINI_MODEL?.trim();
+    const candidateModels = configuredModel
+      ? [configuredModel]
+      : await getCandidateModels(resolvedApiKey);
 
     interface GeminiApiResponse {
       candidates?: {
@@ -233,7 +238,9 @@ Respond strictly in valid JSON matching this schema:
           lowerErrorMessage.includes('not found') ||
           lowerErrorMessage.includes('image input modality') ||
           lowerErrorMessage.includes('does not support image') ||
-          lowerErrorMessage.includes('modality is not enabled');
+          lowerErrorMessage.includes('modality is not enabled') ||
+          lowerErrorMessage.includes('no longer available') ||
+          lowerErrorMessage.includes('not available to new users');
 
         if (isUnsupportedModel) {
           continue;
