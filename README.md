@@ -19,11 +19,12 @@
 4. [Two-Way Sync & Offline-First Engine](#-two-way-sync--offline-first-engine)
 5. [Core Features & User Flows](#-core-features--user-flows)
 6. [Deterministic Pattern Engine](#-deterministic-pattern-engine)
-7. [Database Schema & Supabase Setup](#-database-schema--supabase-setup)
-8. [API Route Reference](#-api-route-reference)
-9. [Local Development & Setup](#-local-development--setup)
-10. [Vercel Deployment Guide](#-vercel-deployment-guide)
-11. [Troubleshooting & FAQs](#-troubleshooting--faqs)
+7. [Nutrition Tracking & Food Photo Scanner](#-nutrition-tracking--food-photo-scanner)
+8. [Database Schema & Supabase Setup](#-database-schema--supabase-setup)
+9. [API Route Reference](#-api-route-reference)
+10. [Local Development & Setup](#-local-development--setup)
+11. [Vercel Deployment Guide](#-vercel-deployment-guide)
+12. [Troubleshooting & FAQs](#-troubleshooting--faqs)
 
 ---
 
@@ -101,6 +102,7 @@ Feelog strictly adheres to essential clinical safety non-negotiables:
 - **Calm Glass Telemetry**: Dark obsidian canvas (`#0b1326`), ambient teal/indigo/cyan mesh glow orbs, translucent glass containers (`backdrop-blur-2xl`), and Material Symbols font icons.
 - **Mobile First Touch Targets**: All interactive elements, buttons, and steppers maintain touch targets $\ge 44\text{px}$.
 - **Zero CLS / Hydration Barriers**: SSR placeholder barriers eliminate hydration mismatch flickers on startup.
+- **Production-ready Next.js build**: `next build` runs optimized compilation, linting, type validation, and static page generation for Vercel.
 
 ---
 
@@ -133,7 +135,7 @@ Feelog implements a resilient, bi-directional synchronization architecture desig
 - **Conditional Daily Glucose Prompt**: Appears at most once per calendar day only if no glucose reading exists; easily dismissed with a single tap.
 
 ### 2. Modal Sheets
-- **Food Sheet**: Automatically defaults meal type by IST hour (`<11:00` breakfast, `11:00–16:00` lunch, `16:00–19:00` snack, `>19:00` dinner). Features quick-pick South Indian PG chips (*Idly*, *Dosa*, *Rice*, *Dal/Sambar*, *Curd*, *Chapathi*, *Egg*), segmented carb portions (*Small*, *Medium*, *Large*), and optional photo upload.
+- **Food Sheet**: Automatically defaults meal type by IST hour (`<11:00` breakfast, `11:00–16:00` lunch, `16:00–19:00` snack, `>19:00` dinner). Features quick-pick South Indian PG chips (*Idly*, *Dosa*, *Rice*, *Dal/Sambar*, *Curd*, *Chapathi*, *Egg*), segmented carb portions (*Small*, *Medium*, *Large*), nutrition estimates, and optional AI-assisted photo scanning.
 - **Activity Sheet**: One-tap presets (*Morning run 6.5 km*, *Terrace calisthenics 40m*), duration stepper, and intensity selector.
 - **Insulin Sheet**: Direct dose logger supporting all 5 insulin types with customizable timestamps and clinical notes.
 - **Glucose Sheet**: 20–800 mg/dL validation range with context picker (*Fasting*, *Post Lunch*, *Pre Bed*, *Other*).
@@ -151,7 +153,7 @@ Feelog implements a resilient, bi-directional synchronization architecture desig
 - 4-week trend of high-feel occurrences.
 
 ### 5. Clinical Export (`/export`)
-- **Doctor PDF**: Generates a clean, professional clinical report using `jsPDF` and `jspdf-autotable`. Includes patient vitals (age, height, weight), current fixed regimen, day-by-day telemetry table, and doctor footer copy:
+- **Doctor PDF**: Generates a clean, professional clinical report using `jsPDF` and `jspdf-autotable`. Includes a report header, patient vitals (age, height, weight), current fixed regimen, clinical overview cards, clinician observations, a day-by-day detailed telemetry appendix, and doctor footer copy:
   > *"Bring this report to your endocrinologist / diabetologist to discuss your insulin regimen."*
 - **RFC4180 CSV Download**: Complete raw export with columns: `date, time, category, insulin_type/meal/activity/feel, units/items/duration/feel_level, carb_size, symptoms, glucose_mgdl, note`.
 
@@ -167,6 +169,19 @@ Feelog implements a resilient, bi-directional synchronization architecture desig
 - **Demo Data Seeder**: Populates 14 days of realistic Bangalore PG student telemetry (runs, PG mess meals, afternoon sluggishness, late lunch dip) for instant testing.
 
 ---
+
+## 🍽️ Nutrition Tracking & Food Photo Scanner
+
+Food logs can store estimated carbohydrates, protein, fiber, sodium, and calories alongside the meal description. Estimates are calculated from recognized staple foods and portion-size presets, so the tracker remains useful without a photo or network connection.
+
+The Food Sheet also supports an optional AI-assisted photo workflow:
+
+1. Select or capture a meal photo.
+2. The server route sends the image to an available Google Gemini vision model.
+3. The response is normalized into meal items, carb-size classification, macro estimates, calories, and a short explanation.
+4. Review and edit the result before saving it as a food log.
+
+AI output is an estimate, not medical advice or a replacement for nutrition labels or clinician guidance. Configure one of `GEMINI_API_KEY`, `GOOGLE_API_KEY`, or `NEXT_PUBLIC_GEMINI_API_KEY` to enable the scanner. The route dynamically discovers supported models and falls back through a ranked list when model availability changes.
 
 ## 🧠 Deterministic Pattern Engine
 
@@ -285,6 +300,7 @@ create policy "Users can manage own insulin logs"
 | `DELETE` | `/api/logs?table=<table_name>&id=<id>` | Deletes an individual record by ID. |
 | `POST` | `/api/sync` | Batch processes offline queue mutations (`insert`, `update`, `delete`). |
 | `POST` | `/api/supabase-config` | Configures local Supabase credentials. |
+| `POST` | `/api/analyze-food-photo` | Analyzes an optional food image with Gemini and returns normalized nutrition estimates. |
 
 ---
 
@@ -306,15 +322,23 @@ Create `.env.local` in the project root:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-supabase-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+# Optional: enables AI food-photo analysis
+GEMINI_API_KEY=your-google-gemini-api-key
 ```
 
 ### 3. Run Automated Tests
 ```bash
 npm test
 ```
-*Executes all 14 unit tests covering meal hour inference, date calculations, streak algorithms, server DB operations, and all 6 clinical pattern rules.*
+*Executes the repository test suites covering meal hour inference, date calculations, streak algorithms, server DB operations, macro calculations, AI photo-response normalization, and all 6 clinical pattern rules.*
 
-### 4. Run Development Server
+### 4. Validate the Production Build
+```bash
+npm run build
+```
+This runs the optimized Next.js compilation, ESLint checks, TypeScript validation, and static page generation.
+
+### 5. Run Development Server
 ```bash
 npm run dev
 ```
@@ -329,7 +353,10 @@ Open [http://localhost:3000](http://localhost:3000) on your browser.
 3. Add the following **Environment Variables** for **Production**, **Preview**, and **Development**:
    - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase Project URL.
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase Publishable / Anon Key.
-4. Deploy!
+   - `GEMINI_API_KEY` (optional): Google Gemini API key for food photo analysis.
+4. Deploy. Vercel automatically creates a new deployment for each push to the connected branch.
+
+If a deployment remains marked **Ready / Stale**, open the deployment's **Source** section and confirm it references the latest commit on `main`. A failed build keeps the last successful deployment live; open **Logs** to see lint, type-check, or environment-variable errors before retrying.
 
 ### Canonical Domain Routing
 [src/middleware.ts](./src/middleware.ts) enforces `fee-log26.vercel.app` as the primary canonical domain, automatically issuing 308 permanent redirects for any temporary Vercel preview aliases to prevent browser storage fragmentation.
