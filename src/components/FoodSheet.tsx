@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { MealType, CarbSize, FoodLog, COMMON_FOOD_CHIPS } from '@/types';
 import { getCurrentTimeIST, getDefaultMealTypeByHour, getCurrentHourIST } from '@/lib/date-utils';
 import { saveFoodLog, getActiveUserId, getSettings, saveSettings } from '@/lib/sync-storage';
@@ -42,6 +42,7 @@ export default function FoodSheet({
   const [scanMessage, setScanMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [showKeyPrompt, setShowKeyPrompt] = useState<boolean>(false);
   const [tempApiKey, setTempApiKey] = useState<string>('');
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -436,7 +437,11 @@ export default function FoodSheet({
               </div>
             ) : (
               <div className="space-y-2">
-                <label className="flex flex-col items-center justify-center gap-2 p-5 rounded-2xl bg-surface-container/60 border border-dashed border-white/15 hover:border-tertiary/50 text-on-surface-variant hover:text-on-surface cursor-pointer text-xs font-medium transition-all group">
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  className="w-full flex flex-col items-center justify-center gap-2 p-5 rounded-2xl bg-surface-container/60 border border-dashed border-white/15 hover:border-tertiary/50 text-on-surface-variant hover:text-on-surface cursor-pointer text-xs font-medium transition-all group"
+                >
                   <div className="w-10 h-10 rounded-full bg-tertiary/10 text-tertiary border border-tertiary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
                     <span className="material-symbols-outlined text-xl">camera_alt</span>
                   </div>
@@ -446,8 +451,15 @@ export default function FoodSheet({
                       AI auto-detects items, carbs, protein, fiber &amp; sodium
                     </span>
                   </div>
-                  <input type="file" accept="image/*" onChange={handlePhotoSelect} className="hidden" />
-                </label>
+                </button>
+                <input
+                  ref={photoInputRef}
+                  id="food-photo-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoSelect}
+                  className="sr-only"
+                />
 
                 {/* Quick Demo Trigger for testing without a photo */}
                 <div className="flex items-center justify-end">
