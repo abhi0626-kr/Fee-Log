@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import {
   getTodayIST,
@@ -38,6 +38,7 @@ import {
   InsulinType,
 } from '@/types';
 import FoodSheet from '@/components/FoodSheet';
+import DailyMacroTracker from '@/components/DailyMacroTracker';
 import ActivitySheet from '@/components/ActivitySheet';
 import FeelSheet from '@/components/FeelSheet';
 import GlucoseSheet from '@/components/GlucoseSheet';
@@ -206,6 +207,11 @@ export default function QuickLogPage() {
   const afternoonLog = mounted ? todayInsulinLogs.find((l) => l.insulin_type === 'afternoon_regular') : undefined;
   const nightLog = mounted ? todayInsulinLogs.find((l) => l.insulin_type === 'night_30_70') : undefined;
   const extraCorrectionLogs = mounted ? todayInsulinLogs.filter((l) => l.insulin_type === 'correction' || l.insulin_type === 'other') : [];
+
+  const todayFoodLogs = useMemo(
+    () => todayLogs.filter((l) => l.category === 'food' && l.food).map((l) => l.food as FoodLog),
+    [todayLogs]
+  );
 
   // Toggle or save dose with chosen units and actual current time
   const handleToggleInsulinDose = (type: InsulinType, chosenUnits: number) => {
@@ -1075,6 +1081,20 @@ export default function QuickLogPage() {
         )}
       </section>
 
+      {/* 3.5 TODAY'S FUEL & MACRO TRACKER */}
+      <DailyMacroTracker
+        todayFoodLogs={todayFoodLogs}
+        settings={settings}
+        onOpenFoodSheet={() => {
+          setEditingFood(null);
+          setIsFoodOpen(true);
+        }}
+        onEditFoodLog={(food) => {
+          setEditingFood(food);
+          setIsFoodOpen(true);
+        }}
+      />
+
       {/* 4. SPLIT BENTO: QUICK EVENT LAUNCHERS & TODAY'S ACTIVITY STREAM */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
         {/* Left Column (4 cols): Fast Add Shortcuts & Origin Blueprint */}
@@ -1292,8 +1312,16 @@ export default function QuickLogPage() {
                     title = `${item.food.meal.charAt(0).toUpperCase() + item.food.meal.slice(1)} · ${item.food.items}`;
                     badge = `${item.food.carb_size ? item.food.carb_size + ' Carb' : 'Meal'}`;
                     badgeBg = 'bg-tertiary/15 text-tertiary border border-tertiary/20';
-                    details = item.food.note || 'Logged meal';
-                    rightTag = 'Logged';
+
+                    const macroParts: string[] = [];
+                    if (item.food.carbs_g != null) macroParts.push(`🍞 ${item.food.carbs_g}g C`);
+                    if (item.food.protein_g != null) macroParts.push(`🍗 ${item.food.protein_g}g P`);
+                    if (item.food.fiber_g != null) macroParts.push(`🥗 ${item.food.fiber_g}g F`);
+                    if (item.food.sodium_mg != null) macroParts.push(`🧂 ${item.food.sodium_mg}mg Na`);
+
+                    const macroLine = macroParts.length > 0 ? macroParts.join(' · ') : null;
+                    details = macroLine ? (item.food.note ? `${macroLine} — ${item.food.note}` : macroLine) : (item.food.note || 'Logged meal');
+                    rightTag = item.food.carbs_g != null ? `${item.food.carbs_g}g Carbs` : 'Logged';
                   } else if (item.category === 'activity' && item.activity) {
                     iconName = 'directions_run';
                     iconBg = 'bg-secondary/20 text-secondary border border-secondary/20';
@@ -1329,11 +1357,17 @@ export default function QuickLogPage() {
                         <span className="font-label-md text-xs text-outline font-mono w-16 shrink-0">
                           {formatISTTime(item.log_time)}
                         </span>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
-                          <span className="material-symbols-outlined text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                            {iconName}
-                          </span>
-                        </div>
+                        {item.category === 'food' && item.food?.photo_url ? (
+                          <div className="w-8 h-8 rounded-full overflow-hidden border border-tertiary/40 shrink-0">
+                            <img src={item.food.photo_url} alt="Meal thumbnail" className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
+                            <span className="material-symbols-outlined text-[1.125rem]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                              {iconName}
+                            </span>
+                          </div>
+                        )}
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-body-md text-sm text-on-surface font-bold truncate">

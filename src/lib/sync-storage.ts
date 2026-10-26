@@ -11,6 +11,7 @@ import {
 } from '@/types';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { getTodayIST } from './date-utils';
+import { estimateNutrientsFromItems } from './macro-calculator';
 
 const STORAGE_KEYS = {
   INSULIN: 't1d_insulin_logs',
@@ -62,6 +63,14 @@ export const DEFAULT_SETTINGS: UserSettings = {
 
   correction_insulin_brand: 'Regular (R)',
   correction_default_units: 4,
+
+  // Daily Nutrition & Macro Targets (Fitness Tracker style)
+  daily_target_carbs_g: 180,
+  daily_target_protein_g: 75,
+  daily_target_fiber_g: 30,
+  daily_max_sodium_mg: 2300,
+  daily_target_calories: 2000,
+  gemini_api_key: '',
 
   activity_chips: DEFAULT_ACTIVITY_CHIPS.map((a) => a.label),
   food_chips: COMMON_FOOD_CHIPS,
@@ -874,15 +883,19 @@ export function seedRealisticPGData(): void {
     }
 
     // 2. Breakfast (08:15)
+    const breakfastItems = i % 2 === 0 ? '3 idly, sambar' : '2 dosa, coconut chutney';
+    const breakfastCarbSize: 'medium' = 'medium';
+    const breakfastNutrients = estimateNutrientsFromItems(breakfastItems, breakfastCarbSize);
     foodList.push({
       id: crypto.randomUUID(),
       user_id: userId,
       log_date: dateStr,
       log_time: '08:15',
       meal: 'breakfast',
-      items: i % 2 === 0 ? '3 idly, sambar' : '2 dosa, coconut chutney',
-      carb_size: 'medium',
+      items: breakfastItems,
+      carb_size: breakfastCarbSize,
       note: 'PG mess breakfast',
+      ...breakfastNutrients,
     });
 
     // 3. Morning Run (5-10 km) on most days (day 1, 2, 4, 5, 7, 8, 10, 11, 13)
@@ -925,15 +938,18 @@ export function seedRealisticPGData(): void {
         });
       } else {
         // Day 9: Delayed lunch after 2pm (at 14:30)
+        const lateLunchItems = 'rice with dal, curd';
+        const lateLunchCarb: 'large' = 'large';
         foodList.push({
           id: crypto.randomUUID(),
           user_id: userId,
           log_date: dateStr,
           log_time: '14:45',
           meal: 'lunch',
-          items: 'rice with dal, curd',
-          carb_size: 'large',
+          items: lateLunchItems,
+          carb_size: lateLunchCarb,
           note: 'Very late lunch after project meeting',
+          ...estimateNutrientsFromItems(lateLunchItems, lateLunchCarb),
         });
         feelList.push({
           id: crypto.randomUUID(),
@@ -965,6 +981,7 @@ export function seedRealisticPGData(): void {
         items,
         carb_size: carbSize,
         note: 'PG lunch',
+        ...estimateNutrientsFromItems(items, carbSize),
       });
 
       // Afternoon high pattern (3pm - 7pm, e.g. 15:45 to 17:30)
@@ -1033,15 +1050,18 @@ export function seedRealisticPGData(): void {
 
     // 6. Dinner (20:45)
     if (!isToday) {
+      const dinnerItems = 'chapathi with veg kurma, egg';
+      const dinnerCarb: 'medium' = 'medium';
       foodList.push({
         id: crypto.randomUUID(),
         user_id: userId,
         log_date: dateStr,
         log_time: '20:45',
         meal: 'dinner',
-        items: 'chapathi with veg kurma, egg',
-        carb_size: 'medium',
+        items: dinnerItems,
+        carb_size: dinnerCarb,
         note: 'PG dinner',
+        ...estimateNutrientsFromItems(dinnerItems, dinnerCarb),
       });
     }
   }

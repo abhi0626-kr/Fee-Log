@@ -611,6 +611,94 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* SECTION: DAILY NUTRITION & MACRO TARGETS */}
+        <div className="rounded-3xl bg-surface-container/70 border border-white/5 backdrop-blur-xl p-6 shadow-xl">
+          <div className="flex items-center gap-2 font-headline-sm text-sm text-on-surface font-bold pb-4 border-b border-surface-container-high/40 mb-4">
+            <span className="material-symbols-outlined text-tertiary">monitor_weight</span>
+            <span>Daily Nutrition &amp; Fitness Targets</span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+            <div>
+              <label className="text-on-surface-variant block mb-1 font-semibold">Daily Carbs Target (g)</label>
+              <input
+                type="number"
+                min="0"
+                value={settings.daily_target_carbs_g ?? 180}
+                onChange={(e) => handleChange('daily_target_carbs_g', Number(e.target.value))}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low border border-white/10 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <span className="text-[10px] text-outline mt-1 block">For insulin bolus matching</span>
+            </div>
+
+            <div>
+              <label className="text-on-surface-variant block mb-1 font-semibold">Daily Protein Target (g)</label>
+              <input
+                type="number"
+                min="0"
+                value={settings.daily_target_protein_g ?? 75}
+                onChange={(e) => handleChange('daily_target_protein_g', Number(e.target.value))}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low border border-white/10 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-secondary"
+              />
+              <span className="text-[10px] text-outline mt-1 block">Muscle recovery &amp; workout</span>
+            </div>
+
+            <div>
+              <label className="text-on-surface-variant block mb-1 font-semibold">Daily Fiber Target (g)</label>
+              <input
+                type="number"
+                min="0"
+                value={settings.daily_target_fiber_g ?? 30}
+                onChange={(e) => handleChange('daily_target_fiber_g', Number(e.target.value))}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low border border-white/10 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-tertiary"
+              />
+              <span className="text-[10px] text-outline mt-1 block">Slows carb digestion</span>
+            </div>
+
+            <div>
+              <label className="text-on-surface-variant block mb-1 font-semibold">Daily Max Sodium (mg)</label>
+              <input
+                type="number"
+                min="0"
+                step="50"
+                value={settings.daily_max_sodium_mg ?? 2300}
+                onChange={(e) => handleChange('daily_max_sodium_mg', Number(e.target.value))}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low border border-white/10 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-amber-400"
+              />
+              <span className="text-[10px] text-outline mt-1 block">AHA / ICMR healthy guideline</span>
+            </div>
+          </div>
+
+          {/* AI Vision Plate Scanner Config */}
+          <div className="mt-5 pt-4 border-t border-surface-container-high/40">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-on-surface-variant font-semibold flex items-center gap-1.5 text-xs">
+                <span className="material-symbols-outlined text-tertiary text-sm">auto_awesome</span>
+                <span>Google Gemini API Key (AI Photo Plate Scanner)</span>
+              </label>
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11px] text-tertiary hover:underline font-semibold flex items-center gap-0.5"
+              >
+                <span>Get Free Key</span>
+                <span className="material-symbols-outlined text-xs">open_in_new</span>
+              </a>
+            </div>
+            <input
+              type="password"
+              value={settings.gemini_api_key || ''}
+              onChange={(e) => handleChange('gemini_api_key', e.target.value)}
+              placeholder="AIzaSy... (leave blank to use server environment key)"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low border border-white/10 text-on-surface text-xs font-mono focus:outline-none focus:ring-1 focus:ring-tertiary"
+            />
+            <p className="text-[10px] text-outline mt-1.5">
+              Used when you tap &quot;AI Scan Plate&quot; on meal photos to detect foods, carbs, protein, fiber, and sodium automatically.
+            </p>
+          </div>
+        </div>
+
         {/* Save Bar */}
         <div className="flex items-center justify-between gap-4 p-4 rounded-3xl bg-surface-container-lowest/80 border border-white/5 backdrop-blur-md">
           <span className="text-xs text-on-surface-variant">

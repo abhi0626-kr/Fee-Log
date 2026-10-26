@@ -43,6 +43,11 @@ export interface FoodLog {
   carb_size?: CarbSize | null;
   photo_url?: string | null;
   note?: string | null;
+  carbs_g?: number | null;
+  protein_g?: number | null;
+  fiber_g?: number | null;
+  sodium_mg?: number | null;
+  calories?: number | null;
   created_at?: string;
 }
 
@@ -146,9 +151,50 @@ export interface UserSettings {
   correction_insulin_brand?: string; // e.g. "Regular / Rapid"
   correction_default_units?: number;
 
+  // Daily Nutrition & Macro Targets (Fitness Tracker style)
+  daily_target_carbs_g?: number; // e.g. 180g
+  daily_target_protein_g?: number; // e.g. 75g
+  daily_target_fiber_g?: number; // e.g. 30g
+  daily_max_sodium_mg?: number; // e.g. 2300mg
+  daily_target_calories?: number; // e.g. 2000 kcal
+
+  // AI Food Scanner Config
+  gemini_api_key?: string;
+
   activity_chips: string[];
   food_chips: string[];
 }
+
+export interface FoodNutrientEstimate {
+  carbs_g: number;
+  protein_g: number;
+  fiber_g: number;
+  sodium_mg: number;
+  calories: number;
+}
+
+export const FOOD_NUTRIENT_PRESETS: Record<string, FoodNutrientEstimate> = {
+  idly: { carbs_g: 15, protein_g: 2.5, fiber_g: 1.0, sodium_mg: 120, calories: 65 },
+  dosa: { carbs_g: 26, protein_g: 3.5, fiber_g: 1.2, sodium_mg: 180, calories: 160 },
+  rice: { carbs_g: 45, protein_g: 4.0, fiber_g: 0.6, sodium_mg: 5, calories: 205 },
+  chapathi: { carbs_g: 18, protein_g: 3.2, fiber_g: 2.2, sodium_mg: 110, calories: 104 },
+  'dal/sambar': { carbs_g: 16, protein_g: 7.0, fiber_g: 4.0, sodium_mg: 420, calories: 130 },
+  curd: { carbs_g: 4.5, protein_g: 4.0, fiber_g: 0.0, sodium_mg: 55, calories: 60 },
+  egg: { carbs_g: 0.6, protein_g: 6.3, fiber_g: 0.0, sodium_mg: 70, calories: 78 },
+  'tea/coffee': { carbs_g: 6.0, protein_g: 1.0, fiber_g: 0.0, sodium_mg: 35, calories: 45 },
+  paneer: { carbs_g: 3.5, protein_g: 14.0, fiber_g: 0.0, sodium_mg: 18, calories: 265 },
+  chicken: { carbs_g: 0.0, protein_g: 27.0, fiber_g: 0.0, sodium_mg: 82, calories: 165 },
+  bread: { carbs_g: 15.0, protein_g: 3.0, fiber_g: 1.0, sodium_mg: 150, calories: 75 },
+  oats: { carbs_g: 27.0, protein_g: 5.0, fiber_g: 4.0, sodium_mg: 2, calories: 150 },
+  banana: { carbs_g: 27.0, protein_g: 1.3, fiber_g: 3.1, sodium_mg: 1, calories: 105 },
+  apple: { carbs_g: 25.0, protein_g: 0.5, fiber_g: 4.4, sodium_mg: 2, calories: 95 },
+};
+
+export const CARB_SIZE_PRESETS: Record<CarbSize, FoodNutrientEstimate> = {
+  small: { carbs_g: 25, protein_g: 6, fiber_g: 2, sodium_mg: 250, calories: 180 },
+  medium: { carbs_g: 55, protein_g: 12, fiber_g: 4, sodium_mg: 550, calories: 380 },
+  large: { carbs_g: 90, protein_g: 18, fiber_g: 6, sodium_mg: 850, calories: 620 },
+};
 
 export const FEEL_COLORS: Record<FeelLevel, { hex: string; bg: string; text: string; label: string; badge: string }> = {
   low: {
