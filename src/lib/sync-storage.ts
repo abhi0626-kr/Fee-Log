@@ -84,7 +84,14 @@ export interface SyncQueueItem {
   timestamp: string;
 }
 
-let flushPromise: Promise<{ synced: number; failed: number }> | null = null;
+export interface SyncResult {
+  synced: number;
+  failed: number;
+  reason?: 'NO_AUTH_SESSION' | 'OFFLINE' | 'ERROR';
+  errorMessage?: string;
+}
+
+let flushPromise: Promise<SyncResult> | null = null;
 
 export function getIsOnline(): boolean {
   if (typeof window === 'undefined') return true;
@@ -139,6 +146,34 @@ export function getActiveUserId(): string {
     localStorage.setItem('t1d_anon_uuid', anonId);
   }
   return anonId;
+}
+
+export async function hasActiveCloudSession(): Promise<boolean> {
+  if (typeof window === 'undefined' || !isSupabaseConfigured || !supabase) return false;
+  try {
+    let { data } = await supabase.auth.getSession();
+    if (!data.session) {
+      const refreshed = await supabase.auth.refreshSession();
+      data = refreshed.data;
+    }
+    return Boolean(data.session?.user);
+  } catch {
+    return false;
+  }
+}
+
+export async function getCloudAuthUserId(): Promise<string | null> {
+  if (typeof window === 'undefined' || !isSupabaseConfigured || !supabase) return null;
+  try {
+    let { data } = await supabase.auth.getSession();
+    if (!data.session) {
+      const refreshed = await supabase.auth.refreshSession();
+      data = refreshed.data;
+    }
+    return data.session?.user?.id || null;
+  } catch {
+    return null;
+  }
 }
 
 export function isUserLoggedIn(): boolean {
@@ -250,9 +285,9 @@ export function clearOfflineQueue() {
 }
 
 // Synchronize queue with Supabase Postgres
-async function flushOfflineQueueInternal(): Promise<{ synced: number; failed: number }> {
+async function flushOfflineQueueInternal(): Promise<SyncResult> {
   if (!getIsOnline()) {
-    return { synced: 0, failed: 0 };
+    return { synced: 0, failed: 0, reason: 'OFFLINE' };
   }
 
   const queue = getOfflineQueue();
@@ -275,29 +310,18 @@ async function flushOfflineQueueInternal(): Promise<{ synced: number; failed: nu
   const remainingQueue: SyncQueueItem[] = [];
   let synced = 0;
   let failed = 0;
+  let lastErrorMsg: string | undefined;
 
   // 1. Sync directly to Supabase if authenticated
   if (isSupabaseConfigured && supabase && authUserId) {
     for (const item of queue) {
       try {
-        if (item.action === 'insert') {
+        if (item.action === 'insert' || item.action === 'update') {
           const payload = {
             ...(item.payload as Record<string, unknown>),
             user_id: authUserId,
           };
           const { error } = await supabase.from(item.table).upsert([payload]);
-          if (error) throw error;
-          synced++;
-        } else if (item.action === 'update') {
-          const payload = {
-            ...(item.payload as Record<string, unknown>),
-            user_id: authUserId,
-          };
-          const { error } = await supabase
-            .from(item.table)
-            .update(payload)
-            .eq('id', (item.payload as { id: string }).id)
-            .eq('user_id', authUserId);
           if (error) throw error;
           synced++;
         } else if (item.action === 'delete') {
@@ -310,40 +334,56 @@ async function flushOfflineQueueInternal(): Promise<{ synced: number; failed: nu
           synced++;
         }
       } catch (e) {
-        console.warn(`Supabase sync item error on ${item.table}:`, e);
+        const msg = (e as { message?: string })?.message || String(e);
+        lastErrorMsg = msg;
+        console.warn(`Supabase sync item error on ${item.table}:`, msg);
         remainingQueue.push(item);
         failed++;
       }
     }
-  } else {
-    // Retain in offline queue until the Supabase session is restored. Report
-    // these as failures so the UI does not claim that zero items were synced.
-    remainingQueue.push(...queue);
-    if (isSupabaseConfigured && supabase) {
-      failed = queue.length;
-    }
-  }
-
-  // The file-backed endpoint is only useful for local development. On a
-  // deployed app it is process-local and must not be treated as durable
-  // cross-device storage.
-  if (!isSupabaseConfigured || !supabase) {
+  } else if (!isSupabaseConfigured || !supabase) {
+    // 2. The file-backed endpoint is used for local development without Supabase
     try {
-      await fetch('/api/sync', {
+      const res = await fetch('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items: queue }),
       });
+      if (res.ok) {
+        synced = queue.length;
+      } else {
+        remainingQueue.push(...queue);
+        failed = queue.length;
+      }
     } catch (error) {
       console.warn('Server fallback sync failed:', error);
+      remainingQueue.push(...queue);
+      failed = queue.length;
     }
+  } else {
+    // Supabase is configured, but user has no active cloud auth session.
+    // Retain in offline queue until signed in.
+    remainingQueue.push(...queue);
+    failed = queue.length;
+    saveLocalArray(STORAGE_KEYS.QUEUE, remainingQueue);
+    return {
+      synced: 0,
+      failed: queue.length,
+      reason: 'NO_AUTH_SESSION',
+      errorMessage: 'Cloud session not active. Sign in with Google to sync pending logs.',
+    };
   }
 
   saveLocalArray(STORAGE_KEYS.QUEUE, remainingQueue);
-  return { synced, failed };
+  return {
+    synced,
+    failed,
+    reason: failed > 0 ? (lastErrorMsg ? 'ERROR' : 'NO_AUTH_SESSION') : undefined,
+    errorMessage: lastErrorMsg,
+  };
 }
 
-export function flushOfflineQueue(): Promise<{ synced: number; failed: number }> {
+export function flushOfflineQueue(): Promise<SyncResult> {
   if (!flushPromise) {
     flushPromise = flushOfflineQueueInternal().finally(() => {
       flushPromise = null;
@@ -361,7 +401,11 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
   try {
     let userId = targetUserId;
     if (!userId) {
-      const { data } = await supabase.auth.getSession();
+      let { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        const refreshed = await supabase.auth.refreshSession();
+        data = refreshed.data;
+      }
       userId = data.session?.user?.id;
     }
     if (!userId) {

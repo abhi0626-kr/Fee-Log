@@ -23,6 +23,7 @@ export default function LoginPage() {
   const [passwordInput, setPasswordInput] = useState('');
   const [nameInput, setNameInput] = useState('');
   const [isEditingAccount, setIsEditingAccount] = useState(false);
+  const [cloudUser, setCloudUser] = useState<{ id: string; email?: string; name?: string } | null>(null);
   const [feedback, setFeedback] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   useEffect(() => {
@@ -49,6 +50,7 @@ export default function LoginPage() {
           const u = data.session.user;
           const realEmail = u.email || '';
           const realName = u.user_metadata?.full_name || u.user_metadata?.name || s.display_name;
+          setCloudUser({ id: u.id, email: realEmail, name: realName });
           const updated = setUserLoggedIn(true, {
             email: realEmail,
             display_name: realName,
@@ -74,6 +76,8 @@ export default function LoginPage() {
               router.push('/');
             }, 800);
           }
+        } else {
+          setCloudUser(null);
         }
       });
 
@@ -82,6 +86,7 @@ export default function LoginPage() {
           const u = session.user;
           const realEmail = u.email || '';
           const realName = u.user_metadata?.full_name || u.user_metadata?.name || s.display_name;
+          setCloudUser({ id: u.id, email: realEmail, name: realName });
           const updated = setUserLoggedIn(true, {
             email: realEmail,
             display_name: realName,
@@ -100,6 +105,8 @@ export default function LoginPage() {
             sessionStorage.removeItem('t1d_oauth_in_progress');
             router.push('/');
           }
+        } else {
+          setCloudUser(null);
         }
       });
 
@@ -341,6 +348,7 @@ export default function LoginPage() {
         // ignore
       }
     }
+    setCloudUser(null);
     const updated = setUserLoggedIn(false, {
       auth_provider: 'guest',
       email: '',
@@ -390,8 +398,10 @@ export default function LoginPage() {
     );
   }
 
-  const loggedIn = isUserLoggedIn() || Boolean(settings?.is_logged_in);
-  const hasEmail = Boolean(settings?.email && settings.email.trim().length > 0);
+  const hasCloudSession = Boolean(cloudUser?.id);
+  const isCloudConnected = isSupabaseConfigured ? hasCloudSession : isUserLoggedIn();
+  const hasEmail = Boolean((cloudUser?.email || settings?.email || '').trim().length > 0);
+  const activeEmail = cloudUser?.email || settings?.email;
 
   return (
     <div className="max-w-[1240px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col items-center justify-center min-h-[78vh]">
@@ -410,10 +420,10 @@ export default function LoginPage() {
             </span>
           </Link>
           <h1 className="text-xl sm:text-2xl font-extrabold text-on-surface tracking-tight">
-            {loggedIn ? 'Your Feelog Account' : 'Welcome to Feelog'}
+            {isCloudConnected ? 'Your Feelog Account' : 'Welcome to Feelog'}
           </h1>
           <p className="text-xs sm:text-sm text-on-surface-variant mt-1.5 leading-relaxed">
-            {loggedIn
+            {isCloudConnected
               ? 'You are signed in. Your doses, sensory logs, and history sync seamlessly with your database.'
               : 'Sign in to access your diabetes diary and synchronize all logs across devices & URLs.'}
           </p>
@@ -434,19 +444,30 @@ export default function LoginPage() {
           </div>
         )}
 
+        {/* Informational banner when local logs exist and cloud session is not active */}
+        {!isCloudConnected && (
+          <div className="mb-4 p-3 rounded-2xl bg-secondary-container/15 border border-secondary/30 text-on-surface text-xs leading-relaxed flex items-start gap-2.5">
+            <span className="material-symbols-outlined text-secondary text-base shrink-0 mt-0.5">cloud_sync</span>
+            <div>
+              <span className="font-bold text-secondary block">Cloud Synchronization</span>
+              Sign in with Google to automatically link and sync your local diabetes logs to your secure cloud database.
+            </div>
+          </div>
+        )}
+
         {/* Main Card Container */}
         <div className="rounded-3xl bg-surface-container-low/90 backdrop-blur-2xl border border-white/10 p-6 sm:p-7 shadow-2xl shadow-black/40">
-          {loggedIn && !isEditingAccount ? (
+          {isCloudConnected && !isEditingAccount ? (
             /* Signed In State */
             <div className="space-y-5">
               <div className="flex items-center gap-4 p-4 rounded-2xl bg-surface-container/70 border border-primary/25">
                 <div className="w-13 h-13 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-primary font-extrabold text-lg shrink-0">
-                  {settings?.display_name?.slice(0, 2).toUpperCase() || 'FL'}
+                  {(cloudUser?.name || settings?.display_name)?.slice(0, 2).toUpperCase() || 'FL'}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-sm font-bold text-on-surface truncate">
-                      {settings?.display_name || 'Feelog User'}
+                      {cloudUser?.name || settings?.display_name || 'Feelog User'}
                     </span>
                     <span
                       className={`px-2 py-0.5 rounded-full text-[0.65rem] font-bold border ${
@@ -459,11 +480,11 @@ export default function LoginPage() {
                     </span>
                   </div>
                   <div className="text-xs text-on-surface-variant font-mono truncate mt-0.5">
-                    {hasEmail ? settings?.email : 'Private Local Browser Storage'}
+                    {hasEmail ? activeEmail : 'Private Local Browser Storage'}
                   </div>
                   <div className="text-[0.68rem] text-primary mt-1 font-medium flex items-center gap-1">
                     <span className="material-symbols-outlined text-[0.875rem]">cloud_done</span>
-                    <span>{hasEmail ? 'Database Connected & Synced' : 'Offline Private Storage Active'}</span>
+                    <span>Database Connected &amp; Synced</span>
                   </div>
                 </div>
               </div>
@@ -483,12 +504,16 @@ export default function LoginPage() {
                     onClick={async () => {
                       setLoading(true);
                       await hydrateFromSupabase();
-                      await flushOfflineQueue();
+                      const res = await flushOfflineQueue();
                       setLoading(false);
-                      setFeedback({ text: 'Data refreshed from Supabase!', type: 'success' });
+                      if (res.failed > 0) {
+                        setFeedback({ text: res.errorMessage || 'Sync incomplete. Try again.', type: 'error' });
+                      } else {
+                        setFeedback({ text: 'Data refreshed & synchronized with Supabase!', type: 'success' });
+                      }
                     }}
                     disabled={loading}
-                    className="py-2.5 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface font-semibold text-xs transition-all border border-white/5 flex items-center justify-center gap-1.5"
+                    className="py-2.5 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface font-semibold text-xs transition-all border border-white/5 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     <span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>sync</span>
                     <span>Sync Now</span>

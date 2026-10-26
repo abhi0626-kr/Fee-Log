@@ -9,6 +9,7 @@ import {
   DEFAULT_SETTINGS,
   seedRealisticPGData,
   clearAllLocalData,
+  clearOfflineQueue,
   flushOfflineQueue,
   getOfflineQueue,
   hydrateFromSupabase,
@@ -33,6 +34,9 @@ export default function SettingsPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [hasCloudSession, setHasCloudSession] = useState(false);
+  const [cloudEmail, setCloudEmail] = useState<string | null>(null);
+  const [pendingQueueCount, setPendingQueueCount] = useState(0);
   const [savedNotice, setSavedNotice] = useState(false);
   const [dataMessage, setDataMessage] = useState<string | null>(null);
   const [showDevVault, setShowDevVault] = useState(false);
@@ -46,6 +50,33 @@ export default function SettingsPage() {
   useEffect(() => {
     setSettings(getSettings());
     setIsLoggedIn(isUserLoggedIn());
+    setPendingQueueCount(getOfflineQueue().length);
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session?.user) {
+          setHasCloudSession(true);
+          setCloudEmail(data.session.user.email || null);
+        } else {
+          setHasCloudSession(false);
+          setCloudEmail(null);
+        }
+      });
+
+      const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          setHasCloudSession(true);
+          setCloudEmail(session.user.email || null);
+        } else {
+          setHasCloudSession(false);
+          setCloudEmail(null);
+        }
+      });
+
+      return () => {
+        authListener.subscription.unsubscribe();
+      };
+    }
   }, []);
 
   const handleSignOut = async () => {
@@ -83,23 +114,38 @@ export default function SettingsPage() {
 
   const handleManualSync = async () => {
     setIsSyncingServer(true);
+    setDataMessage(null);
     try {
+      let hasSession = false;
       if (isSupabaseConfigured && supabase) {
-        const { data: sessionData } = await supabase.auth.getSession();
+        let { data: sessionData } = await supabase.auth.getSession();
         if (!sessionData.session) {
-          const { data: refreshed, error } = await supabase.auth.refreshSession();
-          if (error || !refreshed.session) {
-            setDataMessage('Sync blocked: no active cloud session. Open Account and sign in again.');
-            return;
-          }
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          sessionData = refreshed;
         }
+        hasSession = Boolean(sessionData.session?.user);
       }
+
+      if (!hasSession && isSupabaseConfigured) {
+        const qCount = getOfflineQueue().length;
+        setDataMessage(
+          qCount > 0
+            ? `Cloud session not active (${qCount} pending log${qCount > 1 ? 's' : ''}). Sign in with Google to sync.`
+            : 'Cloud session not active. Sign in with Google to enable automatic cloud sync.'
+        );
+        setIsSyncingServer(false);
+        return;
+      }
+
       const hydrated = await hydrateFromSupabase();
       const res = await flushOfflineQueue();
       const remaining = getOfflineQueue().length;
+      setPendingQueueCount(remaining);
+
       if (res.failed > 0 || remaining > 0) {
         setDataMessage(
-          `Sync incomplete: ${res.synced} processed, ${remaining} still pending. Sign in again if your account session expired.`
+          res.errorMessage ||
+          `Sync incomplete: ${res.synced} processed, ${remaining} still pending. Check connection or sign in again.`
         );
       } else {
         setDataMessage(
@@ -113,6 +159,13 @@ export default function SettingsPage() {
     } finally {
       setIsSyncingServer(false);
     }
+    setTimeout(() => setDataMessage(null), 4500);
+  };
+
+  const handleClearPendingQueue = () => {
+    clearOfflineQueue();
+    setPendingQueueCount(0);
+    setDataMessage('Pending sync queue cleared. Local logs remain safe in browser storage.');
     setTimeout(() => setDataMessage(null), 3500);
   };
 
@@ -155,7 +208,8 @@ export default function SettingsPage() {
     }
   };
 
-  const isSignedInGoogle = Boolean(settings.email && settings.email.trim().length > 0 && settings.auth_provider === 'google');
+  const isSignedInGoogle = Boolean(hasCloudSession);
+  const displayEmail = cloudEmail || settings.email;
 
   return (
     <div className="max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-6 pb-12">
@@ -202,14 +256,22 @@ export default function SettingsPage() {
               <span className={`px-2 py-0.5 rounded-full text-[0.65rem] font-bold border ${
                 isSignedInGoogle
                   ? 'bg-primary-container/20 text-primary border-primary/20'
+                  : settings.email
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
                   : 'bg-surface-container-high text-on-surface-variant border-white/5'
               }`}>
-                {isSignedInGoogle ? 'Google Account' : 'Guest / Local Mode'}
+                {isSignedInGoogle
+                  ? 'Google Account (Cloud Synced)'
+                  : settings.email
+                  ? 'Cloud Session Inactive'
+                  : 'Guest / Local Mode'}
               </span>
             </div>
             <p className="text-xs text-on-surface-variant mt-0.5 truncate">
               {isSignedInGoogle ? (
-                settings.email
+                displayEmail
+              ) : settings.email ? (
+                <span>{settings.email} · Sign in with Google to sync logs to cloud</span>
               ) : (
                 <>
                   <span className="hidden sm:inline">Your logs are stored securely in local browser storage.</span>
@@ -453,23 +515,16 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <label className="text-on-surface-variant block mb-1 font-semibold">Email Address (Google Account)</label>
+                <label className="text-on-surface-variant block mb-1 font-semibold">Email Address (Profile / Reports)</label>
                 <input
                   type="email"
                   value={settings.email || ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    handleChange('email', val);
-                    if (val.trim()) {
-                      handleChange('auth_provider', 'google');
-                      handleChange('is_logged_in', true);
-                    }
-                  }}
+                  onChange={(e) => handleChange('email', e.target.value)}
                   placeholder="e.g. yourname@gmail.com"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low border border-white/10 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-on-surface-variant/40"
                 />
                 <p className="text-[10px] text-on-surface-variant mt-1">
-                  Your email address for Google sync, profile identification, and export reports.
+                  Used on doctor export reports and profile identification. Sign in with Google on the Account page to link cloud sync.
                 </p>
               </div>
 
@@ -751,19 +806,40 @@ export default function SettingsPage() {
 
         <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-2xl bg-secondary-container/15 border border-secondary/20 p-4">
           <div className="space-y-1">
-            <div className="font-headline-sm text-xs text-on-surface font-bold">Cloud Sync</div>
+            <div className="flex items-center gap-2">
+              <span className="font-headline-sm text-xs text-on-surface font-bold">Cloud Sync</span>
+              {pendingQueueCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-secondary/20 text-secondary border border-secondary/30">
+                  {pendingQueueCount} pending
+                </span>
+              )}
+            </div>
             <p className="font-body-md text-[11px] text-on-surface-variant max-w-lg">
-              Retry sending local updates that are waiting to sync.
+              {pendingQueueCount > 0
+                ? `${pendingQueueCount} local update${pendingQueueCount > 1 ? 's' : ''} waiting to sync to the cloud database.`
+                : 'All local changes are reconciled.'}
             </p>
           </div>
-          <button
-            onClick={handleManualSync}
-            type="button"
-            disabled={isSyncingServer}
-            className="px-4 py-2 rounded-full bg-secondary-container hover:bg-secondary text-on-secondary-container font-label-md text-xs font-bold transition-all whitespace-nowrap disabled:opacity-60"
-          >
-            {isSyncingServer ? 'Syncing...' : 'Sync Pending Logs Now'}
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {pendingQueueCount > 0 && (
+              <button
+                onClick={handleClearPendingQueue}
+                type="button"
+                className="px-3 py-2 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface-variant hover:text-on-surface font-label-md text-xs font-semibold transition-all whitespace-nowrap border border-white/10"
+                title="Keep logs stored locally on this device and clear the pending sync queue"
+              >
+                Clear Queue ({pendingQueueCount})
+              </button>
+            )}
+            <button
+              onClick={handleManualSync}
+              type="button"
+              disabled={isSyncingServer}
+              className="px-4 py-2 rounded-full bg-secondary-container hover:bg-secondary text-on-secondary-container font-label-md text-xs font-bold transition-all whitespace-nowrap disabled:opacity-60"
+            >
+              {isSyncingServer ? 'Syncing...' : 'Sync Pending Logs Now'}
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">

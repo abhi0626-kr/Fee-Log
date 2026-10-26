@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { getAllLoggedDates, getSettings } from '@/lib/sync-storage';
 import { calculateStreak } from '@/lib/date-utils';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { UserSettings } from '@/types';
 
 interface HeaderProps {
@@ -15,6 +16,7 @@ export default function Header({ onNewEntry }: HeaderProps) {
   const pathname = usePathname();
   const [streak, setStreak] = useState<number>(0);
   const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [hasCloudSession, setHasCloudSession] = useState(false);
 
   useEffect(() => {
     const updateHeader = () => {
@@ -29,11 +31,24 @@ export default function Header({ onNewEntry }: HeaderProps) {
       }
     };
     updateHeader();
+
+    let authUnsub: (() => void) | undefined;
+    if (isSupabaseConfigured && supabase) {
+      supabase.auth.getSession().then(({ data }) => {
+        setHasCloudSession(Boolean(data.session?.user));
+      });
+      const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+        setHasCloudSession(Boolean(session?.user));
+      });
+      authUnsub = () => listener.subscription.unsubscribe();
+    }
+
     window.addEventListener('storage', updateHeader);
     window.addEventListener('t1d-data-updated', updateHeader);
     return () => {
       window.removeEventListener('storage', updateHeader);
       window.removeEventListener('t1d-data-updated', updateHeader);
+      if (authUnsub) authUnsub();
     };
   }, [pathname]);
 
@@ -130,9 +145,9 @@ export default function Header({ onNewEntry }: HeaderProps) {
             <Link
               href="/login"
               title={
-                settings?.email && settings?.auth_provider === 'google'
-                  ? `Signed in as ${settings.display_name || 'User'} (${settings.email})`
-                  : 'Sign in to Feelog'
+                hasCloudSession
+                  ? `Signed into cloud as ${settings?.display_name || 'User'} (${settings?.email || 'Google Account'})`
+                  : 'Cloud sync inactive — tap to sign in with Google'
               }
               className="relative flex items-center justify-center p-0.5 rounded-full hover:ring-2 hover:ring-primary/40 transition-all"
             >
@@ -141,8 +156,9 @@ export default function Header({ onNewEntry }: HeaderProps) {
               </div>
               <span
                 className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-background ${
-                  settings?.email && settings?.auth_provider === 'google' ? 'bg-primary' : 'bg-outline/50'
+                  hasCloudSession ? 'bg-primary' : 'bg-outline/50'
                 }`}
+                title={hasCloudSession ? 'Cloud Synced' : 'Local / Offline Mode'}
               ></span>
             </Link>
           </div>
