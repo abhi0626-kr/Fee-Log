@@ -11,6 +11,61 @@ interface FoodScanResult {
   explanation: string;
 }
 
+/**
+ * Dynamically queries available models from Google for this specific API key,
+ * or returns a ranked list of robust fallback candidates.
+ */
+async function getCandidateModels(apiKey: string): Promise<string[]> {
+  try {
+    const listRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
+      { method: 'GET' }
+    );
+    if (listRes.ok) {
+      const listData = await listRes.json();
+      if (Array.isArray(listData.models)) {
+        const valid = listData.models
+          .filter(
+            (m: { supportedGenerationMethods?: string[]; name?: string }) =>
+              Array.isArray(m.supportedGenerationMethods) &&
+              m.supportedGenerationMethods.includes('generateContent') &&
+              m.name
+          )
+          .map((m: { name: string }) => m.name.replace(/^models\//, ''));
+
+        if (valid.length > 0) {
+          // Rank preferred models: flash models first, then 1.5, then 2.0
+          return valid.sort((a: string, b: string) => {
+            const getScore = (name: string) => {
+              let score = 0;
+              if (name.includes('flash')) score += 20;
+              if (name.includes('1.5')) score += 10;
+              if (name.includes('2.0') || name.includes('2.5')) score += 8;
+              if (name.includes('latest')) score += 5;
+              if (name.includes('pro')) score += 2;
+              return score;
+            };
+            return getScore(b) - getScore(a);
+          });
+        }
+      }
+    }
+  } catch {
+    // If list models call fails, fall back to hardcoded sequence
+  }
+
+  return [
+    'gemini-1.5-flash-latest',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-002',
+    'gemini-1.5-flash-001',
+    'gemini-1.5-pro-latest',
+    'gemini-1.5-pro',
+    'gemini-2.5-flash',
+  ];
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -37,18 +92,20 @@ export async function POST(request: NextRequest) {
     // Simulated Demo Scan if requested or if no key available but demo requested
     if (isDemo || (!resolvedApiKey && isDemo)) {
       const demoResult: FoodScanResult = {
-        items: mealHint === 'breakfast'
-          ? '3 idly with sambar and coconut chutney'
-          : mealHint === 'dinner'
-          ? '2 chapathi with paneer sabzi and curd'
-          : 'Rice plate with dal, mixed veg curry and curd',
+        items:
+          mealHint === 'breakfast'
+            ? '3 idly with sambar and coconut chutney'
+            : mealHint === 'dinner'
+            ? '2 chapathi with paneer sabzi and curd'
+            : 'Rice plate with dal, mixed veg curry and curd',
         carb_size: 'medium',
         carbs_g: mealHint === 'breakfast' ? 58 : mealHint === 'dinner' ? 44 : 68,
         protein_g: mealHint === 'breakfast' ? 12 : mealHint === 'dinner' ? 18 : 14,
         fiber_g: mealHint === 'breakfast' ? 6 : mealHint === 'dinner' ? 5.5 : 5,
         sodium_mg: mealHint === 'breakfast' ? 640 : mealHint === 'dinner' ? 510 : 680,
         calories: mealHint === 'breakfast' ? 340 : mealHint === 'dinner' ? 390 : 470,
-        explanation: '✨ AI Plate Scanner simulated detection: Identified plate items, carb portions, and electrolyte sodium profile.',
+        explanation:
+          '✨ AI Plate Scanner simulated detection: Identified plate items, carb portions, and electrolyte sodium profile.',
       };
 
       return NextResponse.json({ success: true, data: demoResult, isDemo: true });
@@ -100,53 +157,85 @@ Respond strictly in valid JSON matching this schema:
   "explanation": string
 }`;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${resolvedApiKey}`;
+    // Dynamically discover which Gemini models are available for this user's API key
+    const candidateModels = await getCandidateModels(resolvedApiKey);
 
-    const response = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: systemPrompt },
+    interface GeminiApiResponse {
+      candidates?: {
+        content?: {
+          parts?: {
+            text?: string;
+          }[];
+        };
+      }[];
+      error?: {
+        message?: string;
+      };
+    }
+
+    let geminiData: GeminiApiResponse | null = null;
+    let lastErrorMsg = 'Failed to connect to Google Gemini API.';
+
+    for (const modelName of candidateModels) {
+      try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${resolvedApiKey}`;
+
+        const response = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
               {
-                inline_data: {
-                  mime_type: mimeType,
-                  data: rawBase64,
-                },
+                parts: [
+                  { text: systemPrompt },
+                  {
+                    inline_data: {
+                      mime_type: mimeType,
+                      data: rawBase64,
+                    },
+                  },
+                ],
               },
             ],
-          },
-        ],
-        generationConfig: {
-          response_mime_type: 'application/json',
-          temperature: 0.2,
-        },
-      }),
-    });
+            generationConfig: {
+              response_mime_type: 'application/json',
+              temperature: 0.2,
+            },
+          }),
+        });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      let errorMsg = `Gemini API returned status ${response.status}`;
-      try {
-        const parsedErr = JSON.parse(errText);
-        if (parsedErr.error?.message) {
-          errorMsg = parsedErr.error.message;
+        if (response.ok) {
+          geminiData = await response.json();
+          break;
         }
-      } catch {
-        // use raw errorMsg
-      }
 
+        const errText = await response.text();
+        try {
+          const parsedErr = JSON.parse(errText);
+          lastErrorMsg = parsedErr.error?.message || errText;
+        } catch {
+          lastErrorMsg = errText;
+        }
+
+        // If it's a 404 or model not found, try the next model candidate
+        if (response.status === 404 || lastErrorMsg.toLowerCase().includes('not found')) {
+          continue;
+        } else {
+          // If it's a key/quota error (e.g. 400 or 403), stop retrying
+          break;
+        }
+      } catch (err) {
+        lastErrorMsg = (err as Error).message;
+      }
+    }
+
+    if (!geminiData) {
       return NextResponse.json(
-        { success: false, error: 'GEMINI_ERROR', message: errorMsg },
+        { success: false, error: 'GEMINI_ERROR', message: lastErrorMsg },
         { status: 502 }
       );
     }
 
-    const geminiData = await response.json();
     const candidateText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!candidateText) {
