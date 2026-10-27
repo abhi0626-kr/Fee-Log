@@ -84,4 +84,27 @@ describe('Deletion Tombstones and Deduplication', () => {
     assert.strictEqual(remaining.length, 1);
     assert.strictEqual(remaining[0].items, '8 chapathi, Greengram');
   });
+
+  it('saves food log with nutrients and macro calculations', () => {
+    const log = saveFoodLog({
+      meal: 'lunch',
+      items: 'Rice, Sambar, Curd',
+      carb_size: 'medium',
+      carbs_g: 58.5,
+      protein_g: 12.0,
+      fiber_g: 4.5,
+      sodium_mg: 450,
+      calories: 340,
+      log_date: '2026-10-27',
+      log_time: '13:00',
+    });
+
+    assert.strictEqual(getFoodLogs().length, 1);
+    const saved = getFoodLogs()[0];
+    assert.strictEqual(saved.items, 'Rice, Sambar, Curd');
+    assert.strictEqual(saved.carbs_g, 58.5);
+    assert.strictEqual(saved.protein_g, 12.0);
+    assert.strictEqual(saved.fiber_g, 4.5);
+    assert.strictEqual(saved.sodium_mg, 450);
+  });
 });

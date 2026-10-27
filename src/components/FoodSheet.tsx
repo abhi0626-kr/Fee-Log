@@ -159,16 +159,59 @@ export default function FoodSheet({
     setIsMacrosManuallyEdited(false);
   };
 
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+  // Client-side image compression to prevent exceeding localStorage quota (~5MB) or Supabase payload limit
+  const compressImage = (file: File, maxDim = 800, quality = 0.75): Promise<string> => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        const resultUrl = reader.result as string;
-        setPhotoPreview(resultUrl);
-        setScanMessage(null);
+      reader.onerror = () => reject(new Error('Failed to read selected image'));
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Failed to load image preview'));
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(e.target?.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressed);
+        };
+        img.src = e.target?.result as string;
       };
       reader.readAsDataURL(file);
+    });
+  };
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const compressedUrl = await compressImage(file, 800, 0.75);
+        setPhotoPreview(compressedUrl);
+        setScanMessage(null);
+      } catch (err) {
+        console.warn('Image compression fallback:', err);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setPhotoPreview(reader.result as string);
+          setScanMessage(null);
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -274,27 +317,40 @@ export default function FoodSheet({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!items.trim()) return;
+    if (!items.trim()) {
+      setScanMessage({
+        text: 'Please enter food items (or pick from the quick chips above) to save.',
+        type: 'error',
+      });
+      return;
+    }
 
-    saveFoodLog({
-      id: initialData?.id,
-      user_id: initialData?.user_id || getActiveUserId(),
-      log_date: dateStr,
-      log_time: logTime,
-      meal,
-      items: items.trim(),
-      carb_size: carbSize,
-      photo_url: photoPreview,
-      carbs_g: carbsG === '' ? null : Number(carbsG),
-      protein_g: proteinG === '' ? null : Number(proteinG),
-      fiber_g: fiberG === '' ? null : Number(fiberG),
-      sodium_mg: sodiumMg === '' ? null : Number(sodiumMg),
-      calories: calories === '' ? null : Number(calories),
-      note: note.trim() || null,
-    });
+    try {
+      saveFoodLog({
+        id: initialData?.id,
+        user_id: initialData?.user_id || getActiveUserId(),
+        log_date: dateStr,
+        log_time: logTime,
+        meal,
+        items: items.trim(),
+        carb_size: carbSize,
+        photo_url: photoPreview,
+        carbs_g: carbsG === '' ? null : Number(carbsG),
+        protein_g: proteinG === '' ? null : Number(proteinG),
+        fiber_g: fiberG === '' ? null : Number(fiberG),
+        sodium_mg: sodiumMg === '' ? null : Number(sodiumMg),
+        calories: calories === '' ? null : Number(calories),
+        note: note.trim() || null,
+      });
 
-    onSaved();
-    onClose();
+      onSaved();
+      onClose();
+    } catch (err) {
+      setScanMessage({
+        text: `Error saving meal: ${(err as Error).message}`,
+        type: 'error',
+      });
+    }
   };
 
   const mealOptions: { id: MealType; label: string }[] = [
@@ -637,7 +693,7 @@ export default function FoodSheet({
                 </div>
                 <input
                   type="number"
-                  step="0.5"
+                  step="any"
                   min="0"
                   value={carbsG}
                   onChange={(e) => {
@@ -673,7 +729,7 @@ export default function FoodSheet({
                 </div>
                 <input
                   type="number"
-                  step="0.5"
+                  step="any"
                   min="0"
                   value={proteinG}
                   onChange={(e) => {
@@ -709,7 +765,7 @@ export default function FoodSheet({
                 </div>
                 <input
                   type="number"
-                  step="0.5"
+                  step="any"
                   min="0"
                   value={fiberG}
                   onChange={(e) => {
@@ -745,7 +801,7 @@ export default function FoodSheet({
                 </div>
                 <input
                   type="number"
-                  step="10"
+                  step="any"
                   min="0"
                   value={sodiumMg}
                   onChange={(e) => {

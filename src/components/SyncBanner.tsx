@@ -10,6 +10,7 @@ import {
   hydrateFromSupabase,
   clearOfflineQueue,
   hasActiveCloudSession,
+  initSupabaseRealtime,
 } from '@/lib/sync-storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
@@ -109,20 +110,38 @@ export default function SyncBanner() {
       checkSession();
     };
 
+    const handleTriggerSync = () => {
+      if (getIsOnline()) {
+        doSync();
+        hydrateFromSupabase().catch(() => {});
+      }
+    };
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('focus', handleFocus);
     window.addEventListener('storage', handleDataUpdated);
     window.addEventListener('t1d-data-updated', handleDataUpdated);
+    window.addEventListener('t1d-quick-sync', handleTriggerSync);
     document.addEventListener('visibilitychange', handleVisibility);
 
     let authUnsubscribe: (() => void) | undefined;
+    let realtimeUnsubscribe: (() => void) | undefined;
+
     if (isSupabaseConfigured && supabase) {
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session?.user) {
+          realtimeUnsubscribe = initSupabaseRealtime(data.session.user.id);
+        }
+      });
+
       const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
         const hasUser = Boolean(session?.user);
         setHasCloudSession(hasUser);
-        if (hasUser) {
-          hydrateFromSupabase(session?.user.id).then(() => {
+        if (hasUser && session?.user) {
+          if (realtimeUnsubscribe) realtimeUnsubscribe();
+          realtimeUnsubscribe = initSupabaseRealtime(session.user.id);
+          hydrateFromSupabase(session.user.id).then(() => {
             doSync();
           });
         }
@@ -146,7 +165,7 @@ export default function SyncBanner() {
           }
         });
       }
-    }, 5000);
+    }, 3000);
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -154,8 +173,10 @@ export default function SyncBanner() {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('storage', handleDataUpdated);
       window.removeEventListener('t1d-data-updated', handleDataUpdated);
+      window.removeEventListener('t1d-quick-sync', handleTriggerSync);
       document.removeEventListener('visibilitychange', handleVisibility);
       if (authUnsubscribe) authUnsubscribe();
+      if (realtimeUnsubscribe) realtimeUnsubscribe();
       clearInterval(interval);
     };
   }, [doSync, checkSession]);

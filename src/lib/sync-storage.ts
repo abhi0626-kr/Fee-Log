@@ -247,6 +247,40 @@ function saveLocalArray<T>(key: string, items: T[]): void {
     window.dispatchEvent(new CustomEvent('t1d-data-updated'));
   } catch (err) {
     console.error(`Failed to save to localStorage for key ${key}:`, err);
+    // Automatic Quota Recovery
+    try {
+      const isQuota =
+        err instanceof Error &&
+        (err.name === 'QuotaExceededError' ||
+          err.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+          err.message.toLowerCase().includes('quota'));
+
+      if (isQuota) {
+        // 1. If key is food logs, strip large photo data URLs from older logs
+        if (key === STORAGE_KEYS.FOOD) {
+          const stripped = (items as unknown as FoodLog[]).map((food, idx) => {
+            // Keep recent photo, remove older bulky base64 data URLs (>1000 chars)
+            if (idx < items.length - 1 && food.photo_url && food.photo_url.length > 1000) {
+              return { ...food, photo_url: null };
+            }
+            return food;
+          });
+          localStorage.setItem(key, JSON.stringify(stripped));
+          window.dispatchEvent(new CustomEvent('t1d-data-updated'));
+          return;
+        }
+
+        // 2. Clear old queued items if queue is filling up
+        if (key === STORAGE_KEYS.QUEUE) {
+          const queue = items as unknown as SyncQueueItem[];
+          const compactQueue = queue.slice(-20); // Keep last 20
+          localStorage.setItem(key, JSON.stringify(compactQueue));
+          return;
+        }
+      }
+    } catch (recoveryErr) {
+      console.warn('LocalStorage quota recovery also failed:', recoveryErr);
+    }
   }
 }
 
@@ -290,12 +324,15 @@ function sanitizeFoodPayload<T extends Record<string, unknown>>(payload: T): Rec
   return base;
 }
 
-function isMissingColumnError(error?: { message?: string } | null): boolean {
-  if (!error?.message) return false;
-  const msg = error.message.toLowerCase();
+function isMissingColumnError(error?: { message?: string; details?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code === 'PGRST204' || error.code === '42703') return true;
+  const msg = `${error.message || ''} ${error.details || ''}`.toLowerCase();
   return (
-    msg.includes('column') &&
-    (msg.includes('does not exist') || msg.includes('schema cache') || msg.includes('could not find'))
+    msg.includes('column') ||
+    msg.includes('does not exist') ||
+    msg.includes('schema cache') ||
+    msg.includes('could not find')
   );
 }
 
@@ -551,231 +588,262 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       supabase.from('glucose_logs').select('*').eq('user_id', userId),
     ]);
 
-    const queryErrors = [
-      insulinRes.error,
-      foodRes.error,
-      activityRes.error,
-      feelRes.error,
-      glucoseRes.error,
-    ].filter(Boolean);
-    if (queryErrors.length > 0) {
-      throw new Error(
-        `Unable to load logs from Supabase: ${queryErrors
-          .map((error) => error?.message)
-          .join('; ')}`
-      );
-    }
-
     const deletedMap = getDeletedIdsMap();
     const queue = getOfflineQueue();
+    let anyHydrated = false;
 
     // 1. Two-way Insulin Sync
-    const rawRemoteInsulin = (insulinRes.data as InsulinLog[]) || [];
-    for (const r of rawRemoteInsulin) {
-      if (deletedMap[r.id]) {
-        executeDirectDelete('insulin_logs', r.id);
+    if (!insulinRes.error && Array.isArray(insulinRes.data)) {
+      try {
+        const rawRemoteInsulin = (insulinRes.data as InsulinLog[]) || [];
+        for (const r of rawRemoteInsulin) {
+          if (deletedMap[r.id]) {
+            executeDirectDelete('insulin_logs', r.id);
+          }
+        }
+        const remoteInsulin = rawRemoteInsulin.filter((r) => !deletedMap[r.id]);
+        const remoteInsulinIds = new Set(remoteInsulin.map((r) => r.id));
+        const localInsulin = getInsulinLogs().filter((l) => !deletedMap[l.id]);
+
+        const pendingInsulinIds = new Set(
+          queue
+            .filter((q) => q.table === 'insulin_logs' && (q.action === 'insert' || q.action === 'update'))
+            .map((q) => q.id)
+        );
+
+        const unuploadedInsulin = localInsulin
+          .filter((l) => !remoteInsulinIds.has(l.id) && (pendingInsulinIds.has(l.id) || !l.user_id || l.user_id !== userId))
+          .map((l) => ({ ...l, user_id: userId }));
+
+        let insulinUploadSucceeded = true;
+        if (unuploadedInsulin.length > 0) {
+          const { error } = await supabase.from('insulin_logs').upsert(unuploadedInsulin);
+          if (error) {
+            insulinUploadSucceeded = false;
+            console.warn('Failed to upsert unuploaded insulin logs:', error.message);
+          }
+        }
+        if (insulinUploadSucceeded) {
+          unuploadedInsulin.forEach((record) => remoteInsulinIds.add(record.id));
+        }
+        acknowledgeSyncedRecords('insulin_logs', remoteInsulinIds);
+        acknowledgeDeletedRecords('insulin_logs', remoteInsulinIds);
+        const mergedInsulin = mergeRecordsById(
+          localInsulin.map((record) => ({ ...record, user_id: userId })),
+          remoteInsulin
+        ).filter((r) => !deletedMap[r.id]);
+        saveLocalArray(STORAGE_KEYS.INSULIN, mergedInsulin);
+        anyHydrated = true;
+      } catch (e) {
+        console.warn('Error during insulin hydration:', e);
       }
+    } else if (insulinRes.error) {
+      console.warn('Supabase insulin query notice:', insulinRes.error.message);
     }
-    const remoteInsulin = rawRemoteInsulin.filter((r) => !deletedMap[r.id]);
-    const remoteInsulinIds = new Set(remoteInsulin.map((r) => r.id));
-    const localInsulin = getInsulinLogs().filter((l) => !deletedMap[l.id]);
-
-    const pendingInsulinIds = new Set(
-      queue
-        .filter((q) => q.table === 'insulin_logs' && (q.action === 'insert' || q.action === 'update'))
-        .map((q) => q.id)
-    );
-
-    const unuploadedInsulin = localInsulin
-      .filter((l) => !remoteInsulinIds.has(l.id) && (pendingInsulinIds.has(l.id) || !l.user_id || l.user_id !== userId))
-      .map((l) => ({ ...l, user_id: userId }));
-
-    let insulinUploadSucceeded = true;
-    if (unuploadedInsulin.length > 0) {
-      const { error } = await supabase.from('insulin_logs').upsert(unuploadedInsulin);
-      if (error) {
-        insulinUploadSucceeded = false;
-        console.warn('Failed to upsert unuploaded insulin logs:', error.message);
-      }
-    }
-    if (insulinUploadSucceeded) {
-      unuploadedInsulin.forEach((record) => remoteInsulinIds.add(record.id));
-    }
-    acknowledgeSyncedRecords('insulin_logs', remoteInsulinIds);
-    acknowledgeDeletedRecords('insulin_logs', remoteInsulinIds);
-    const mergedInsulin = mergeRecordsById(
-      localInsulin.map((record) => ({ ...record, user_id: userId })),
-      remoteInsulin
-    ).filter((r) => !deletedMap[r.id]);
-    saveLocalArray(STORAGE_KEYS.INSULIN, mergedInsulin);
 
     // 2. Two-way Food Sync
-    const rawRemoteFood = (foodRes.data as FoodLog[]) || [];
-    for (const r of rawRemoteFood) {
-      if (deletedMap[r.id]) {
-        executeDirectDelete('food_logs', r.id);
-      }
-    }
-    const remoteFood = rawRemoteFood.filter((r) => !deletedMap[r.id]);
-    const remoteFoodIds = new Set(remoteFood.map((r) => r.id));
-    const localFood = getFoodLogs().filter((l) => !deletedMap[l.id]);
+    if (!foodRes.error && Array.isArray(foodRes.data)) {
+      try {
+        const rawRemoteFood = (foodRes.data as FoodLog[]) || [];
+        for (const r of rawRemoteFood) {
+          if (deletedMap[r.id]) {
+            executeDirectDelete('food_logs', r.id);
+          }
+        }
+        const remoteFood = rawRemoteFood.filter((r) => !deletedMap[r.id]);
+        const remoteFoodIds = new Set(remoteFood.map((r) => r.id));
+        const localFood = getFoodLogs().filter((l) => !deletedMap[l.id]);
 
-    const pendingFoodIds = new Set(
-      queue
-        .filter((q) => q.table === 'food_logs' && (q.action === 'insert' || q.action === 'update'))
-        .map((q) => q.id)
-    );
+        const pendingFoodIds = new Set(
+          queue
+            .filter((q) => q.table === 'food_logs' && (q.action === 'insert' || q.action === 'update'))
+            .map((q) => q.id)
+        );
 
-    const unuploadedFood = localFood
-      .filter((l) => !remoteFoodIds.has(l.id) && (pendingFoodIds.has(l.id) || !l.user_id || l.user_id !== userId))
-      .map((l) => ({ ...l, user_id: userId }));
+        const unuploadedFood = localFood
+          .filter((l) => !remoteFoodIds.has(l.id) && (pendingFoodIds.has(l.id) || !l.user_id || l.user_id !== userId))
+          .map((l) => ({ ...l, user_id: userId }));
 
-    let foodUploadSucceeded = true;
-    if (unuploadedFood.length > 0) {
-      let { error } = await supabase.from('food_logs').upsert(unuploadedFood);
-      if (error && isMissingColumnError(error)) {
-        const baseFoodLogs = unuploadedFood.map(sanitizeFoodPayload);
-        const retryRes = await supabase.from('food_logs').upsert(baseFoodLogs);
-        error = retryRes.error;
+        let foodUploadSucceeded = true;
+        if (unuploadedFood.length > 0) {
+          let { error } = await supabase.from('food_logs').upsert(unuploadedFood);
+          if (error && isMissingColumnError(error)) {
+            const baseFoodLogs = unuploadedFood.map(sanitizeFoodPayload);
+            const retryRes = await supabase.from('food_logs').upsert(baseFoodLogs);
+            error = retryRes.error;
+          }
+          if (error) {
+            foodUploadSucceeded = false;
+            console.warn('Failed to upsert unuploaded food logs:', error.message);
+          }
+        }
+        if (foodUploadSucceeded) {
+          unuploadedFood.forEach((record) => remoteFoodIds.add(record.id));
+        }
+        acknowledgeSyncedRecords('food_logs', remoteFoodIds);
+        acknowledgeDeletedRecords('food_logs', remoteFoodIds);
+        const mergedFood = mergeFoodRecords(
+          localFood.map((record) => ({ ...record, user_id: userId })),
+          remoteFood
+        ).filter((r) => !deletedMap[r.id]);
+        saveLocalArray(STORAGE_KEYS.FOOD, mergedFood);
+        anyHydrated = true;
+      } catch (e) {
+        console.warn('Error during food hydration:', e);
       }
-      if (error) {
-        foodUploadSucceeded = false;
-        console.warn('Failed to upsert unuploaded food logs:', error.message);
-      }
+    } else if (foodRes.error) {
+      console.warn('Supabase food query notice:', foodRes.error.message);
     }
-    if (foodUploadSucceeded) {
-      unuploadedFood.forEach((record) => remoteFoodIds.add(record.id));
-    }
-    acknowledgeSyncedRecords('food_logs', remoteFoodIds);
-    acknowledgeDeletedRecords('food_logs', remoteFoodIds);
-    const mergedFood = mergeFoodRecords(
-      localFood.map((record) => ({ ...record, user_id: userId })),
-      remoteFood
-    ).filter((r) => !deletedMap[r.id]);
-    saveLocalArray(STORAGE_KEYS.FOOD, mergedFood);
 
     // 3. Two-way Activity Sync
-    const rawRemoteActivity = (activityRes.data as ActivityLog[]) || [];
-    for (const r of rawRemoteActivity) {
-      if (deletedMap[r.id]) {
-        executeDirectDelete('activity_logs', r.id);
+    if (!activityRes.error && Array.isArray(activityRes.data)) {
+      try {
+        const rawRemoteActivity = (activityRes.data as ActivityLog[]) || [];
+        for (const r of rawRemoteActivity) {
+          if (deletedMap[r.id]) {
+            executeDirectDelete('activity_logs', r.id);
+          }
+        }
+        const remoteActivity = rawRemoteActivity.filter((r) => !deletedMap[r.id]);
+        const remoteActivityIds = new Set(remoteActivity.map((r) => r.id));
+        const localActivity = getActivityLogs().filter((l) => !deletedMap[l.id]);
+
+        const pendingActivityIds = new Set(
+          queue
+            .filter((q) => q.table === 'activity_logs' && (q.action === 'insert' || q.action === 'update'))
+            .map((q) => q.id)
+        );
+
+        const unuploadedActivity = localActivity
+          .filter((l) => !remoteActivityIds.has(l.id) && (pendingActivityIds.has(l.id) || !l.user_id || l.user_id !== userId))
+          .map((l) => ({ ...l, user_id: userId }));
+
+        let activityUploadSucceeded = true;
+        if (unuploadedActivity.length > 0) {
+          const { error } = await supabase.from('activity_logs').upsert(unuploadedActivity);
+          if (error) {
+            activityUploadSucceeded = false;
+            console.warn('Failed to upsert unuploaded activity logs:', error.message);
+          }
+        }
+        if (activityUploadSucceeded) {
+          unuploadedActivity.forEach((record) => remoteActivityIds.add(record.id));
+        }
+        acknowledgeSyncedRecords('activity_logs', remoteActivityIds);
+        acknowledgeDeletedRecords('activity_logs', remoteActivityIds);
+        const mergedActivity = mergeRecordsById(
+          localActivity.map((record) => ({ ...record, user_id: userId })),
+          remoteActivity
+        ).filter((r) => !deletedMap[r.id]);
+        saveLocalArray(STORAGE_KEYS.ACTIVITY, mergedActivity);
+        anyHydrated = true;
+      } catch (e) {
+        console.warn('Error during activity hydration:', e);
       }
+    } else if (activityRes.error) {
+      console.warn('Supabase activity query notice:', activityRes.error.message);
     }
-    const remoteActivity = rawRemoteActivity.filter((r) => !deletedMap[r.id]);
-    const remoteActivityIds = new Set(remoteActivity.map((r) => r.id));
-    const localActivity = getActivityLogs().filter((l) => !deletedMap[l.id]);
-
-    const pendingActivityIds = new Set(
-      queue
-        .filter((q) => q.table === 'activity_logs' && (q.action === 'insert' || q.action === 'update'))
-        .map((q) => q.id)
-    );
-
-    const unuploadedActivity = localActivity
-      .filter((l) => !remoteActivityIds.has(l.id) && (pendingActivityIds.has(l.id) || !l.user_id || l.user_id !== userId))
-      .map((l) => ({ ...l, user_id: userId }));
-
-    let activityUploadSucceeded = true;
-    if (unuploadedActivity.length > 0) {
-      const { error } = await supabase.from('activity_logs').upsert(unuploadedActivity);
-      if (error) {
-        activityUploadSucceeded = false;
-        console.warn('Failed to upsert unuploaded activity logs:', error.message);
-      }
-    }
-    if (activityUploadSucceeded) {
-      unuploadedActivity.forEach((record) => remoteActivityIds.add(record.id));
-    }
-    acknowledgeSyncedRecords('activity_logs', remoteActivityIds);
-    acknowledgeDeletedRecords('activity_logs', remoteActivityIds);
-    const mergedActivity = mergeRecordsById(
-      localActivity.map((record) => ({ ...record, user_id: userId })),
-      remoteActivity
-    ).filter((r) => !deletedMap[r.id]);
-    saveLocalArray(STORAGE_KEYS.ACTIVITY, mergedActivity);
 
     // 4. Two-way Feel Sync
-    const rawRemoteFeel = (feelRes.data as FeelLog[]) || [];
-    for (const r of rawRemoteFeel) {
-      if (deletedMap[r.id]) {
-        executeDirectDelete('feel_logs', r.id);
+    if (!feelRes.error && Array.isArray(feelRes.data)) {
+      try {
+        const rawRemoteFeel = (feelRes.data as FeelLog[]) || [];
+        for (const r of rawRemoteFeel) {
+          if (deletedMap[r.id]) {
+            executeDirectDelete('feel_logs', r.id);
+          }
+        }
+        const remoteFeel = rawRemoteFeel.filter((r) => !deletedMap[r.id]);
+        const remoteFeelIds = new Set(remoteFeel.map((r) => r.id));
+        const localFeel = getFeelLogs().filter((l) => !deletedMap[l.id]);
+
+        const pendingFeelIds = new Set(
+          queue
+            .filter((q) => q.table === 'feel_logs' && (q.action === 'insert' || q.action === 'update'))
+            .map((q) => q.id)
+        );
+
+        const unuploadedFeel = localFeel
+          .filter((l) => !remoteFeelIds.has(l.id) && (pendingFeelIds.has(l.id) || !l.user_id || l.user_id !== userId))
+          .map((l) => ({ ...l, user_id: userId }));
+
+        let feelUploadSucceeded = true;
+        if (unuploadedFeel.length > 0) {
+          const { error } = await supabase.from('feel_logs').upsert(unuploadedFeel);
+          if (error) {
+            feelUploadSucceeded = false;
+            console.warn('Failed to upsert unuploaded feel logs:', error.message);
+          }
+        }
+        if (feelUploadSucceeded) {
+          unuploadedFeel.forEach((record) => remoteFeelIds.add(record.id));
+        }
+        acknowledgeSyncedRecords('feel_logs', remoteFeelIds);
+        acknowledgeDeletedRecords('feel_logs', remoteFeelIds);
+        const mergedFeel = mergeRecordsById(
+          localFeel.map((record) => ({ ...record, user_id: userId })),
+          remoteFeel
+        ).filter((r) => !deletedMap[r.id]);
+        saveLocalArray(STORAGE_KEYS.FEEL, mergedFeel);
+        anyHydrated = true;
+      } catch (e) {
+        console.warn('Error during feel hydration:', e);
       }
+    } else if (feelRes.error) {
+      console.warn('Supabase feel query notice:', feelRes.error.message);
     }
-    const remoteFeel = rawRemoteFeel.filter((r) => !deletedMap[r.id]);
-    const remoteFeelIds = new Set(remoteFeel.map((r) => r.id));
-    const localFeel = getFeelLogs().filter((l) => !deletedMap[l.id]);
-
-    const pendingFeelIds = new Set(
-      queue
-        .filter((q) => q.table === 'feel_logs' && (q.action === 'insert' || q.action === 'update'))
-        .map((q) => q.id)
-    );
-
-    const unuploadedFeel = localFeel
-      .filter((l) => !remoteFeelIds.has(l.id) && (pendingFeelIds.has(l.id) || !l.user_id || l.user_id !== userId))
-      .map((l) => ({ ...l, user_id: userId }));
-
-    let feelUploadSucceeded = true;
-    if (unuploadedFeel.length > 0) {
-      const { error } = await supabase.from('feel_logs').upsert(unuploadedFeel);
-      if (error) {
-        feelUploadSucceeded = false;
-        console.warn('Failed to upsert unuploaded feel logs:', error.message);
-      }
-    }
-    if (feelUploadSucceeded) {
-      unuploadedFeel.forEach((record) => remoteFeelIds.add(record.id));
-    }
-    acknowledgeSyncedRecords('feel_logs', remoteFeelIds);
-    acknowledgeDeletedRecords('feel_logs', remoteFeelIds);
-    const mergedFeel = mergeRecordsById(
-      localFeel.map((record) => ({ ...record, user_id: userId })),
-      remoteFeel
-    ).filter((r) => !deletedMap[r.id]);
-    saveLocalArray(STORAGE_KEYS.FEEL, mergedFeel);
 
     // 5. Two-way Glucose Sync
-    const rawRemoteGlucose = (glucoseRes.data as GlucoseLog[]) || [];
-    for (const r of rawRemoteGlucose) {
-      if (deletedMap[r.id]) {
-        executeDirectDelete('glucose_logs', r.id);
+    if (!glucoseRes.error && Array.isArray(glucoseRes.data)) {
+      try {
+        const rawRemoteGlucose = (glucoseRes.data as GlucoseLog[]) || [];
+        for (const r of rawRemoteGlucose) {
+          if (deletedMap[r.id]) {
+            executeDirectDelete('glucose_logs', r.id);
+          }
+        }
+        const remoteGlucose = rawRemoteGlucose.filter((r) => !deletedMap[r.id]);
+        const remoteGlucoseIds = new Set(remoteGlucose.map((r) => r.id));
+        const localGlucose = getGlucoseLogs().filter((l) => !deletedMap[l.id]);
+
+        const pendingGlucoseIds = new Set(
+          queue
+            .filter((q) => q.table === 'glucose_logs' && (q.action === 'insert' || q.action === 'update'))
+            .map((q) => q.id)
+        );
+
+        const unuploadedGlucose = localGlucose
+          .filter((l) => !remoteGlucoseIds.has(l.id) && (pendingGlucoseIds.has(l.id) || !l.user_id || l.user_id !== userId))
+          .map((l) => ({ ...l, user_id: userId }));
+
+        let glucoseUploadSucceeded = true;
+        if (unuploadedGlucose.length > 0) {
+          const { error } = await supabase.from('glucose_logs').upsert(unuploadedGlucose);
+          if (error) {
+            glucoseUploadSucceeded = false;
+            console.warn('Failed to upsert unuploaded glucose logs:', error.message);
+          }
+        }
+        if (glucoseUploadSucceeded) {
+          unuploadedGlucose.forEach((record) => remoteGlucoseIds.add(record.id));
+        }
+        acknowledgeSyncedRecords('glucose_logs', remoteGlucoseIds);
+        acknowledgeDeletedRecords('glucose_logs', remoteGlucoseIds);
+        const mergedGlucose = mergeRecordsById(
+          localGlucose.map((record) => ({ ...record, user_id: userId })),
+          remoteGlucose
+        ).filter((r) => !deletedMap[r.id]);
+        saveLocalArray(STORAGE_KEYS.GLUCOSE, mergedGlucose);
+        anyHydrated = true;
+      } catch (e) {
+        console.warn('Error during glucose hydration:', e);
       }
+    } else if (glucoseRes.error) {
+      console.warn('Supabase glucose query notice:', glucoseRes.error.message);
     }
-    const remoteGlucose = rawRemoteGlucose.filter((r) => !deletedMap[r.id]);
-    const remoteGlucoseIds = new Set(remoteGlucose.map((r) => r.id));
-    const localGlucose = getGlucoseLogs().filter((l) => !deletedMap[l.id]);
-
-    const pendingGlucoseIds = new Set(
-      queue
-        .filter((q) => q.table === 'glucose_logs' && (q.action === 'insert' || q.action === 'update'))
-        .map((q) => q.id)
-    );
-
-    const unuploadedGlucose = localGlucose
-      .filter((l) => !remoteGlucoseIds.has(l.id) && (pendingGlucoseIds.has(l.id) || !l.user_id || l.user_id !== userId))
-      .map((l) => ({ ...l, user_id: userId }));
-
-    let glucoseUploadSucceeded = true;
-    if (unuploadedGlucose.length > 0) {
-      const { error } = await supabase.from('glucose_logs').upsert(unuploadedGlucose);
-      if (error) {
-        glucoseUploadSucceeded = false;
-        console.warn('Failed to upsert unuploaded glucose logs:', error.message);
-      }
-    }
-    if (glucoseUploadSucceeded) {
-      unuploadedGlucose.forEach((record) => remoteGlucoseIds.add(record.id));
-    }
-    acknowledgeSyncedRecords('glucose_logs', remoteGlucoseIds);
-    acknowledgeDeletedRecords('glucose_logs', remoteGlucoseIds);
-    const mergedGlucose = mergeRecordsById(
-      localGlucose.map((record) => ({ ...record, user_id: userId })),
-      remoteGlucose
-    ).filter((r) => !deletedMap[r.id]);
-    saveLocalArray(STORAGE_KEYS.GLUCOSE, mergedGlucose);
 
     window.dispatchEvent(new CustomEvent('t1d-data-updated'));
-    return true;
+    return anyHydrated;
   } catch (err) {
     console.warn('Error hydrating from Supabase:', err);
     return false;
@@ -826,12 +894,64 @@ export async function hydrateFromServerDatabase(): Promise<boolean> {
   }
 }
 
+// REALTIME SUPABASE CHANGE SUBSCRIPTION
+// Listens for instant cross-device updates across insulin, food, feel, activity, and glucose logs
+let realtimeChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null;
+
+export function initSupabaseRealtime(userId?: string): () => void {
+  if (typeof window === 'undefined' || !isSupabaseConfigured || !supabase) {
+    return () => {};
+  }
+
+  // Avoid duplicate channels
+  if (realtimeChannel) {
+    try {
+      supabase.removeChannel(realtimeChannel);
+    } catch {
+      // ignore
+    }
+    realtimeChannel = null;
+  }
+
+  try {
+    const channelName = `t1d-sync-live-${userId || 'active'}-${Date.now()}`;
+    const handleRemoteChange = () => {
+      hydrateFromSupabase(userId).catch(() => {});
+    };
+
+    realtimeChannel = supabase
+      .channel(channelName)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'insulin_logs' }, handleRemoteChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'food_logs' }, handleRemoteChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, handleRemoteChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'feel_logs' }, handleRemoteChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'glucose_logs' }, handleRemoteChange)
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('T1D Realtime live sync active on Supabase');
+        }
+      });
+
+    return () => {
+      if (realtimeChannel && supabase) {
+        supabase.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+      }
+    };
+  } catch (err) {
+    console.warn('Realtime subscription init error:', err);
+    return () => {};
+  }
+}
+
 // INSULIN LOGS
 export function getInsulinLogs(): InsulinLog[] {
   return getLocalArray<InsulinLog>(STORAGE_KEYS.INSULIN);
 }
 
-export function saveInsulinLog(log: Omit<InsulinLog, 'id' | 'created_at'> & { id?: string }): InsulinLog {
+export function saveInsulinLog(
+  log: Omit<InsulinLog, 'id' | 'created_at' | 'user_id'> & { id?: string; user_id?: string }
+): InsulinLog {
   const existing = getInsulinLogs();
   const id = log.id || crypto.randomUUID();
   const userId = log.user_id && log.user_id !== 'user-1' ? log.user_id : getActiveUserId();
@@ -880,7 +1000,9 @@ export function getFoodLogs(): FoodLog[] {
   return getLocalArray<FoodLog>(STORAGE_KEYS.FOOD);
 }
 
-export function saveFoodLog(log: Omit<FoodLog, 'id' | 'created_at'> & { id?: string }): FoodLog {
+export function saveFoodLog(
+  log: Omit<FoodLog, 'id' | 'created_at' | 'user_id'> & { id?: string; user_id?: string }
+): FoodLog {
   const existing = getFoodLogs();
   const id = log.id || crypto.randomUUID();
   const userId = log.user_id && log.user_id !== 'user-1' ? log.user_id : getActiveUserId();
@@ -929,7 +1051,9 @@ export function getActivityLogs(): ActivityLog[] {
   return getLocalArray<ActivityLog>(STORAGE_KEYS.ACTIVITY);
 }
 
-export function saveActivityLog(log: Omit<ActivityLog, 'id' | 'created_at'> & { id?: string }): ActivityLog {
+export function saveActivityLog(
+  log: Omit<ActivityLog, 'id' | 'created_at' | 'user_id'> & { id?: string; user_id?: string }
+): ActivityLog {
   const existing = getActivityLogs();
   const id = log.id || crypto.randomUUID();
   const userId = log.user_id && log.user_id !== 'user-1' ? log.user_id : getActiveUserId();
@@ -978,7 +1102,9 @@ export function getFeelLogs(): FeelLog[] {
   return getLocalArray<FeelLog>(STORAGE_KEYS.FEEL);
 }
 
-export function saveFeelLog(log: Omit<FeelLog, 'id' | 'created_at'> & { id?: string }): FeelLog {
+export function saveFeelLog(
+  log: Omit<FeelLog, 'id' | 'created_at' | 'user_id'> & { id?: string; user_id?: string }
+): FeelLog {
   const existing = getFeelLogs();
   const id = log.id || crypto.randomUUID();
   const userId = log.user_id && log.user_id !== 'user-1' ? log.user_id : getActiveUserId();
@@ -1027,7 +1153,9 @@ export function getGlucoseLogs(): GlucoseLog[] {
   return getLocalArray<GlucoseLog>(STORAGE_KEYS.GLUCOSE);
 }
 
-export function saveGlucoseLog(log: Omit<GlucoseLog, 'id' | 'created_at'> & { id?: string }): GlucoseLog {
+export function saveGlucoseLog(
+  log: Omit<GlucoseLog, 'id' | 'created_at' | 'user_id'> & { id?: string; user_id?: string }
+): GlucoseLog {
   const existing = getGlucoseLogs();
   const id = log.id || crypto.randomUUID();
   const userId = log.user_id && log.user_id !== 'user-1' ? log.user_id : getActiveUserId();

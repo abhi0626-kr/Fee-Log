@@ -112,7 +112,7 @@ export default function Header({ onNewEntry }: HeaderProps) {
           )}
 
           {/* Right Area: Streak & Action Button */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {pathname !== '/login' && (
               <>
                 <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-low border border-tertiary/20 text-tertiary font-label-md text-xs shadow-[0_0_20px_rgba(255,185,95,0.15)]">
@@ -121,6 +121,17 @@ export default function Header({ onNewEntry }: HeaderProps) {
                     {streak > 0 ? `${streak} day${streak > 1 ? 's' : ''} logged` : '0 days logged'}
                   </span>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('t1d-quick-sync'));
+                  }}
+                  title="Sync now with cloud database"
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-surface-container-low hover:bg-surface-container border border-white/10 text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[1.125rem] text-primary">sync</span>
+                </button>
 
                 <button
                   onClick={() => {
