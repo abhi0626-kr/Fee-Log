@@ -66,7 +66,8 @@ create table if not exists food_logs (
   carbs_g numeric,                     -- grams of carbohydrate
   protein_g numeric,                   -- grams of protein
   fiber_g numeric,                     -- grams of dietary fiber
-  sodium_mg numeric,                   -- milligrams of sodium
+  sugar_g numeric,                     -- grams of sugar
+  sodium_mg numeric,                   -- milligrams of sodium (optional)
   calories numeric,                    -- estimated kcal
   note text,
   created_at timestamptz default now()
@@ -76,6 +77,7 @@ create table if not exists food_logs (
 alter table food_logs add column if not exists carbs_g numeric;
 alter table food_logs add column if not exists protein_g numeric;
 alter table food_logs add column if not exists fiber_g numeric;
+alter table food_logs add column if not exists sugar_g numeric;
 alter table food_logs add column if not exists sodium_mg numeric;
 alter table food_logs add column if not exists calories numeric;
 

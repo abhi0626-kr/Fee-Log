@@ -12,7 +12,6 @@ import {
   clearOfflineQueue,
   flushOfflineQueue,
   getOfflineQueue,
-  hydrateFromSupabase,
   setUserLoggedIn,
   isUserLoggedIn,
   deduplicateLogs,
@@ -168,7 +167,6 @@ export default function SettingsPage() {
         return;
       }
 
-      const hydrated = await hydrateFromSupabase();
       const res = await flushOfflineQueue();
       const remaining = getOfflineQueue().length;
       setPendingQueueCount(remaining);
@@ -179,11 +177,7 @@ export default function SettingsPage() {
           `Sync incomplete: ${res.synced} processed, ${remaining} still pending. Check connection or sign in again.`
         );
       } else {
-        setDataMessage(
-          hydrated
-            ? 'Sync complete: local logs reconciled with your cloud account.'
-            : `Sync complete: ${res.synced} pending items processed.`
-        );
+        setDataMessage(`Sync complete: ${res.synced} pending items processed.`);
       }
     } catch (error) {
       setDataMessage(`Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}.`);

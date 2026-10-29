@@ -6,7 +6,6 @@ import {
   getOfflineQueue,
   flushOfflineQueue,
   getIsOnline,
-  hydrateFromServerDatabase,
   hydrateFromSupabase,
   clearOfflineQueue,
   hasActiveCloudSession,
@@ -64,11 +63,8 @@ export default function SyncBanner() {
     setQueueCount(q.length);
     checkSession();
 
-    // Initial server hydration & sync
-    hydrateFromServerDatabase().then(() => {
-      if (q.length > 0 && getIsOnline()) {
-        doSync();
-      }
+    hydrateFromSupabase().catch((error) => {
+      console.error('Unable to load logs from database:', error);
     });
 
     const handleOnline = () => {
@@ -76,33 +72,12 @@ export default function SyncBanner() {
       checkSession().then((hasSession) => {
         if (hasSession) {
           doSync();
-          hydrateFromSupabase().catch(() => {});
         }
       });
     };
 
     const handleOffline = () => {
       setOnline(false);
-    };
-
-    const handleFocus = () => {
-      if (getIsOnline()) {
-        checkSession().then((hasSession) => {
-          if (hasSession) {
-            hydrateFromSupabase().catch(() => {});
-          }
-        });
-      }
-    };
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && getIsOnline()) {
-        checkSession().then((hasSession) => {
-          if (hasSession) {
-            hydrateFromSupabase().catch(() => {});
-          }
-        });
-      }
     };
 
     const handleDataUpdated = () => {
@@ -113,17 +88,23 @@ export default function SyncBanner() {
     const handleTriggerSync = () => {
       if (getIsOnline()) {
         doSync();
-        hydrateFromSupabase().catch(() => {});
+      }
+    };
+
+    const handleRefreshData = () => {
+      if (getIsOnline()) {
+        hydrateFromSupabase().catch((error) => {
+          console.error('Unable to refresh logs from database:', error);
+        });
       }
     };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    window.addEventListener('focus', handleFocus);
     window.addEventListener('storage', handleDataUpdated);
     window.addEventListener('t1d-data-updated', handleDataUpdated);
     window.addEventListener('t1d-quick-sync', handleTriggerSync);
-    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('t1d-refresh-data', handleRefreshData);
 
     let authUnsubscribe: (() => void) | undefined;
     let realtimeUnsubscribe: (() => void) | undefined;
@@ -141,8 +122,8 @@ export default function SyncBanner() {
         if (hasUser && session?.user) {
           if (realtimeUnsubscribe) realtimeUnsubscribe();
           realtimeUnsubscribe = initSupabaseRealtime(session.user.id);
-          hydrateFromSupabase(session.user.id).then(() => {
-            doSync();
+          hydrateFromSupabase(session.user.id).catch((error) => {
+            console.error('Unable to load logs after sign-in:', error);
           });
         }
       });
@@ -158,23 +139,16 @@ export default function SyncBanner() {
             doSync();
           }
         });
-      } else if (getIsOnline()) {
-        checkSession().then((hasSession) => {
-          if (hasSession) {
-            hydrateFromSupabase().catch(() => {});
-          }
-        });
       }
     }, 3000);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('focus', handleFocus);
       window.removeEventListener('storage', handleDataUpdated);
       window.removeEventListener('t1d-data-updated', handleDataUpdated);
       window.removeEventListener('t1d-quick-sync', handleTriggerSync);
-      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('t1d-refresh-data', handleRefreshData);
       if (authUnsubscribe) authUnsubscribe();
       if (realtimeUnsubscribe) realtimeUnsubscribe();
       clearInterval(interval);
@@ -208,7 +182,7 @@ export default function SyncBanner() {
     return (
       <div className="fixed top-0 left-0 right-0 z-[60] bg-tertiary-container text-on-tertiary-container text-xs px-3 py-1 flex items-center justify-center gap-1.5 font-medium shadow-md">
         <span className="material-symbols-outlined text-[14px]">wifi_off</span>
-        <span>Offline mode — logs saved locally and will sync when connected</span>
+        <span>Offline — database writes are unavailable until you reconnect</span>
       </div>
     );
   }

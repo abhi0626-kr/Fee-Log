@@ -55,23 +55,26 @@ export default function ActivitySheet({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (durationMin <= 0) return;
 
-    saveActivityLog({
-      id: initialData?.id,
-      user_id: initialData?.user_id || getActiveUserId(),
-      log_date: initialData?.log_date || dateStr,
-      log_time: logTime,
-      activity_type: activityType,
-      duration_min: Number(durationMin),
-      intensity,
-      note: note.trim() || null,
-    });
-
-    onSaved();
-    onClose();
+    try {
+      await saveActivityLog({
+        id: initialData?.id,
+        user_id: initialData?.user_id || getActiveUserId(),
+        log_date: initialData?.log_date || dateStr,
+        log_time: logTime,
+        activity_type: activityType,
+        duration_min: Number(durationMin),
+        intensity,
+        note: note.trim() || null,
+      });
+      onSaved();
+      onClose();
+    } catch (error) {
+      console.error('Unable to save activity log:', error);
+    }
   };
 
   const activityOptions: { id: ActivityType; label: string }[] = [

@@ -95,6 +95,103 @@ export interface SyncResult {
 
 let flushPromise: Promise<SyncResult> | null = null;
 
+const memoryLogs = {
+  insulin: [] as InsulinLog[],
+  food: [] as FoodLog[],
+  activity: [] as ActivityLog[],
+  feel: [] as FeelLog[],
+  glucose: [] as GlucoseLog[],
+};
+
+type LogTable = SyncQueueItem['table'];
+
+function notifyDataUpdated(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('t1d-data-updated'));
+  }
+}
+
+async function getRequiredUserId(): Promise<string> {
+  const userId = await getCloudAuthUserId();
+  if (!userId) {
+    throw new Error('You must be signed in to save logs to the database.');
+  }
+  return userId;
+}
+
+async function upsertLog<T extends { id: string; user_id: string }>(
+  table: LogTable,
+  log: T
+): Promise<T> {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.');
+  }
+  const userId = await getRequiredUserId();
+  const record = { ...log, user_id: userId };
+  const { data, error } = await supabase.from(table).upsert(record).select().single();
+  if (error) {
+    throw new Error(`Failed to save ${table}: ${error.message}`);
+  }
+  return (data || record) as T;
+}
+
+async function deleteLog(table: LogTable, id: string): Promise<void> {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.');
+  }
+  const userId = await getRequiredUserId();
+  const { error } = await supabase.from(table).delete().eq('id', id).eq('user_id', userId);
+  if (error) {
+    throw new Error(`Failed to delete ${table}: ${error.message}`);
+  }
+}
+
+function withDatabaseTimeout<T>(operation: Promise<T>, timeoutMs = 12000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('Database request timed out.'));
+    }, timeoutMs);
+    operation.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
+async function persistLogDirectly<T extends { id: string; user_id: string }>(
+  table: LogTable,
+  log: T,
+  action: 'insert' | 'update'
+): Promise<void> {
+  try {
+    const saved = await withDatabaseTimeout(upsertLog(table, log));
+    const current = getLocalArray<T>(table);
+    const savedIndex = current.findIndex((item) => item.id === saved.id);
+    if (savedIndex >= 0) current[savedIndex] = saved;
+    saveLocalArray(table, current);
+    acknowledgeUploadedRecords(table, new Set([saved.id]));
+  } catch (error) {
+    addToQueue({ id: log.id, table, action, payload: log });
+    console.error(`Unable to save ${table} directly; queued for retry:`, error);
+  }
+}
+
+async function deleteLogDirectly(table: LogTable, id: string): Promise<void> {
+  try {
+    await withDatabaseTimeout(deleteLog(table, id));
+    removeDeleteFromQueue(table, id);
+  } catch (error) {
+    addToQueue({ id, table, action: 'delete', payload: { id } });
+    console.error(`Unable to delete ${table} directly; queued for retry:`, error);
+  }
+}
+
 export function getIsOnline(): boolean {
   if (typeof window === 'undefined') return true;
   return navigator.onLine;
@@ -232,57 +329,51 @@ export function dismissGlucosePromptToday(): void {
 
 // Generic Local Storage Helpers
 function getLocalArray<T>(key: string): T[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
+  const memoryKey =
+    key === STORAGE_KEYS.INSULIN ? 'insulin' :
+    key === STORAGE_KEYS.FOOD ? 'food' :
+    key === STORAGE_KEYS.ACTIVITY ? 'activity' :
+    key === STORAGE_KEYS.FEEL ? 'feel' :
+    key === STORAGE_KEYS.GLUCOSE ? 'glucose' :
+    null;
+
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          if (memoryKey === 'insulin') memoryLogs.insulin = parsed as InsulinLog[];
+          else if (memoryKey === 'food') memoryLogs.food = parsed as FoodLog[];
+          else if (memoryKey === 'activity') memoryLogs.activity = parsed as ActivityLog[];
+          else if (memoryKey === 'feel') memoryLogs.feel = parsed as FeelLog[];
+          else if (memoryKey === 'glucose') memoryLogs.glucose = parsed as GlucoseLog[];
+          return parsed as T[];
+        }
+      }
+    } catch (error) {
+      console.warn(`Unable to read local storage key ${key}:`, error);
+    }
   }
+
+  if (memoryKey) return memoryLogs[memoryKey] as T[];
+  return [];
 }
 
 function saveLocalArray<T>(key: string, items: T[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(key, JSON.stringify(items));
-    window.dispatchEvent(new CustomEvent('t1d-data-updated'));
-  } catch (err) {
-    console.error(`Failed to save to localStorage for key ${key}:`, err);
-    // Automatic Quota Recovery
+  if (key === STORAGE_KEYS.INSULIN) memoryLogs.insulin = items as InsulinLog[];
+  else if (key === STORAGE_KEYS.FOOD) memoryLogs.food = items as FoodLog[];
+  else if (key === STORAGE_KEYS.ACTIVITY) memoryLogs.activity = items as ActivityLog[];
+  else if (key === STORAGE_KEYS.FEEL) memoryLogs.feel = items as FeelLog[];
+  else if (key === STORAGE_KEYS.GLUCOSE) memoryLogs.glucose = items as GlucoseLog[];
+  if (typeof window !== 'undefined') {
     try {
-      const isQuota =
-        err instanceof Error &&
-        (err.name === 'QuotaExceededError' ||
-          err.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-          err.message.toLowerCase().includes('quota'));
-
-      if (isQuota) {
-        // 1. If key is food logs, strip large photo data URLs from older logs
-        if (key === STORAGE_KEYS.FOOD) {
-          const stripped = (items as unknown as FoodLog[]).map((food, idx) => {
-            // Keep recent photo, remove older bulky base64 data URLs (>1000 chars)
-            if (idx < items.length - 1 && food.photo_url && food.photo_url.length > 1000) {
-              return { ...food, photo_url: null };
-            }
-            return food;
-          });
-          localStorage.setItem(key, JSON.stringify(stripped));
-          window.dispatchEvent(new CustomEvent('t1d-data-updated'));
-          return;
-        }
-
-        // 2. Clear old queued items if queue is filling up
-        if (key === STORAGE_KEYS.QUEUE) {
-          const queue = items as unknown as SyncQueueItem[];
-          const compactQueue = queue.slice(-20); // Keep last 20
-          localStorage.setItem(key, JSON.stringify(compactQueue));
-          return;
-        }
-      }
-    } catch (recoveryErr) {
-      console.warn('LocalStorage quota recovery also failed:', recoveryErr);
+      localStorage.setItem(key, JSON.stringify(items));
+    } catch (error) {
+      console.error(`Unable to persist local storage key ${key}:`, error);
     }
   }
+  notifyDataUpdated();
 }
 
 // Helper to merge local and remote arrays without duplicates
@@ -1047,36 +1138,20 @@ export function saveInsulinLog(
     created_at: existingCreatedAt || new Date().toISOString(),
   };
 
-  if (index >= 0) {
-    existing[index] = fullLog;
-    addToQueue({ id, table: 'insulin_logs', action: 'update', payload: fullLog });
-  } else {
-    existing.push(fullLog);
-    addToQueue({ id, table: 'insulin_logs', action: 'insert', payload: fullLog });
-  }
-
+  if (index >= 0) existing[index] = fullLog;
+  else existing.push(fullLog);
   saveLocalArray(STORAGE_KEYS.INSULIN, existing);
-  if (typeof window !== 'undefined' && getIsOnline()) {
-    flushOfflineQueue().catch((error) => {
-      console.warn('Failed to sync insulin log:', error);
-    });
-  }
+  addToQueue({ id, table: 'insulin_logs', action: index >= 0 ? 'update' : 'insert', payload: fullLog });
+  void persistLogDirectly('insulin_logs', fullLog, index >= 0 ? 'update' : 'insert');
   return fullLog;
 }
 
 export function deleteInsulinLog(id: string): void {
-  markIdAsDeleted(id, 'insulin_logs');
   const existing = getInsulinLogs().filter((item) => item.id !== id);
   saveLocalArray(STORAGE_KEYS.INSULIN, existing);
-  addToQueue({ id, table: 'insulin_logs', action: 'delete', payload: null });
-  if (typeof window !== 'undefined' && getIsOnline()) {
-    executeDirectDelete('insulin_logs', id).then((ok) => {
-      if (ok) removeDeleteFromQueue('insulin_logs', id);
-    }).catch(() => {});
-    flushOfflineQueue().catch((error) => {
-      console.warn('Failed to sync insulin deletion:', error);
-    });
-  }
+  markIdAsDeleted(id, 'insulin_logs');
+  addToQueue({ id, table: 'insulin_logs', action: 'delete', payload: { id } });
+  void deleteLogDirectly('insulin_logs', id);
 }
 
 // FOOD LOGS
@@ -1099,36 +1174,20 @@ export function saveFoodLog(
     created_at: existingCreatedAt || new Date().toISOString(),
   };
 
-  if (index >= 0) {
-    existing[index] = fullLog;
-    addToQueue({ id, table: 'food_logs', action: 'update', payload: fullLog });
-  } else {
-    existing.push(fullLog);
-    addToQueue({ id, table: 'food_logs', action: 'insert', payload: fullLog });
-  }
-
+  if (index >= 0) existing[index] = fullLog;
+  else existing.push(fullLog);
   saveLocalArray(STORAGE_KEYS.FOOD, existing);
-  if (typeof window !== 'undefined' && getIsOnline()) {
-    flushOfflineQueue().catch((error) => {
-      console.warn('Failed to sync food log:', error);
-    });
-  }
+  addToQueue({ id, table: 'food_logs', action: index >= 0 ? 'update' : 'insert', payload: fullLog });
+  void persistLogDirectly('food_logs', fullLog, index >= 0 ? 'update' : 'insert');
   return fullLog;
 }
 
 export function deleteFoodLog(id: string): void {
-  markIdAsDeleted(id, 'food_logs');
   const existing = getFoodLogs().filter((item) => item.id !== id);
   saveLocalArray(STORAGE_KEYS.FOOD, existing);
-  addToQueue({ id, table: 'food_logs', action: 'delete', payload: null });
-  if (typeof window !== 'undefined' && getIsOnline()) {
-    executeDirectDelete('food_logs', id).then((ok) => {
-      if (ok) removeDeleteFromQueue('food_logs', id);
-    }).catch(() => {});
-    flushOfflineQueue().catch((error) => {
-      console.warn('Failed to sync food deletion:', error);
-    });
-  }
+  markIdAsDeleted(id, 'food_logs');
+  addToQueue({ id, table: 'food_logs', action: 'delete', payload: { id } });
+  void deleteLogDirectly('food_logs', id);
 }
 
 // ACTIVITY LOGS
@@ -1151,36 +1210,20 @@ export function saveActivityLog(
     created_at: existingCreatedAt || new Date().toISOString(),
   };
 
-  if (index >= 0) {
-    existing[index] = fullLog;
-    addToQueue({ id, table: 'activity_logs', action: 'update', payload: fullLog });
-  } else {
-    existing.push(fullLog);
-    addToQueue({ id, table: 'activity_logs', action: 'insert', payload: fullLog });
-  }
-
+  if (index >= 0) existing[index] = fullLog;
+  else existing.push(fullLog);
   saveLocalArray(STORAGE_KEYS.ACTIVITY, existing);
-  if (typeof window !== 'undefined' && getIsOnline()) {
-    flushOfflineQueue().catch((error) => {
-      console.warn('Failed to sync activity log:', error);
-    });
-  }
+  addToQueue({ id, table: 'activity_logs', action: index >= 0 ? 'update' : 'insert', payload: fullLog });
+  void persistLogDirectly('activity_logs', fullLog, index >= 0 ? 'update' : 'insert');
   return fullLog;
 }
 
 export function deleteActivityLog(id: string): void {
-  markIdAsDeleted(id, 'activity_logs');
   const existing = getActivityLogs().filter((item) => item.id !== id);
   saveLocalArray(STORAGE_KEYS.ACTIVITY, existing);
-  addToQueue({ id, table: 'activity_logs', action: 'delete', payload: null });
-  if (typeof window !== 'undefined' && getIsOnline()) {
-    executeDirectDelete('activity_logs', id).then((ok) => {
-      if (ok) removeDeleteFromQueue('activity_logs', id);
-    }).catch(() => {});
-    flushOfflineQueue().catch((error) => {
-      console.warn('Failed to sync activity deletion:', error);
-    });
-  }
+  markIdAsDeleted(id, 'activity_logs');
+  addToQueue({ id, table: 'activity_logs', action: 'delete', payload: { id } });
+  void deleteLogDirectly('activity_logs', id);
 }
 
 // FEEL LOGS
@@ -1203,36 +1246,20 @@ export function saveFeelLog(
     created_at: existingCreatedAt || new Date().toISOString(),
   };
 
-  if (index >= 0) {
-    existing[index] = fullLog;
-    addToQueue({ id, table: 'feel_logs', action: 'update', payload: fullLog });
-  } else {
-    existing.push(fullLog);
-    addToQueue({ id, table: 'feel_logs', action: 'insert', payload: fullLog });
-  }
-
+  if (index >= 0) existing[index] = fullLog;
+  else existing.push(fullLog);
   saveLocalArray(STORAGE_KEYS.FEEL, existing);
-  if (typeof window !== 'undefined' && getIsOnline()) {
-    flushOfflineQueue().catch((error) => {
-      console.warn('Failed to sync feel log:', error);
-    });
-  }
+  addToQueue({ id, table: 'feel_logs', action: index >= 0 ? 'update' : 'insert', payload: fullLog });
+  void persistLogDirectly('feel_logs', fullLog, index >= 0 ? 'update' : 'insert');
   return fullLog;
 }
 
 export function deleteFeelLog(id: string): void {
-  markIdAsDeleted(id, 'feel_logs');
   const existing = getFeelLogs().filter((item) => item.id !== id);
   saveLocalArray(STORAGE_KEYS.FEEL, existing);
-  addToQueue({ id, table: 'feel_logs', action: 'delete', payload: null });
-  if (typeof window !== 'undefined' && getIsOnline()) {
-    executeDirectDelete('feel_logs', id).then((ok) => {
-      if (ok) removeDeleteFromQueue('feel_logs', id);
-    }).catch(() => {});
-    flushOfflineQueue().catch((error) => {
-      console.warn('Failed to sync feel deletion:', error);
-    });
-  }
+  markIdAsDeleted(id, 'feel_logs');
+  addToQueue({ id, table: 'feel_logs', action: 'delete', payload: { id } });
+  void deleteLogDirectly('feel_logs', id);
 }
 
 // GLUCOSE LOGS (Nullable/Optional everywhere)
@@ -1255,36 +1282,20 @@ export function saveGlucoseLog(
     created_at: existingCreatedAt || new Date().toISOString(),
   };
 
-  if (index >= 0) {
-    existing[index] = fullLog;
-    addToQueue({ id, table: 'glucose_logs', action: 'update', payload: fullLog });
-  } else {
-    existing.push(fullLog);
-    addToQueue({ id, table: 'glucose_logs', action: 'insert', payload: fullLog });
-  }
-
+  if (index >= 0) existing[index] = fullLog;
+  else existing.push(fullLog);
   saveLocalArray(STORAGE_KEYS.GLUCOSE, existing);
-  if (typeof window !== 'undefined' && getIsOnline()) {
-    flushOfflineQueue().catch((error) => {
-      console.warn('Failed to sync glucose log:', error);
-    });
-  }
+  addToQueue({ id, table: 'glucose_logs', action: index >= 0 ? 'update' : 'insert', payload: fullLog });
+  void persistLogDirectly('glucose_logs', fullLog, index >= 0 ? 'update' : 'insert');
   return fullLog;
 }
 
 export function deleteGlucoseLog(id: string): void {
-  markIdAsDeleted(id, 'glucose_logs');
   const existing = getGlucoseLogs().filter((item) => item.id !== id);
   saveLocalArray(STORAGE_KEYS.GLUCOSE, existing);
-  addToQueue({ id, table: 'glucose_logs', action: 'delete', payload: null });
-  if (typeof window !== 'undefined' && getIsOnline()) {
-    executeDirectDelete('glucose_logs', id).then((ok) => {
-      if (ok) removeDeleteFromQueue('glucose_logs', id);
-    }).catch(() => {});
-    flushOfflineQueue().catch((error) => {
-      console.warn('Failed to sync glucose deletion:', error);
-    });
-  }
+  markIdAsDeleted(id, 'glucose_logs');
+  addToQueue({ id, table: 'glucose_logs', action: 'delete', payload: { id } });
+  void deleteLogDirectly('glucose_logs', id);
 }
 
 // MERGED CHRONOLOGICAL FEED
@@ -1484,6 +1495,11 @@ export function deduplicateLogs(): DeduplicateResult {
 // Reset / Clear all data
 export function clearAllLocalData(): void {
   if (typeof window === 'undefined') return;
+  memoryLogs.insulin = [];
+  memoryLogs.food = [];
+  memoryLogs.activity = [];
+  memoryLogs.feel = [];
+  memoryLogs.glucose = [];
   localStorage.removeItem(STORAGE_KEYS.INSULIN);
   localStorage.removeItem(STORAGE_KEYS.FOOD);
   localStorage.removeItem(STORAGE_KEYS.ACTIVITY);

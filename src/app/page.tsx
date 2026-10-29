@@ -215,49 +215,55 @@ export default function QuickLogPage() {
   );
 
   // Toggle or save dose with chosen units and actual current time
-  const handleToggleInsulinDose = (type: InsulinType, chosenUnits: number) => {
+  const handleToggleInsulinDose = async (type: InsulinType, chosenUnits: number) => {
     const existing = todayInsulinLogs.find((l) => l.insulin_type === type);
-    if (existing) {
-      deleteInsulinLog(existing.id);
-    } else {
-      const actualCurrentTime = getCurrentTimeIST();
-      const defaultNote =
-        type === 'morning_regular'
-          ? (settings.morning_meal_note || 'Administered before breakfast')
-          : type === 'afternoon_regular'
-          ? (settings.midday_meal_note || 'Midday dose before lunch based on body condition')
-          : (settings.night_meal_note || 'Administered before dinner');
+    try {
+      if (existing) {
+        await deleteInsulinLog(existing.id);
+      } else {
+        const actualCurrentTime = getCurrentTimeIST();
+        const defaultNote =
+          type === 'morning_regular'
+            ? (settings.morning_meal_note || 'Administered before breakfast')
+            : type === 'afternoon_regular'
+            ? (settings.midday_meal_note || 'Midday dose before lunch based on body condition')
+            : (settings.night_meal_note || 'Administered before dinner');
 
-      saveInsulinLog({
-        user_id: getActiveUserId(),
-        log_date: todayStr,
-        log_time: actualCurrentTime,
-        insulin_type: type,
-        units: chosenUnits,
-        taken: true,
-        note: defaultNote,
-      });
+        await saveInsulinLog({
+          user_id: getActiveUserId(),
+          log_date: todayStr,
+          log_time: actualCurrentTime,
+          insulin_type: type,
+          units: chosenUnits,
+          taken: true,
+          note: defaultNote,
+        });
+      }
+    } catch (error) {
+      console.error('Unable to update insulin dose:', error);
     }
     refreshData();
   };
 
   // Immediate unit adjustment for already-taken doses
-  const handleUpdateLoggedUnits = (existingLog: InsulinLog, newUnits: number) => {
+  const handleUpdateLoggedUnits = async (existingLog: InsulinLog, newUnits: number) => {
     if (newUnits <= 0) return;
-    saveInsulinLog({
-      ...existingLog,
-      units: newUnits,
-    });
+    try {
+      await saveInsulinLog({ ...existingLog, units: newUnits });
+    } catch (error) {
+      console.error('Unable to update insulin units:', error);
+    }
     refreshData();
   };
 
   // Immediate time adjustment for already-taken doses
-  const handleUpdateLoggedTime = (existingLog: InsulinLog, newTime: string) => {
+  const handleUpdateLoggedTime = async (existingLog: InsulinLog, newTime: string) => {
     if (!newTime) return;
-    saveInsulinLog({
-      ...existingLog,
-      log_time: newTime,
-    });
+    try {
+      await saveInsulinLog({ ...existingLog, log_time: newTime });
+    } catch (error) {
+      console.error('Unable to update insulin time:', error);
+    }
     refreshData();
   };
 
@@ -274,27 +280,35 @@ export default function QuickLogPage() {
     );
   };
 
-  const handleSaveSensoryFeel = () => {
-    saveFeelLog({
-      user_id: getActiveUserId(),
-      log_date: todayStr,
-      log_time: getCurrentTimeIST(),
-      feel: selectedFeel,
-      symptoms: selectedChips,
-      note: feelNote.trim() || null,
-    });
-    setFeelSavedToast(`Logged: ${FEEL_CONFIGS[selectedFeel].title} state recorded!`);
-    setTimeout(() => setFeelSavedToast(null), 3000);
+  const handleSaveSensoryFeel = async () => {
+    try {
+      await saveFeelLog({
+        user_id: getActiveUserId(),
+        log_date: todayStr,
+        log_time: getCurrentTimeIST(),
+        feel: selectedFeel,
+        symptoms: selectedChips,
+        note: feelNote.trim() || null,
+      });
+      setFeelSavedToast(`Logged: ${FEEL_CONFIGS[selectedFeel].title} state recorded!`);
+      setTimeout(() => setFeelSavedToast(null), 3000);
+    } catch (error) {
+      console.error('Unable to save feeling log:', error);
+    }
     refreshData();
   };
 
-  const handleDeleteConfirmed = () => {
+  const handleDeleteConfirmed = async () => {
     if (!deleteTarget) return;
-    if (deleteTarget.category === 'insulin') deleteInsulinLog(deleteTarget.id);
-    else if (deleteTarget.category === 'food') deleteFoodLog(deleteTarget.id);
-    else if (deleteTarget.category === 'activity') deleteActivityLog(deleteTarget.id);
-    else if (deleteTarget.category === 'feel') deleteFeelLog(deleteTarget.id);
-    else if (deleteTarget.category === 'glucose') deleteGlucoseLog(deleteTarget.id);
+    try {
+      if (deleteTarget.category === 'insulin') await deleteInsulinLog(deleteTarget.id);
+      else if (deleteTarget.category === 'food') await deleteFoodLog(deleteTarget.id);
+      else if (deleteTarget.category === 'activity') await deleteActivityLog(deleteTarget.id);
+      else if (deleteTarget.category === 'feel') await deleteFeelLog(deleteTarget.id);
+      else if (deleteTarget.category === 'glucose') await deleteGlucoseLog(deleteTarget.id);
+    } catch (error) {
+      console.error('Unable to delete log:', error);
+    }
 
     setDeleteTarget(null);
     refreshData();

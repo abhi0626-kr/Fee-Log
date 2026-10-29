@@ -88,23 +88,26 @@ export default function InsulinSheet({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (units <= 0) return;
 
-    saveInsulinLog({
-      id: initialData?.id,
-      user_id: initialData?.user_id || getActiveUserId(),
-      log_date: initialData?.log_date || dateStr,
-      log_time: logTime,
-      insulin_type: selectedType,
-      units: Number(units),
-      taken,
-      note: note.trim() || null,
-    });
-
-    onSaved();
-    onClose();
+    try {
+      await saveInsulinLog({
+        id: initialData?.id,
+        user_id: initialData?.user_id || getActiveUserId(),
+        log_date: initialData?.log_date || dateStr,
+        log_time: logTime,
+        insulin_type: selectedType,
+        units: Number(units),
+        taken,
+        note: note.trim() || null,
+      });
+      onSaved();
+      onClose();
+    } catch (error) {
+      console.error('Unable to save insulin log:', error);
+    }
   };
 
   const isMorning = selectedType === 'morning_regular';

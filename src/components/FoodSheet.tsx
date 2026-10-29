@@ -404,7 +404,7 @@ export default function FoodSheet({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!items.trim()) {
       setScanMessage({
@@ -415,7 +415,7 @@ export default function FoodSheet({
     }
 
     try {
-      saveFoodLog({
+      await saveFoodLog({
         id: initialData?.id,
         user_id: initialData?.user_id || getActiveUserId(),
         log_date: initialData?.log_date || dateStr,

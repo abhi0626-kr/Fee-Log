@@ -125,9 +125,9 @@ export default function Header({ onNewEntry }: HeaderProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    window.dispatchEvent(new CustomEvent('t1d-quick-sync'));
+                    window.dispatchEvent(new CustomEvent('t1d-refresh-data'));
                   }}
-                  title="Sync now with cloud database"
+                  title="Refresh from database"
                   className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-surface-container-low hover:bg-surface-container border border-white/10 text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-all active:scale-95 cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[1.125rem] text-primary">sync</span>
@@ -158,7 +158,7 @@ export default function Header({ onNewEntry }: HeaderProps) {
               title={
                 hasCloudSession
                   ? `Signed into cloud as ${settings?.display_name || 'User'} (${settings?.email || 'Google Account'})`
-                  : 'Cloud sync inactive — tap to sign in with Google'
+                  : 'Database connection inactive — tap to sign in with Google'
               }
               className="relative flex items-center justify-center p-0.5 rounded-full hover:ring-2 hover:ring-primary/40 transition-all"
             >

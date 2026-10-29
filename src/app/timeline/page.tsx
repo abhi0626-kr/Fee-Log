@@ -96,13 +96,17 @@ export default function TimelinePage() {
     }
   };
 
-  const handleDeleteConfirmed = () => {
+  const handleDeleteConfirmed = async () => {
     if (!deleteTarget) return;
-    if (deleteTarget.category === 'insulin') deleteInsulinLog(deleteTarget.id);
-    else if (deleteTarget.category === 'food') deleteFoodLog(deleteTarget.id);
-    else if (deleteTarget.category === 'activity') deleteActivityLog(deleteTarget.id);
-    else if (deleteTarget.category === 'feel') deleteFeelLog(deleteTarget.id);
-    else if (deleteTarget.category === 'glucose') deleteGlucoseLog(deleteTarget.id);
+    try {
+      if (deleteTarget.category === 'insulin') await deleteInsulinLog(deleteTarget.id);
+      else if (deleteTarget.category === 'food') await deleteFoodLog(deleteTarget.id);
+      else if (deleteTarget.category === 'activity') await deleteActivityLog(deleteTarget.id);
+      else if (deleteTarget.category === 'feel') await deleteFeelLog(deleteTarget.id);
+      else if (deleteTarget.category === 'glucose') await deleteGlucoseLog(deleteTarget.id);
+    } catch (error) {
+      console.error('Unable to delete log:', error);
+    }
 
     setDeleteTarget(null);
     refreshLogs();

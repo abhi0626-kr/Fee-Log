@@ -52,23 +52,26 @@ export default function GlucoseSheet({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseInt(reading, 10);
     if (isNaN(val) || val < 20 || val > 800) return;
 
-    saveGlucoseLog({
-      id: initialData?.id,
-      user_id: initialData?.user_id || getActiveUserId(),
-      log_date: initialData?.log_date || dateStr,
-      log_time: logTime,
-      reading_mgdl: val,
-      context,
-      note: note.trim() || null,
-    });
-
-    onSaved();
-    onClose();
+    try {
+      await saveGlucoseLog({
+        id: initialData?.id,
+        user_id: initialData?.user_id || getActiveUserId(),
+        log_date: initialData?.log_date || dateStr,
+        log_time: logTime,
+        reading_mgdl: val,
+        context,
+        note: note.trim() || null,
+      });
+      onSaved();
+      onClose();
+    } catch (error) {
+      console.error('Unable to save glucose log:', error);
+    }
   };
 
   const contextOptions: { id: GlucoseContext; label: string }[] = [

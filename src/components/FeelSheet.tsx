@@ -110,21 +110,24 @@ export default function FeelSheet({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    saveFeelLog({
-      id: initialData?.id,
-      user_id: initialData?.user_id || getActiveUserId(),
-      log_date: initialData?.log_date || dateStr,
-      log_time: logTime,
-      feel,
-      symptoms: selectedSymptoms,
-      note: note.trim() || null,
-    });
-
-    onSaved();
-    onClose();
+    try {
+      await saveFeelLog({
+        id: initialData?.id,
+        user_id: initialData?.user_id || getActiveUserId(),
+        log_date: initialData?.log_date || dateStr,
+        log_time: logTime,
+        feel,
+        symptoms: selectedSymptoms,
+        note: note.trim() || null,
+      });
+      onSaved();
+      onClose();
+    } catch (error) {
+      console.error('Unable to save feeling log:', error);
+    }
   };
 
   const currentOption = FEEL_OPTIONS.find((o) => o.id === feel) || FEEL_OPTIONS[2];
