@@ -18,7 +18,7 @@ import {
   deduplicateLogs,
 } from '@/lib/sync-storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { UserSettings } from '@/types';
+import { UserSettings, COMMON_FOOD_CHIPS } from '@/types';
 
 const COMMON_TIMEZONES = [
   { value: 'Asia/Kolkata', label: 'Asia/Kolkata (IST · UTC+05:30)' },
@@ -47,6 +47,36 @@ export default function SettingsPage() {
   const [supabaseKey, setSupabaseKey] = useState('');
   const [savingSupabase, setSavingSupabase] = useState(false);
   const [isSyncingServer, setIsSyncingServer] = useState(false);
+
+  // Quick Food Chips customizer
+  const [newFoodChipText, setNewFoodChipText] = useState('');
+
+  const handleAddFoodChip = () => {
+    const trimmed = newFoodChipText.trim().toLowerCase();
+    if (!trimmed) return;
+    const currentChips = Array.isArray(settings.food_chips) && settings.food_chips.length > 0
+      ? settings.food_chips
+      : COMMON_FOOD_CHIPS;
+    if (currentChips.some((c) => c.toLowerCase() === trimmed)) {
+      setNewFoodChipText('');
+      return;
+    }
+    const updated = [...currentChips, trimmed];
+    handleChange('food_chips', updated);
+    setNewFoodChipText('');
+  };
+
+  const handleRemoveFoodChip = (chipToRemove: string) => {
+    const currentChips = Array.isArray(settings.food_chips) && settings.food_chips.length > 0
+      ? settings.food_chips
+      : COMMON_FOOD_CHIPS;
+    const updated = currentChips.filter((c) => c !== chipToRemove);
+    handleChange('food_chips', updated);
+  };
+
+  const handleResetFoodChips = () => {
+    handleChange('food_chips', COMMON_FOOD_CHIPS);
+  };
 
   useEffect(() => {
     setSettings(getSettings());
@@ -753,16 +783,16 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <label className="text-on-surface-variant block mb-1 font-semibold">Daily Max Sodium (mg)</label>
+              <label className="text-on-surface-variant block mb-1 font-semibold">Daily Max Sugar (g)</label>
               <input
                 type="number"
                 min="0"
-                step="50"
-                value={settings.daily_max_sodium_mg ?? 2300}
-                onChange={(e) => handleChange('daily_max_sodium_mg', Number(e.target.value))}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low border border-white/10 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-amber-400"
+                step="1"
+                value={settings.daily_max_sugar_g ?? 25}
+                onChange={(e) => handleChange('daily_max_sugar_g', Number(e.target.value))}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low border border-white/10 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-pink-400"
               />
-              <span className="text-[10px] text-outline mt-1 block">AHA / ICMR healthy guideline</span>
+              <span className="text-[10px] text-outline mt-1 block">WHO / ADA guideline for spike control</span>
             </div>
           </div>
 
@@ -791,8 +821,75 @@ export default function SettingsPage() {
               className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low border border-white/10 text-on-surface text-xs font-mono focus:outline-none focus:ring-1 focus:ring-tertiary"
             />
             <p className="text-[10px] text-outline mt-1.5">
-              Used when you tap &quot;AI Scan Plate&quot; on meal photos to detect foods, carbs, protein, fiber, and sodium automatically.
+              Used when you tap &quot;AI Scan Plate&quot; on meal photos to detect foods, carbs, protein, fiber, and sugar automatically.
             </p>
+          </div>
+        </div>
+
+        {/* SECTION: QUICK FOOD CHIPS */}
+        <div className="rounded-3xl bg-surface-container/70 border border-white/5 backdrop-blur-xl p-6 shadow-xl">
+          <div className="flex items-center justify-between pb-4 border-b border-surface-container-high/40 mb-4">
+            <div className="flex items-center gap-2 font-headline-sm text-sm text-on-surface font-bold">
+              <span className="material-symbols-outlined text-tertiary">restaurant</span>
+              <span>Quick Food Chips &amp; Portions</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleResetFoodChips}
+              className="text-xs text-on-surface-variant hover:text-tertiary flex items-center gap-1 font-semibold transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-xs">restart_alt</span>
+              <span>Reset to default</span>
+            </button>
+          </div>
+
+          <p className="text-xs text-on-surface-variant mb-3">
+            One-tap chips that appear in the Food Log sheet. Tap a chip while logging to choose exact weights (e.g. 100g Rice) or quantities (e.g. 3 Egg).
+          </p>
+
+          <div className="flex flex-wrap gap-2 mb-4">
+            {(Array.isArray(settings.food_chips) && settings.food_chips.length > 0
+              ? settings.food_chips
+              : COMMON_FOOD_CHIPS
+            ).map((chip) => (
+              <span
+                key={chip}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-tertiary-container/20 border border-tertiary/30 text-on-surface rounded-full shadow-sm"
+              >
+                + {chip}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveFoodChip(chip)}
+                  className="hover:text-red-400 text-on-surface-variant p-0.5 rounded-full transition-colors cursor-pointer"
+                  title={`Remove ${chip}`}
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
+
+          <div className="flex gap-2 max-w-md">
+            <input
+              type="text"
+              value={newFoodChipText}
+              onChange={(e) => setNewFoodChipText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddFoodChip();
+                }
+              }}
+              placeholder='Add item (e.g. "oats", "chicken", "paneer")...'
+              className="flex-1 px-3.5 py-2 rounded-xl bg-surface-container-low border border-white/10 text-on-surface text-xs focus:outline-none focus:ring-1 focus:ring-tertiary"
+            />
+            <button
+              type="button"
+              onClick={handleAddFoodChip}
+              className="px-4 py-2 rounded-xl bg-tertiary-container text-on-tertiary-container hover:bg-tertiary hover:text-on-tertiary font-bold text-xs transition-all active:scale-95 cursor-pointer"
+            >
+              Add Chip
+            </button>
           </div>
         </div>
 

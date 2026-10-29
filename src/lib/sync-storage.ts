@@ -69,6 +69,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   daily_target_carbs_g: 180,
   daily_target_protein_g: 75,
   daily_target_fiber_g: 30,
+  daily_max_sugar_g: 25,
   daily_max_sodium_mg: 2300,
   daily_target_calories: 2000,
   gemini_api_key: '',
@@ -285,25 +286,44 @@ function saveLocalArray<T>(key: string, items: T[]): void {
 }
 
 // Helper to merge local and remote arrays without duplicates
-function mergeRecordsById<T extends { id: string }>(existing: T[], incoming: T[]): T[] {
+export function mergeRecordsById<T extends { id: string }>(
+  existing: T[],
+  incoming: T[],
+  pendingUpdateIds?: Set<string>
+): T[] {
   const map = new Map<string, T>();
   existing.forEach((item) => map.set(item.id, item));
-  incoming.forEach((item) => map.set(item.id, item));
+  incoming.forEach((item) => {
+    // If the local item has a pending update in the offline queue, DO NOT overwrite it with stale remote data!
+    if (pendingUpdateIds && pendingUpdateIds.has(item.id)) {
+      return;
+    }
+    map.set(item.id, item);
+  });
   return Array.from(map.values());
 }
 
 // Helper to preserve locally stored macros if the remote Supabase table lacks them
-function mergeFoodRecords(existing: FoodLog[], incoming: FoodLog[]): FoodLog[] {
+export function mergeFoodRecords(
+  existing: FoodLog[],
+  incoming: FoodLog[],
+  pendingUpdateIds?: Set<string>
+): FoodLog[] {
   const map = new Map<string, FoodLog>();
   existing.forEach((item) => map.set(item.id, item));
   incoming.forEach((remote) => {
     const local = map.get(remote.id);
     if (local) {
+      if (pendingUpdateIds && pendingUpdateIds.has(remote.id)) {
+        // Local has pending changes that shouldn't be overwritten by stale remote data
+        return;
+      }
       map.set(remote.id, {
         ...remote,
         carbs_g: remote.carbs_g ?? local.carbs_g,
         protein_g: remote.protein_g ?? local.protein_g,
         fiber_g: remote.fiber_g ?? local.fiber_g,
+        sugar_g: remote.sugar_g ?? local.sugar_g,
         sodium_mg: remote.sodium_mg ?? local.sodium_mg,
         calories: remote.calories ?? local.calories,
       });
@@ -319,6 +339,7 @@ function sanitizeFoodPayload<T extends Record<string, unknown>>(payload: T): Rec
   delete base.carbs_g;
   delete base.protein_g;
   delete base.fiber_g;
+  delete base.sugar_g;
   delete base.sodium_mg;
   delete base.calories;
   return base;
@@ -398,13 +419,24 @@ function removeDeleteFromQueue(table: SyncQueueItem['table'], id: string): void 
   }
 }
 
-function acknowledgeSyncedRecords(table: SyncQueueItem['table'], ids: Set<string>): void {
-  if (ids.size === 0) return;
+function acknowledgeUploadedRecords(table: SyncQueueItem['table'], uploadedIds: Set<string>): void {
+  if (uploadedIds.size === 0) return;
   const queue = getOfflineQueue();
-  // ONLY acknowledge inserts and updates when their ID is confirmed present on the server.
-  // NEVER acknowledge 'delete' here, because if ids.has(item.id) is true, the server still has the record!
   const remaining = queue.filter(
-    (item) => !(item.table === table && item.action !== 'delete' && ids.has(item.id))
+    (item) => !(item.table === table && item.action !== 'delete' && uploadedIds.has(item.id))
+  );
+  if (remaining.length !== queue.length) {
+    saveLocalArray(STORAGE_KEYS.QUEUE, remaining);
+  }
+}
+
+function acknowledgeSyncedInserts(table: SyncQueueItem['table'], remoteIds: Set<string>): void {
+  if (remoteIds.size === 0) return;
+  const queue = getOfflineQueue();
+  // Only acknowledge 'insert' actions when confirmed present on server.
+  // Never acknowledge 'update' just because ID is in remoteIds (it might be stale on server).
+  const remaining = queue.filter(
+    (item) => !(item.table === table && item.action === 'insert' && remoteIds.has(item.id))
   );
   if (remaining.length !== queue.length) {
     saveLocalArray(STORAGE_KEYS.QUEUE, remaining);
@@ -429,10 +461,44 @@ export function getOfflineQueue(): SyncQueueItem[] {
 
 function addToQueue(item: Omit<SyncQueueItem, 'timestamp'>) {
   const queue = getOfflineQueue();
-  queue.push({
-    ...item,
-    timestamp: new Date().toISOString(),
-  });
+  const timestamp = new Date().toISOString();
+
+  if (item.action === 'delete') {
+    // If deleted, remove any pending insert/update for this id, and add delete
+    const filtered = queue.filter(
+      (q) => !(q.table === item.table && q.id === item.id)
+    );
+    filtered.push({ ...item, timestamp });
+    saveLocalArray(STORAGE_KEYS.QUEUE, filtered);
+    return;
+  }
+
+  // Deduplicate pending inserts and updates for the same record
+  const existingIdx = queue.findIndex(
+    (q) => q.table === item.table && q.id === item.id
+  );
+  if (existingIdx >= 0) {
+    const existing = queue[existingIdx];
+    if (existing.action === 'insert') {
+      // Keep action as 'insert' but update payload with newest edits
+      queue[existingIdx] = {
+        ...existing,
+        payload: item.payload,
+        timestamp,
+      };
+    } else {
+      // Existing was update; replace with newest update payload
+      queue[existingIdx] = {
+        ...item,
+        timestamp,
+      };
+    }
+  } else {
+    queue.push({
+      ...item,
+      timestamp,
+    });
+  }
   saveLocalArray(STORAGE_KEYS.QUEUE, queue);
 }
 
@@ -612,7 +678,7 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
         );
 
         const unuploadedInsulin = localInsulin
-          .filter((l) => !remoteInsulinIds.has(l.id) && (pendingInsulinIds.has(l.id) || !l.user_id || l.user_id !== userId))
+          .filter((l) => pendingInsulinIds.has(l.id) || !remoteInsulinIds.has(l.id) || !l.user_id || l.user_id !== userId)
           .map((l) => ({ ...l, user_id: userId }));
 
         let insulinUploadSucceeded = true;
@@ -623,14 +689,16 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
             console.warn('Failed to upsert unuploaded insulin logs:', error.message);
           }
         }
-        if (insulinUploadSucceeded) {
+        if (insulinUploadSucceeded && unuploadedInsulin.length > 0) {
           unuploadedInsulin.forEach((record) => remoteInsulinIds.add(record.id));
+          acknowledgeUploadedRecords('insulin_logs', new Set(unuploadedInsulin.map((r) => r.id)));
         }
-        acknowledgeSyncedRecords('insulin_logs', remoteInsulinIds);
+        acknowledgeSyncedInserts('insulin_logs', remoteInsulinIds);
         acknowledgeDeletedRecords('insulin_logs', remoteInsulinIds);
         const mergedInsulin = mergeRecordsById(
           localInsulin.map((record) => ({ ...record, user_id: userId })),
-          remoteInsulin
+          remoteInsulin,
+          pendingInsulinIds
         ).filter((r) => !deletedMap[r.id]);
         saveLocalArray(STORAGE_KEYS.INSULIN, mergedInsulin);
         anyHydrated = true;
@@ -661,7 +729,7 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
         );
 
         const unuploadedFood = localFood
-          .filter((l) => !remoteFoodIds.has(l.id) && (pendingFoodIds.has(l.id) || !l.user_id || l.user_id !== userId))
+          .filter((l) => pendingFoodIds.has(l.id) || !remoteFoodIds.has(l.id) || !l.user_id || l.user_id !== userId)
           .map((l) => ({ ...l, user_id: userId }));
 
         let foodUploadSucceeded = true;
@@ -677,14 +745,16 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
             console.warn('Failed to upsert unuploaded food logs:', error.message);
           }
         }
-        if (foodUploadSucceeded) {
+        if (foodUploadSucceeded && unuploadedFood.length > 0) {
           unuploadedFood.forEach((record) => remoteFoodIds.add(record.id));
+          acknowledgeUploadedRecords('food_logs', new Set(unuploadedFood.map((r) => r.id)));
         }
-        acknowledgeSyncedRecords('food_logs', remoteFoodIds);
+        acknowledgeSyncedInserts('food_logs', remoteFoodIds);
         acknowledgeDeletedRecords('food_logs', remoteFoodIds);
         const mergedFood = mergeFoodRecords(
           localFood.map((record) => ({ ...record, user_id: userId })),
-          remoteFood
+          remoteFood,
+          pendingFoodIds
         ).filter((r) => !deletedMap[r.id]);
         saveLocalArray(STORAGE_KEYS.FOOD, mergedFood);
         anyHydrated = true;
@@ -715,7 +785,7 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
         );
 
         const unuploadedActivity = localActivity
-          .filter((l) => !remoteActivityIds.has(l.id) && (pendingActivityIds.has(l.id) || !l.user_id || l.user_id !== userId))
+          .filter((l) => pendingActivityIds.has(l.id) || !remoteActivityIds.has(l.id) || !l.user_id || l.user_id !== userId)
           .map((l) => ({ ...l, user_id: userId }));
 
         let activityUploadSucceeded = true;
@@ -726,14 +796,16 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
             console.warn('Failed to upsert unuploaded activity logs:', error.message);
           }
         }
-        if (activityUploadSucceeded) {
+        if (activityUploadSucceeded && unuploadedActivity.length > 0) {
           unuploadedActivity.forEach((record) => remoteActivityIds.add(record.id));
+          acknowledgeUploadedRecords('activity_logs', new Set(unuploadedActivity.map((r) => r.id)));
         }
-        acknowledgeSyncedRecords('activity_logs', remoteActivityIds);
+        acknowledgeSyncedInserts('activity_logs', remoteActivityIds);
         acknowledgeDeletedRecords('activity_logs', remoteActivityIds);
         const mergedActivity = mergeRecordsById(
           localActivity.map((record) => ({ ...record, user_id: userId })),
-          remoteActivity
+          remoteActivity,
+          pendingActivityIds
         ).filter((r) => !deletedMap[r.id]);
         saveLocalArray(STORAGE_KEYS.ACTIVITY, mergedActivity);
         anyHydrated = true;
@@ -764,7 +836,7 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
         );
 
         const unuploadedFeel = localFeel
-          .filter((l) => !remoteFeelIds.has(l.id) && (pendingFeelIds.has(l.id) || !l.user_id || l.user_id !== userId))
+          .filter((l) => pendingFeelIds.has(l.id) || !remoteFeelIds.has(l.id) || !l.user_id || l.user_id !== userId)
           .map((l) => ({ ...l, user_id: userId }));
 
         let feelUploadSucceeded = true;
@@ -775,14 +847,16 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
             console.warn('Failed to upsert unuploaded feel logs:', error.message);
           }
         }
-        if (feelUploadSucceeded) {
+        if (feelUploadSucceeded && unuploadedFeel.length > 0) {
           unuploadedFeel.forEach((record) => remoteFeelIds.add(record.id));
+          acknowledgeUploadedRecords('feel_logs', new Set(unuploadedFeel.map((r) => r.id)));
         }
-        acknowledgeSyncedRecords('feel_logs', remoteFeelIds);
+        acknowledgeSyncedInserts('feel_logs', remoteFeelIds);
         acknowledgeDeletedRecords('feel_logs', remoteFeelIds);
         const mergedFeel = mergeRecordsById(
           localFeel.map((record) => ({ ...record, user_id: userId })),
-          remoteFeel
+          remoteFeel,
+          pendingFeelIds
         ).filter((r) => !deletedMap[r.id]);
         saveLocalArray(STORAGE_KEYS.FEEL, mergedFeel);
         anyHydrated = true;
@@ -813,7 +887,7 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
         );
 
         const unuploadedGlucose = localGlucose
-          .filter((l) => !remoteGlucoseIds.has(l.id) && (pendingGlucoseIds.has(l.id) || !l.user_id || l.user_id !== userId))
+          .filter((l) => pendingGlucoseIds.has(l.id) || !remoteGlucoseIds.has(l.id) || !l.user_id || l.user_id !== userId)
           .map((l) => ({ ...l, user_id: userId }));
 
         let glucoseUploadSucceeded = true;
@@ -824,14 +898,16 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
             console.warn('Failed to upsert unuploaded glucose logs:', error.message);
           }
         }
-        if (glucoseUploadSucceeded) {
+        if (glucoseUploadSucceeded && unuploadedGlucose.length > 0) {
           unuploadedGlucose.forEach((record) => remoteGlucoseIds.add(record.id));
+          acknowledgeUploadedRecords('glucose_logs', new Set(unuploadedGlucose.map((r) => r.id)));
         }
-        acknowledgeSyncedRecords('glucose_logs', remoteGlucoseIds);
+        acknowledgeSyncedInserts('glucose_logs', remoteGlucoseIds);
         acknowledgeDeletedRecords('glucose_logs', remoteGlucoseIds);
         const mergedGlucose = mergeRecordsById(
           localGlucose.map((record) => ({ ...record, user_id: userId })),
-          remoteGlucose
+          remoteGlucose,
+          pendingGlucoseIds
         ).filter((r) => !deletedMap[r.id]);
         saveLocalArray(STORAGE_KEYS.GLUCOSE, mergedGlucose);
         anyHydrated = true;
@@ -872,20 +948,27 @@ export async function hydrateFromServerDatabase(): Promise<boolean> {
     if (!json.success || !json.data) return false;
 
     const db = json.data;
+    const queue = getOfflineQueue();
+    const pendingInsulinIds = new Set(queue.filter((q) => q.table === 'insulin_logs').map((q) => q.id));
+    const pendingFoodIds = new Set(queue.filter((q) => q.table === 'food_logs').map((q) => q.id));
+    const pendingActivityIds = new Set(queue.filter((q) => q.table === 'activity_logs').map((q) => q.id));
+    const pendingFeelIds = new Set(queue.filter((q) => q.table === 'feel_logs').map((q) => q.id));
+    const pendingGlucoseIds = new Set(queue.filter((q) => q.table === 'glucose_logs').map((q) => q.id));
+
     if (Array.isArray(db.insulin_logs) && db.insulin_logs.length > 0) {
-      saveLocalArray(STORAGE_KEYS.INSULIN, mergeRecordsById(getInsulinLogs(), db.insulin_logs));
+      saveLocalArray(STORAGE_KEYS.INSULIN, mergeRecordsById(getInsulinLogs(), db.insulin_logs, pendingInsulinIds));
     }
     if (Array.isArray(db.food_logs) && db.food_logs.length > 0) {
-      saveLocalArray(STORAGE_KEYS.FOOD, mergeRecordsById(getFoodLogs(), db.food_logs));
+      saveLocalArray(STORAGE_KEYS.FOOD, mergeFoodRecords(getFoodLogs(), db.food_logs, pendingFoodIds));
     }
     if (Array.isArray(db.activity_logs) && db.activity_logs.length > 0) {
-      saveLocalArray(STORAGE_KEYS.ACTIVITY, mergeRecordsById(getActivityLogs(), db.activity_logs));
+      saveLocalArray(STORAGE_KEYS.ACTIVITY, mergeRecordsById(getActivityLogs(), db.activity_logs, pendingActivityIds));
     }
     if (Array.isArray(db.feel_logs) && db.feel_logs.length > 0) {
-      saveLocalArray(STORAGE_KEYS.FEEL, mergeRecordsById(getFeelLogs(), db.feel_logs));
+      saveLocalArray(STORAGE_KEYS.FEEL, mergeRecordsById(getFeelLogs(), db.feel_logs, pendingFeelIds));
     }
     if (Array.isArray(db.glucose_logs) && db.glucose_logs.length > 0) {
-      saveLocalArray(STORAGE_KEYS.GLUCOSE, mergeRecordsById(getGlucoseLogs(), db.glucose_logs));
+      saveLocalArray(STORAGE_KEYS.GLUCOSE, mergeRecordsById(getGlucoseLogs(), db.glucose_logs, pendingGlucoseIds));
     }
     return true;
   } catch (err) {
@@ -955,14 +1038,15 @@ export function saveInsulinLog(
   const existing = getInsulinLogs();
   const id = log.id || crypto.randomUUID();
   const userId = log.user_id && log.user_id !== 'user-1' ? log.user_id : getActiveUserId();
+  const index = existing.findIndex((item) => item.id === id);
+  const existingCreatedAt = index >= 0 ? existing[index].created_at : undefined;
   const fullLog: InsulinLog = {
     ...log,
     id,
     user_id: userId,
-    created_at: new Date().toISOString(),
+    created_at: existingCreatedAt || new Date().toISOString(),
   };
 
-  const index = existing.findIndex((item) => item.id === id);
   if (index >= 0) {
     existing[index] = fullLog;
     addToQueue({ id, table: 'insulin_logs', action: 'update', payload: fullLog });
@@ -1006,14 +1090,15 @@ export function saveFoodLog(
   const existing = getFoodLogs();
   const id = log.id || crypto.randomUUID();
   const userId = log.user_id && log.user_id !== 'user-1' ? log.user_id : getActiveUserId();
+  const index = existing.findIndex((item) => item.id === id);
+  const existingCreatedAt = index >= 0 ? existing[index].created_at : undefined;
   const fullLog: FoodLog = {
     ...log,
     id,
     user_id: userId,
-    created_at: new Date().toISOString(),
+    created_at: existingCreatedAt || new Date().toISOString(),
   };
 
-  const index = existing.findIndex((item) => item.id === id);
   if (index >= 0) {
     existing[index] = fullLog;
     addToQueue({ id, table: 'food_logs', action: 'update', payload: fullLog });
@@ -1057,14 +1142,15 @@ export function saveActivityLog(
   const existing = getActivityLogs();
   const id = log.id || crypto.randomUUID();
   const userId = log.user_id && log.user_id !== 'user-1' ? log.user_id : getActiveUserId();
+  const index = existing.findIndex((item) => item.id === id);
+  const existingCreatedAt = index >= 0 ? existing[index].created_at : undefined;
   const fullLog: ActivityLog = {
     ...log,
     id,
     user_id: userId,
-    created_at: new Date().toISOString(),
+    created_at: existingCreatedAt || new Date().toISOString(),
   };
 
-  const index = existing.findIndex((item) => item.id === id);
   if (index >= 0) {
     existing[index] = fullLog;
     addToQueue({ id, table: 'activity_logs', action: 'update', payload: fullLog });
@@ -1108,14 +1194,15 @@ export function saveFeelLog(
   const existing = getFeelLogs();
   const id = log.id || crypto.randomUUID();
   const userId = log.user_id && log.user_id !== 'user-1' ? log.user_id : getActiveUserId();
+  const index = existing.findIndex((item) => item.id === id);
+  const existingCreatedAt = index >= 0 ? existing[index].created_at : undefined;
   const fullLog: FeelLog = {
     ...log,
     id,
     user_id: userId,
-    created_at: new Date().toISOString(),
+    created_at: existingCreatedAt || new Date().toISOString(),
   };
 
-  const index = existing.findIndex((item) => item.id === id);
   if (index >= 0) {
     existing[index] = fullLog;
     addToQueue({ id, table: 'feel_logs', action: 'update', payload: fullLog });
@@ -1159,14 +1246,15 @@ export function saveGlucoseLog(
   const existing = getGlucoseLogs();
   const id = log.id || crypto.randomUUID();
   const userId = log.user_id && log.user_id !== 'user-1' ? log.user_id : getActiveUserId();
+  const index = existing.findIndex((item) => item.id === id);
+  const existingCreatedAt = index >= 0 ? existing[index].created_at : undefined;
   const fullLog: GlucoseLog = {
     ...log,
     id,
     user_id: userId,
-    created_at: new Date().toISOString(),
+    created_at: existingCreatedAt || new Date().toISOString(),
   };
 
-  const index = existing.findIndex((item) => item.id === id);
   if (index >= 0) {
     existing[index] = fullLog;
     addToQueue({ id, table: 'glucose_logs', action: 'update', payload: fullLog });

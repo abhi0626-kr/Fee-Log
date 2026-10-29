@@ -1318,7 +1318,7 @@ export default function QuickLogPage() {
                     if (item.food.carbs_g != null) macroParts.push(`🍞 ${item.food.carbs_g}g C`);
                     if (item.food.protein_g != null) macroParts.push(`🍗 ${item.food.protein_g}g P`);
                     if (item.food.fiber_g != null) macroParts.push(`🥗 ${item.food.fiber_g}g F`);
-                    if (item.food.sodium_mg != null) macroParts.push(`🧂 ${item.food.sodium_mg}mg Na`);
+                    if (item.food.sugar_g != null) macroParts.push(`🍭 ${item.food.sugar_g}g Sugar`);
 
                     const macroLine = macroParts.length > 0 ? macroParts.join(' · ') : null;
                     details = macroLine ? (item.food.note ? `${macroLine} — ${item.food.note}` : macroLine) : (item.food.note || 'Logged meal');

@@ -32,8 +32,8 @@ export default function DailyMacroTracker({
     insightText = 'No meals logged yet today. Tap + Food to record your breakfast, lunch, or snack.';
     insightIcon = 'restaurant';
     insightTone = 'text-on-surface-variant';
-  } else if (summary.totalSodium > summary.maxSodium) {
-    insightText = `Sodium is elevated (${summary.totalSodium.toLocaleString()}mg / ${summary.maxSodium}mg limit). Drink plenty of water and hydrate for running.`;
+  } else if (summary.totalSugar > summary.maxSugar) {
+    insightText = `Sugar is elevated (${summary.totalSugar}g / ${summary.maxSugar}g limit). High sugar meals cause sharp glucose spikes; consider bolus timing.`;
     insightIcon = 'warning';
     insightTone = 'text-amber-400';
   } else if (summary.totalFiber >= 20) {
@@ -67,7 +67,7 @@ export default function DailyMacroTracker({
                 Fitness Tracker
               </span>
             </div>
-            <p className="text-xs text-on-surface-variant">Carbs, protein, fiber &amp; sodium calculator</p>
+            <p className="text-xs text-on-surface-variant">Carbs, protein, fiber &amp; sugar calculator</p>
           </div>
         </div>
 
@@ -185,43 +185,43 @@ export default function DailyMacroTracker({
           </div>
         </div>
 
-        {/* 4. Sodium */}
+        {/* 4. Sugar */}
         <div className="p-3.5 rounded-2xl bg-surface-container/70 border border-white/5 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-bold text-amber-400 flex items-center gap-1">
-              <span>🧂</span> Sodium
+            <span className="text-xs font-bold text-pink-400 flex items-center gap-1">
+              <span>🍭</span> Sugar
             </span>
             <span
               className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                summary.totalSodium > summary.maxSodium
+                summary.totalSugar > summary.maxSugar
                   ? 'bg-red-500/20 text-red-400'
-                  : 'bg-amber-400/10 text-amber-400'
+                  : 'bg-pink-400/10 text-pink-400'
               }`}
             >
-              {summary.sodiumPercent}%
+              {summary.sugarPercent}%
             </span>
           </div>
 
           <div className="mb-2">
             <div className="flex items-baseline gap-1">
               <span className="text-xl sm:text-2xl font-black text-on-surface">
-                {summary.totalSodium.toLocaleString()}
+                {summary.totalSugar}
               </span>
-              <span className="text-xs text-on-surface-variant font-semibold">/ {summary.maxSodium}mg</span>
+              <span className="text-xs text-on-surface-variant font-semibold">/ {summary.maxSugar}g</span>
             </div>
             <div className="text-[11px] text-on-surface-variant truncate mt-0.5">
-              {summary.totalSodium > summary.maxSodium ? 'Over daily limit' : 'Hydration & renal'}
+              {summary.totalSugar > summary.maxSugar ? 'Over daily limit' : 'Glycemic spike control'}
             </div>
           </div>
 
           <div className="w-full h-2 rounded-full bg-surface-container-high overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-500 ${
-                summary.totalSodium > summary.maxSodium
+                summary.totalSugar > summary.maxSugar
                   ? 'bg-red-500'
-                  : 'bg-gradient-to-r from-amber-400 to-orange-500'
+                  : 'bg-gradient-to-r from-pink-400 to-rose-500'
               }`}
-              style={{ width: `${Math.min(100, summary.sodiumPercent)}%` }}
+              style={{ width: `${Math.min(100, summary.sugarPercent)}%` }}
             />
           </div>
         </div>
@@ -247,7 +247,7 @@ export default function DailyMacroTracker({
               const carbs = log.carbs_g ?? 0;
               const protein = log.protein_g ?? 0;
               const fiber = log.fiber_g ?? 0;
-              const sodium = log.sodium_mg ?? 0;
+              const sugar = log.sugar_g ?? 0;
               const cals = log.calories ?? Math.round(carbs * 4 + protein * 4);
 
               return (
@@ -285,7 +285,7 @@ export default function DailyMacroTracker({
                   <div className="text-right shrink-0">
                     <div className="text-xs font-bold text-primary">{carbs}g C ({cals} kcal)</div>
                     <div className="text-[10px] text-on-surface-variant">
-                      {protein}g P · {fiber}g F · {sodium}mg Na
+                      {protein}g P · {fiber}g F · {sugar}g Sugar
                     </div>
                   </div>
                 </div>

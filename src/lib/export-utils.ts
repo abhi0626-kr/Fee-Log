@@ -45,7 +45,7 @@ export function generateCSV(logs: UnifiedLogItem[]): string {
       note = item.insulin.note || '';
     } else if (item.category === 'food' && item.food) {
       subType = item.food.meal;
-      const macroStr = item.food.carbs_g != null ? ` [${item.food.carbs_g}g C, ${item.food.protein_g ?? 0}g P, ${item.food.fiber_g ?? 0}g F, ${item.food.sodium_mg ?? 0}mg Na]` : '';
+      const macroStr = item.food.carbs_g != null ? ` [${item.food.carbs_g}g C, ${item.food.protein_g ?? 0}g P, ${item.food.fiber_g ?? 0}g F, ${item.food.sugar_g ?? 0}g Sugar]` : '';
       mainValue = `${item.food.items}${macroStr}`;
       carbSize = item.food.carb_size || '';
       note = item.food.note || '';
@@ -287,7 +287,7 @@ export function generateDoctorPDF(
         note = item.insulin.note || '';
       } else if (item.category === 'food' && item.food) {
         categoryLabel = `FOOD (${item.food.meal.toUpperCase()})`;
-        const macroStr = item.food.carbs_g != null ? ` [${item.food.carbs_g}g C, ${item.food.protein_g ?? 0}g P, ${item.food.fiber_g ?? 0}g F, ${item.food.sodium_mg ?? 0}mg Na]` : '';
+        const macroStr = item.food.carbs_g != null ? ` [${item.food.carbs_g}g C, ${item.food.protein_g ?? 0}g P, ${item.food.fiber_g ?? 0}g F, ${item.food.sugar_g ?? 0}g Sugar]` : '';
         details = `${item.food.items} ${item.food.carb_size ? `[Carb: ${item.food.carb_size.toUpperCase()}]` : ''}${macroStr}`;
         note = item.food.note || '';
       } else if (item.category === 'activity' && item.activity) {

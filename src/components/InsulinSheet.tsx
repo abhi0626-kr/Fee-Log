@@ -95,7 +95,7 @@ export default function InsulinSheet({
     saveInsulinLog({
       id: initialData?.id,
       user_id: initialData?.user_id || getActiveUserId(),
-      log_date: dateStr,
+      log_date: initialData?.log_date || dateStr,
       log_time: logTime,
       insulin_type: selectedType,
       units: Number(units),

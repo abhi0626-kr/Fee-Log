@@ -60,7 +60,7 @@ export default function GlucoseSheet({
     saveGlucoseLog({
       id: initialData?.id,
       user_id: initialData?.user_id || getActiveUserId(),
-      log_date: dateStr,
+      log_date: initialData?.log_date || dateStr,
       log_time: logTime,
       reading_mgdl: val,
       context,

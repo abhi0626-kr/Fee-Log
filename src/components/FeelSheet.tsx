@@ -116,7 +116,7 @@ export default function FeelSheet({
     saveFeelLog({
       id: initialData?.id,
       user_id: initialData?.user_id || getActiveUserId(),
-      log_date: dateStr,
+      log_date: initialData?.log_date || dateStr,
       log_time: logTime,
       feel,
       symptoms: selectedSymptoms,

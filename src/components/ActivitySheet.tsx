@@ -62,7 +62,7 @@ export default function ActivitySheet({
     saveActivityLog({
       id: initialData?.id,
       user_id: initialData?.user_id || getActiveUserId(),
-      log_date: dateStr,
+      log_date: initialData?.log_date || dateStr,
       log_time: logTime,
       activity_type: activityType,
       duration_min: Number(durationMin),

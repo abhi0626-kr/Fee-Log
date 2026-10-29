@@ -2,10 +2,16 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
-import { MealType, CarbSize, FoodLog, COMMON_FOOD_CHIPS } from '@/types';
+import {
+  MealType,
+  CarbSize,
+  FoodLog,
+  COMMON_FOOD_CHIPS,
+  FOOD_PORTIONS_MAP,
+} from '@/types';
 import { getCurrentTimeIST, getDefaultMealTypeByHour, getCurrentHourIST } from '@/lib/date-utils';
 import { saveFoodLog, getActiveUserId, getSettings, saveSettings } from '@/lib/sync-storage';
-import { estimateNutrientsFromItems } from '@/lib/macro-calculator';
+import { estimateNutrientsFromItems, parseFoodItemsWithDetails } from '@/lib/macro-calculator';
 
 interface FoodSheetProps {
   isOpen: boolean;
@@ -33,7 +39,7 @@ export default function FoodSheet({
   const [carbsG, setCarbsG] = useState<number | ''>('');
   const [proteinG, setProteinG] = useState<number | ''>('');
   const [fiberG, setFiberG] = useState<number | ''>('');
-  const [sodiumMg, setSodiumMg] = useState<number | ''>('');
+  const [sugarG, setSugarG] = useState<number | ''>('');
   const [calories, setCalories] = useState<number | ''>('');
   const [isMacrosManuallyEdited, setIsMacrosManuallyEdited] = useState<boolean>(false);
 
@@ -44,10 +50,33 @@ export default function FoodSheet({
   const [tempApiKey, setTempApiKey] = useState<string>('');
   const photoInputRef = useRef<HTMLInputElement>(null);
 
+  // Quick Food Chips customization state
+  const [foodChips, setFoodChips] = useState<string[]>(COMMON_FOOD_CHIPS);
+  const [isEditingChips, setIsEditingChips] = useState<boolean>(false);
+  const [newChipInput, setNewChipInput] = useState<string>('');
+
+  // Interactive Weight / Quantity portion selection state
+  const [selectedChipForPortion, setSelectedChipForPortion] = useState<string | null>(null);
+  const [customPortionInput, setCustomPortionInput] = useState<string>('');
+
+  // Live parsed details for recognized food items and their nutrient breakdown
+  const parsedItemDetails = React.useMemo(() => parseFoodItemsWithDetails(items), [items]);
+
   useEffect(() => {
     if (isOpen) {
       setScanMessage(null);
       setShowKeyPrompt(false);
+      setSelectedChipForPortion(null);
+      setCustomPortionInput('');
+
+      const currentSettings = getSettings();
+      if (Array.isArray(currentSettings.food_chips) && currentSettings.food_chips.length > 0) {
+        setFoodChips(currentSettings.food_chips);
+      } else {
+        setFoodChips(COMMON_FOOD_CHIPS);
+      }
+      setIsEditingChips(false);
+      setNewChipInput('');
 
       if (initialData) {
         setMeal(initialData.meal);
@@ -61,12 +90,12 @@ export default function FoodSheet({
           initialData.carbs_g != null ||
           initialData.protein_g != null ||
           initialData.fiber_g != null ||
-          initialData.sodium_mg != null
+          initialData.sugar_g != null
         ) {
           setCarbsG(initialData.carbs_g ?? '');
           setProteinG(initialData.protein_g ?? '');
           setFiberG(initialData.fiber_g ?? '');
-          setSodiumMg(initialData.sodium_mg ?? '');
+          setSugarG(initialData.sugar_g ?? '');
           setCalories(initialData.calories ?? '');
           setIsMacrosManuallyEdited(true);
         } else {
@@ -75,7 +104,7 @@ export default function FoodSheet({
           setCarbsG(est.carbs_g);
           setProteinG(est.protein_g);
           setFiberG(est.fiber_g);
-          setSodiumMg(est.sodium_mg);
+          setSugarG(est.sugar_g);
           setCalories(est.calories);
           setIsMacrosManuallyEdited(false);
         }
@@ -92,7 +121,7 @@ export default function FoodSheet({
         setCarbsG(est.carbs_g);
         setProteinG(est.protein_g);
         setFiberG(est.fiber_g);
-        setSodiumMg(est.sodium_mg);
+        setSugarG(est.sugar_g);
         setCalories(est.calories);
         setIsMacrosManuallyEdited(false);
       }
@@ -117,25 +146,85 @@ export default function FoodSheet({
       setCarbsG(est.carbs_g);
       setProteinG(est.protein_g);
       setFiberG(est.fiber_g);
-      setSodiumMg(est.sodium_mg);
+      setSugarG(est.sugar_g);
       setCalories(est.calories);
     }
   };
 
   const handleChipClick = (chip: string) => {
+    // If clicking the same chip that has portion selector open, toggle it off
+    if (selectedChipForPortion === chip) {
+      setSelectedChipForPortion(null);
+      setCustomPortionInput('');
+      return;
+    }
+
+    // Check if food has defined quick portions (like Rice with 100g/150g or Egg with 1/2/3)
+    const normalizedKey = chip.toLowerCase().trim();
+    const portionInfo = FOOD_PORTIONS_MAP[normalizedKey];
+
+    if (portionInfo && portionInfo.quickPortions.length > 0) {
+      setSelectedChipForPortion(chip);
+      setCustomPortionInput('');
+    } else {
+      // Direct append if no specific portion map
+      handleAppendPortion(chip);
+    }
+  };
+
+  const handleAppendPortion = (portionValue: string) => {
     setItems((prev) => {
       const trimmed = prev.trim();
       let nextItems = '';
       if (!trimmed) {
-        nextItems = chip;
-      } else if (trimmed.toLowerCase().includes(chip.toLowerCase())) {
-        nextItems = prev;
+        nextItems = portionValue;
       } else {
-        nextItems = `${trimmed}, ${chip}`;
+        nextItems = `${trimmed}, ${portionValue}`;
       }
       updateNutrientEstimates(nextItems, carbSize);
       return nextItems;
     });
+    setSelectedChipForPortion(null);
+    setCustomPortionInput('');
+  };
+
+  const handleRemoveItemSegment = (segmentRaw: string) => {
+    setItems((prev) => {
+      const parts = prev
+        .split(/[,+\n]+/)
+        .map((s) => s.trim())
+        .filter((s) => s.toLowerCase() !== segmentRaw.toLowerCase() && s.length > 0);
+      const nextItems = parts.join(', ');
+      updateNutrientEstimates(nextItems, carbSize);
+      return nextItems;
+    });
+  };
+
+  const handleAddChip = () => {
+    const trimmed = newChipInput.trim().toLowerCase();
+    if (!trimmed) return;
+    if (foodChips.some((c) => c.toLowerCase() === trimmed)) {
+      setNewChipInput('');
+      return;
+    }
+    const updated = [...foodChips, trimmed];
+    setFoodChips(updated);
+    setNewChipInput('');
+    const curSettings = getSettings();
+    saveSettings({ ...curSettings, food_chips: updated });
+  };
+
+  const handleRemoveChip = (chipToRemove: string) => {
+    const updated = foodChips.filter((c) => c !== chipToRemove);
+    setFoodChips(updated);
+    const curSettings = getSettings();
+    saveSettings({ ...curSettings, food_chips: updated });
+  };
+
+  const handleResetChips = () => {
+    setFoodChips(COMMON_FOOD_CHIPS);
+    const curSettings = getSettings();
+    saveSettings({ ...curSettings, food_chips: COMMON_FOOD_CHIPS });
   };
 
   const handleItemsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -154,7 +243,7 @@ export default function FoodSheet({
     setCarbsG(est.carbs_g);
     setProteinG(est.protein_g);
     setFiberG(est.fiber_g);
-    setSodiumMg(est.sodium_mg);
+    setSugarG(est.sugar_g);
     setCalories(est.calories);
     setIsMacrosManuallyEdited(false);
   };
@@ -263,7 +352,7 @@ export default function FoodSheet({
       setCarbsG(data.carbs_g);
       setProteinG(data.protein_g);
       setFiberG(data.fiber_g);
-      setSodiumMg(data.sodium_mg);
+      setSugarG(data.sugar_g ?? 0);
       setCalories(data.calories);
       setIsMacrosManuallyEdited(true);
       setShowKeyPrompt(false);
@@ -290,7 +379,7 @@ export default function FoodSheet({
   };
 
   const handleStep = (
-    field: 'carbs' | 'protein' | 'fiber' | 'sodium',
+    field: 'carbs' | 'protein' | 'fiber' | 'sugar',
     delta: number
   ) => {
     setIsMacrosManuallyEdited(true);
@@ -308,10 +397,10 @@ export default function FoodSheet({
       const cur = Number(fiberG) || 0;
       const next = Math.max(0, Math.round((cur + delta) * 10) / 10);
       setFiberG(next);
-    } else if (field === 'sodium') {
-      const cur = Number(sodiumMg) || 0;
-      const next = Math.max(0, Math.round(cur + delta));
-      setSodiumMg(next);
+    } else if (field === 'sugar') {
+      const cur = Number(sugarG) || 0;
+      const next = Math.max(0, Math.round((cur + delta) * 10) / 10);
+      setSugarG(next);
     }
   };
 
@@ -329,7 +418,7 @@ export default function FoodSheet({
       saveFoodLog({
         id: initialData?.id,
         user_id: initialData?.user_id || getActiveUserId(),
-        log_date: dateStr,
+        log_date: initialData?.log_date || dateStr,
         log_time: logTime,
         meal,
         items: items.trim(),
@@ -338,7 +427,8 @@ export default function FoodSheet({
         carbs_g: carbsG === '' ? null : Number(carbsG),
         protein_g: proteinG === '' ? null : Number(proteinG),
         fiber_g: fiberG === '' ? null : Number(fiberG),
-        sodium_mg: sodiumMg === '' ? null : Number(sodiumMg),
+        sugar_g: sugarG === '' ? null : Number(sugarG),
+        sodium_mg: initialData?.sodium_mg ?? null,
         calories: calories === '' ? null : Number(calories),
         note: note.trim() || null,
       });
@@ -504,7 +594,7 @@ export default function FoodSheet({
                   <div className="text-center">
                     <span className="font-bold text-on-surface block">Attach or Take Food Picture</span>
                     <span className="text-[11px] text-on-surface-variant">
-                      AI auto-detects items, carbs, protein, fiber &amp; sodium
+                      AI auto-detects items, carbs, protein, fiber &amp; sugar
                     </span>
                   </div>
                 </button>
@@ -597,29 +687,247 @@ export default function FoodSheet({
               <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                 Food Items
               </label>
-              <span className="text-[11px] text-tertiary">Quick add &amp; auto-estimate</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-tertiary">Quick add &amp; auto-estimate</span>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingChips(!isEditingChips)}
+                  className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-0.5 cursor-pointer ml-1"
+                >
+                  <span className="material-symbols-outlined text-[13px]">
+                    {isEditingChips ? 'check' : 'edit'}
+                  </span>
+                  <span>{isEditingChips ? 'Done' : 'Edit chips'}</span>
+                </button>
+              </div>
             </div>
             <input
               type="text"
               value={items}
               onChange={handleItemsChange}
-              placeholder="e.g. 3 idly, sambar or 2 dosa with chutney"
+              placeholder="e.g. 100g Rice, 3 Egg or 2 Chapathi, 100g Dal"
               className="w-full px-4 py-2.5 bg-surface-container-low border border-white/10 rounded-xl text-sm font-medium text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary mb-2.5"
               required
             />
-            {/* Quick Chips */}
-            <div className="flex flex-wrap gap-1.5">
-              {COMMON_FOOD_CHIPS.map((chip) => (
-                <button
-                  key={chip}
-                  type="button"
-                  onClick={() => handleChipClick(chip)}
-                  className="px-3 py-1 text-xs font-medium bg-tertiary-container/15 border border-tertiary/20 text-tertiary rounded-full hover:bg-tertiary/25 transition-colors active:scale-95"
-                >
-                  + {chip}
-                </button>
-              ))}
-            </div>
+
+            {/* Recognized Items & Breakdown Badges */}
+            {parsedItemDetails.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2.5">
+                {parsedItemDetails.map((detail, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs bg-surface-container-high/90 border border-white/10 text-on-surface shadow-sm"
+                  >
+                    <span>{detail.icon}</span>
+                    <span className="font-bold text-on-surface">{detail.raw}</span>
+                    <span className="text-[10px] text-tertiary font-mono">
+                      {detail.carbs_g}g C · {detail.protein_g}g P · {detail.calories} kcal
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItemSegment(detail.raw)}
+                      className="text-on-surface-variant hover:text-red-400 p-0.5 rounded-full transition-colors cursor-pointer"
+                      title={`Remove ${detail.raw}`}
+                    >
+                      <span className="material-symbols-outlined text-[13px] block">close</span>
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Quick Chips Mode vs Edit Mode */}
+            {!isEditingChips ? (
+              <div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {foodChips.map((chip) => {
+                    const isSelected = selectedChipForPortion === chip;
+                    return (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => handleChipClick(chip)}
+                        className={`px-3 py-1 text-xs font-medium rounded-full transition-all active:scale-95 cursor-pointer ${
+                          isSelected
+                            ? 'bg-tertiary text-on-tertiary border border-tertiary shadow-md'
+                            : 'bg-tertiary-container/15 border border-tertiary/20 text-tertiary hover:bg-tertiary/25'
+                        }`}
+                      >
+                        + {chip}
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingChips(true)}
+                    className="px-2.5 py-1 text-xs font-medium bg-surface-container-high border border-white/10 text-on-surface-variant hover:text-on-surface hover:bg-surface-bright rounded-full transition-colors active:scale-95 flex items-center gap-1 cursor-pointer"
+                    title="Customize quick food chips"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">tune</span>
+                    <span>Edit chips</span>
+                  </button>
+                </div>
+
+                {/* Interactive Portion & Weight Selector when a chip is tapped */}
+                {selectedChipForPortion && (
+                  <div className="mt-2.5 p-3 rounded-2xl bg-tertiary-container/15 border border-tertiary/30 space-y-2 animate-fadeIn">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-on-surface flex items-center gap-1.5">
+                        <span>{FOOD_PORTIONS_MAP[selectedChipForPortion.toLowerCase().trim()]?.icon || '🍽️'}</span>
+                        <span className="capitalize">
+                          {FOOD_PORTIONS_MAP[selectedChipForPortion.toLowerCase().trim()]?.label || selectedChipForPortion}
+                        </span>
+                        <span className="text-[11px] font-normal text-tertiary">— Select weight or quantity:</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedChipForPortion(null);
+                          setCustomPortionInput('');
+                        }}
+                        className="text-on-surface-variant hover:text-on-surface p-0.5 rounded-full cursor-pointer"
+                        title="Cancel"
+                      >
+                        <span className="material-symbols-outlined text-[14px] block">close</span>
+                      </button>
+                    </div>
+
+                    {/* Quick Preset Portions */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {(
+                        FOOD_PORTIONS_MAP[selectedChipForPortion.toLowerCase().trim()]?.quickPortions || [
+                          { label: '50g', value: `50g ${selectedChipForPortion}`, isWeight: true },
+                          { label: '100g', value: `100g ${selectedChipForPortion}`, isWeight: true },
+                          { label: '150g', value: `150g ${selectedChipForPortion}`, isWeight: true },
+                          { label: '200g', value: `200g ${selectedChipForPortion}`, isWeight: true },
+                          { label: '1 serving', value: `1 ${selectedChipForPortion}` },
+                        ]
+                      ).map((p) => (
+                        <button
+                          key={p.label}
+                          type="button"
+                          onClick={() => handleAppendPortion(p.value)}
+                          className="px-3 py-1 text-xs font-semibold rounded-lg bg-surface-container-high hover:bg-tertiary hover:text-on-tertiary text-on-surface transition-all active:scale-95 border border-white/10 cursor-pointer shadow-sm"
+                        >
+                          + {p.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Custom Weight / Quantity Form */}
+                    <div className="flex items-center gap-2 pt-1.5 border-t border-white/5">
+                      <input
+                        type="text"
+                        value={customPortionInput}
+                        onChange={(e) => setCustomPortionInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (customPortionInput.trim()) {
+                              const label =
+                                FOOD_PORTIONS_MAP[selectedChipForPortion.toLowerCase().trim()]?.label ||
+                                selectedChipForPortion;
+                              handleAppendPortion(`${customPortionInput.trim()} ${label}`);
+                            }
+                          }
+                        }}
+                        placeholder='Custom weight or quantity (e.g. "120g", "3", "250ml")...'
+                        className="flex-1 px-3 py-1.5 bg-surface-container-lowest border border-white/10 rounded-xl text-xs text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-tertiary"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (customPortionInput.trim()) {
+                            const label =
+                              FOOD_PORTIONS_MAP[selectedChipForPortion.toLowerCase().trim()]?.label ||
+                              selectedChipForPortion;
+                            handleAppendPortion(`${customPortionInput.trim()} ${label}`);
+                          }
+                        }}
+                        className="px-3.5 py-1.5 bg-tertiary text-on-tertiary text-xs font-bold rounded-xl hover:opacity-90 active:scale-95 cursor-pointer shadow"
+                      >
+                        Add
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAppendPortion(selectedChipForPortion)}
+                        className="px-2 py-1 text-[11px] text-on-surface-variant hover:text-on-surface underline cursor-pointer"
+                      >
+                        Just add name
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-3 rounded-2xl bg-surface-container-high/60 border border-primary/25 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-on-surface flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-primary text-sm">tune</span>
+                    Customize Quick Food Chips
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleResetChips}
+                    className="text-[11px] text-on-surface-variant hover:text-tertiary flex items-center gap-0.5 cursor-pointer font-medium transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">restart_alt</span>
+                    <span>Reset defaults</span>
+                  </button>
+                </div>
+
+                {/* Chips with remove buttons */}
+                <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
+                  {foodChips.map((chip) => (
+                    <span
+                      key={chip}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-tertiary-container/30 border border-tertiary/40 text-on-surface rounded-full shadow-sm"
+                    >
+                      <span>{chip}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveChip(chip)}
+                        className="hover:text-red-400 text-on-surface-variant hover:bg-white/10 p-0.5 rounded-full transition-colors cursor-pointer"
+                        title={`Remove ${chip}`}
+                      >
+                        <span className="material-symbols-outlined text-[13px] block">close</span>
+                      </button>
+                    </span>
+                  ))}
+                </div>
+
+                {/* Add new chip inline */}
+                <div className="flex items-center gap-2 pt-1 border-t border-white/5">
+                  <input
+                    type="text"
+                    value={newChipInput}
+                    onChange={(e) => setNewChipInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddChip();
+                      }
+                    }}
+                    placeholder="Type food name (e.g. oats, upma, salad)..."
+                    className="flex-1 px-3 py-1.5 bg-surface-container-lowest border border-white/10 rounded-xl text-xs text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddChip}
+                    className="px-3.5 py-1.5 bg-primary-container text-on-primary font-bold text-xs rounded-xl hover:bg-primary transition-all active:scale-95 cursor-pointer shadow"
+                  >
+                    + Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingChips(false)}
+                    className="px-3 py-1.5 bg-surface-container-highest text-on-surface text-xs font-semibold rounded-xl hover:bg-surface-bright transition-all cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Carb Size Segmented */}
@@ -793,38 +1101,38 @@ export default function FoodSheet({
                 </div>
               </div>
 
-              {/* Sodium */}
+              {/* Sugar */}
               <div className="p-2.5 rounded-xl bg-surface-container border border-white/5 flex flex-col justify-between">
                 <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="font-bold text-amber-400">🧂 Sodium</span>
-                  <span className="text-[10px] text-on-surface-variant">mg</span>
+                  <span className="font-bold text-pink-400">🍭 Sugar</span>
+                  <span className="text-[10px] text-on-surface-variant">g</span>
                 </div>
                 <input
                   type="number"
                   step="any"
                   min="0"
-                  value={sodiumMg}
+                  value={sugarG}
                   onChange={(e) => {
                     setIsMacrosManuallyEdited(true);
-                    setSodiumMg(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)));
+                    setSugarG(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)));
                   }}
-                  className="w-full bg-surface-container-high px-2 py-1 rounded-lg text-sm font-bold text-on-surface text-center focus:outline-none focus:ring-1 focus:ring-amber-400 mb-1.5"
+                  className="w-full bg-surface-container-high px-2 py-1 rounded-lg text-sm font-bold text-on-surface text-center focus:outline-none focus:ring-1 focus:ring-pink-400 mb-1.5"
                   placeholder="0"
                 />
                 <div className="flex gap-1">
                   <button
                     type="button"
-                    onClick={() => handleStep('sodium', -100)}
+                    onClick={() => handleStep('sugar', -1)}
                     className="flex-1 py-0.5 rounded bg-surface-container-high hover:bg-surface-bright text-[10px] font-bold text-on-surface-variant text-center active:scale-95 cursor-pointer"
                   >
-                    -100
+                    -1
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleStep('sodium', 100)}
+                    onClick={() => handleStep('sugar', 1)}
                     className="flex-1 py-0.5 rounded bg-surface-container-high hover:bg-surface-bright text-[10px] font-bold text-on-surface-variant text-center active:scale-95 cursor-pointer"
                   >
-                    +100
+                    +1
                   </button>
                 </div>
               </div>

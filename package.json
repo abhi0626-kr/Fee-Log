@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "cross-env NEXT_IGNORE_INCORRECT_LOCKFILE=1 next dev",
+    "dev": "npm run clean && cross-env NEXT_IGNORE_INCORRECT_LOCKFILE=1 next dev",
     "build": "cross-env NEXT_IGNORE_INCORRECT_LOCKFILE=1 next build",
     "start": "next start",
     "lint": "next lint",

@@ -6,7 +6,8 @@ interface FoodScanResult {
   carbs_g: number;
   protein_g: number;
   fiber_g: number;
-  sodium_mg: number;
+  sugar_g: number;
+  sodium_mg?: number;
   calories: number;
   explanation: string;
 }
@@ -112,10 +113,11 @@ export async function POST(request: NextRequest) {
         carbs_g: mealHint === 'breakfast' ? 58 : mealHint === 'dinner' ? 44 : 68,
         protein_g: mealHint === 'breakfast' ? 12 : mealHint === 'dinner' ? 18 : 14,
         fiber_g: mealHint === 'breakfast' ? 6 : mealHint === 'dinner' ? 5.5 : 5,
+        sugar_g: mealHint === 'breakfast' ? 3.5 : mealHint === 'dinner' ? 4.2 : 2.5,
         sodium_mg: mealHint === 'breakfast' ? 640 : mealHint === 'dinner' ? 510 : 680,
         calories: mealHint === 'breakfast' ? 340 : mealHint === 'dinner' ? 390 : 470,
         explanation:
-          '✨ AI Plate Scanner simulated detection: Identified plate items, carb portions, and electrolyte sodium profile.',
+          '✨ AI Plate Scanner simulated detection: Identified plate items, carb portions, and sugar profile.',
       };
 
       return NextResponse.json({ success: true, data: demoResult, isDemo: true });
@@ -150,7 +152,7 @@ Analyze the user's food photo carefully.
    - Total Carbohydrates in grams (carbs_g)
    - Protein in grams (protein_g)
    - Dietary Fiber in grams (fiber_g)
-   - Sodium in milligrams (sodium_mg)
+   - Sugar in grams (sugar_g)
    - Estimated Calories in kcal (calories)
 3. Classify carb_size as exactly one of: 'small', 'medium', or 'large'.
 4. Provide a friendly 1-2 sentence explanation of your estimate.
@@ -162,7 +164,7 @@ Respond strictly in valid JSON matching this schema:
   "carbs_g": number,
   "protein_g": number,
   "fiber_g": number,
-  "sodium_mg": number,
+  "sugar_g": number,
   "calories": number,
   "explanation": string
 }`;
@@ -290,6 +292,7 @@ Respond strictly in valid JSON matching this schema:
     const cleanCarbs = Math.max(0, Math.round(Number(parsed.carbs_g ?? 0) * 10) / 10);
     const cleanProtein = Math.max(0, Math.round(Number(parsed.protein_g ?? 0) * 10) / 10);
     const cleanFiber = Math.max(0, Math.round(Number(parsed.fiber_g ?? 0) * 10) / 10);
+    const cleanSugar = Math.max(0, Math.round(Number(parsed.sugar_g ?? 0) * 10) / 10);
     const cleanSodium = Math.max(0, Math.round(Number(parsed.sodium_mg ?? 0)));
     const cleanCalories =
       Number(parsed.calories) > 0
@@ -311,6 +314,7 @@ Respond strictly in valid JSON matching this schema:
       carbs_g: cleanCarbs,
       protein_g: cleanProtein,
       fiber_g: cleanFiber,
+      sugar_g: cleanSugar,
       sodium_mg: cleanSodium,
       calories: cleanCalories,
       explanation: parsed.explanation?.trim() || 'Food items and macro profile calculated via AI.',
