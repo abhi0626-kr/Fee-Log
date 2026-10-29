@@ -61,10 +61,12 @@ export default function SyncBanner() {
     setOnline(getIsOnline());
     const q = getOfflineQueue();
     setQueueCount(q.length);
-    checkSession();
-
-    hydrateFromSupabase().catch((error) => {
-      console.error('Unable to load logs from database:', error);
+    checkSession().then((hasSession) => {
+      if (hasSession) {
+        hydrateFromSupabase().catch((error) => {
+          console.error('Unable to load logs from database:', error);
+        });
+      }
     });
 
     const handleOnline = () => {
@@ -124,6 +126,9 @@ export default function SyncBanner() {
           realtimeUnsubscribe = initSupabaseRealtime(session.user.id);
           hydrateFromSupabase(session.user.id).catch((error) => {
             console.error('Unable to load logs after sign-in:', error);
+          });
+          flushOfflineQueue().catch((error) => {
+            console.error('Unable to retry pending logs after sign-in:', error);
           });
         }
       });

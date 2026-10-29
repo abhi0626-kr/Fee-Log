@@ -128,11 +128,16 @@ async function upsertLog<T extends { id: string; user_id: string }>(
   }
   const userId = await getRequiredUserId();
   const record = { ...log, user_id: userId };
-  const { data, error } = await supabase.from(table).upsert(record).select().single();
+  let { error } = await supabase.from(table).upsert(record);
+  if (error && table === 'food_logs' && isMissingColumnError(error)) {
+    const baseRecord = sanitizeFoodPayload(record as Record<string, unknown>);
+    const retryResult = await supabase.from(table).upsert(baseRecord);
+    error = retryResult.error;
+  }
   if (error) {
     throw new Error(`Failed to save ${table}: ${error.message}`);
   }
-  return (data || record) as T;
+  return record;
 }
 
 async function deleteLog(table: LogTable, id: string): Promise<void> {
