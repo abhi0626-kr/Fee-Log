@@ -216,61 +216,77 @@ Respond strictly in valid JSON matching this schema:
 
     if (isUsingGroq) {
       try {
-        const modelName = process.env.GROQ_MODEL?.trim() || 'meta-llama/llama-4-scout-17b-16e-instruct';
-        const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${resolvedApiKey}`,
-          },
-          body: JSON.stringify({
-            model: modelName,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'text',
-                    text: 'Analyze the food in this photo and return the estimated nutrition breakdown according to the requested JSON schema.',
-                  },
-                  {
-                    type: 'image_url',
-                    image_url: { url: `data:${mimeType};base64,${rawBase64}` },
-                  },
-                ],
-              },
-            ],
-            response_format: { type: 'json_object' },
-            temperature: 0.2,
-          }),
-        });
+        const configuredModel = process.env.GROQ_MODEL?.trim();
+        const modelCandidates = configuredModel
+          ? [configuredModel]
+          : [
+              'meta-llama/llama-4-scout-17b-16e-instruct',
+              'meta-llama/llama-4-maverick-17b-128e-instruct',
+            ];
+        let lastGroqError = 'Groq did not return a response.';
 
-        if (!groqResponse.ok) {
+        for (const modelName of modelCandidates) {
+          const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${resolvedApiKey}`,
+            },
+            body: JSON.stringify({
+              model: modelName,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                {
+                  role: 'user',
+                  content: [
+                    {
+                      type: 'text',
+                      text: 'Analyze the food in this photo and return the estimated nutrition breakdown according to the requested JSON schema.',
+                    },
+                    {
+                      type: 'image_url',
+                      image_url: { url: `data:${mimeType};base64,${rawBase64}` },
+                    },
+                  ],
+                },
+              ],
+              response_format: { type: 'json_object' },
+              temperature: 0.2,
+            }),
+          });
+
+          if (groqResponse.ok) {
+            const groqData = await groqResponse.json();
+            const content = groqData.choices?.[0]?.message?.content;
+            if (!content) {
+              return NextResponse.json(
+                { success: false, error: 'EMPTY_RESPONSE', message: 'No content received from Groq.' },
+                { status: 502 }
+              );
+            }
+            return NextResponse.json({ success: true, data: formatScanResult(JSON.parse(content)) });
+          }
+
           const errText = await groqResponse.text();
-          let errMsg = `Groq API error (${groqResponse.status})`;
           try {
             const parsedErr = JSON.parse(errText);
-            errMsg = parsedErr.error?.message || errMsg;
+            lastGroqError = parsedErr.error?.message || errText;
           } catch {
-            errMsg = errText || errMsg;
+            lastGroqError = errText || `Groq API error (${groqResponse.status})`;
           }
-          return NextResponse.json(
-            { success: false, error: 'GROQ_ERROR', message: errMsg },
-            { status: groqResponse.status >= 500 ? 502 : groqResponse.status }
-          );
+
+          const lowerError = lastGroqError.toLowerCase();
+          const canTryAnotherModel =
+            groqResponse.status === 404 ||
+            lowerError.includes('does not exist') ||
+            lowerError.includes('do not have access');
+          if (!canTryAnotherModel) break;
         }
 
-        const groqData = await groqResponse.json();
-        const content = groqData.choices?.[0]?.message?.content;
-        if (!content) {
-          return NextResponse.json(
-            { success: false, error: 'EMPTY_RESPONSE', message: 'No content received from Groq.' },
-            { status: 502 }
-          );
-        }
-
-        return NextResponse.json({ success: true, data: formatScanResult(JSON.parse(content)) });
+        return NextResponse.json(
+          { success: false, error: 'GROQ_ERROR', message: lastGroqError },
+          { status: 502 }
+        );
       } catch (err) {
         return NextResponse.json(
           { success: false, error: 'GROQ_ERROR', message: (err as Error).message },
