@@ -204,6 +204,15 @@ export default function QuickLogPage() {
     };
   }, [refreshData]);
 
+  useEffect(() => {
+    const isEntrySheetOpen = isFoodOpen || isActivityOpen || isFeelOpen || isGlucoseOpen || isInsulinOpen;
+    document.body.classList.toggle('entry-sheet-open', isEntrySheetOpen);
+
+    return () => {
+      document.body.classList.remove('entry-sheet-open');
+    };
+  }, [isFoodOpen, isActivityOpen, isFeelOpen, isGlucoseOpen, isInsulinOpen]);
+
   const morningLog = mounted ? todayInsulinLogs.find((l) => l.insulin_type === 'morning_regular') : undefined;
   const afternoonLog = mounted ? todayInsulinLogs.find((l) => l.insulin_type === 'afternoon_regular') : undefined;
   const nightLog = mounted ? todayInsulinLogs.find((l) => l.insulin_type === 'night_30_70') : undefined;

@@ -58,7 +58,7 @@ export default function RootLayout({
         <SyncBanner />
         <Header />
 
-        <main className="relative z-10 w-full pt-20 sm:pt-24 pb-20 md:pb-12 flex-1">
+        <main className="relative z-0 w-full pt-20 sm:pt-24 pb-20 md:pb-12 flex-1">
           <div className="flex justify-center px-3 mb-2">
             <div className="inline-flex items-center gap-1.5 rounded-full border border-surface-container-high/50 bg-surface-container-lowest/70 px-2.5 py-1 text-[9px] font-medium text-on-surface-variant shadow-sm">
               <span className="material-symbols-outlined text-secondary text-[12px]">verified_user</span>

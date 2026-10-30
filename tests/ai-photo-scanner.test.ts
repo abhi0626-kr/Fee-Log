@@ -41,8 +41,12 @@ describe('AI Photo Auto-Scanner API Tests', () => {
 
   test('returns 401 when no API key is available and isDemo=false', async () => {
     // Ensure environment keys are not interfering
-    const prevKey = process.env.GEMINI_API_KEY;
+    const prevGemini = process.env.GEMINI_API_KEY;
+    const prevOpenAi = process.env.OPENAI_API_KEY;
+    const prevGoogle = process.env.GOOGLE_API_KEY;
     delete process.env.GEMINI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.GOOGLE_API_KEY;
 
     const req = new NextRequest('http://localhost:3000/api/analyze-food-photo', {
       method: 'POST',
@@ -59,6 +63,8 @@ describe('AI Photo Auto-Scanner API Tests', () => {
     assert.equal(json.success, false);
     assert.equal(json.error, 'NO_API_KEY');
 
-    if (prevKey) process.env.GEMINI_API_KEY = prevKey;
+    if (prevGemini) process.env.GEMINI_API_KEY = prevGemini;
+    if (prevOpenAi) process.env.OPENAI_API_KEY = prevOpenAi;
+    if (prevGoogle) process.env.GOOGLE_API_KEY = prevGoogle;
   });
 });

@@ -795,27 +795,48 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between mb-2">
               <label className="text-on-surface-variant font-semibold flex items-center gap-1.5 text-xs">
                 <span className="material-symbols-outlined text-tertiary text-sm">auto_awesome</span>
-                <span>Google Gemini API Key (AI Photo Plate Scanner)</span>
+                <span>AI Photo Plate Scanner Key (OpenAI or Gemini)</span>
               </label>
-              <a
-                href="https://aistudio.google.com/app/apikey"
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] text-tertiary hover:underline font-semibold flex items-center gap-0.5"
-              >
-                <span>Get Free Key</span>
-                <span className="material-symbols-outlined text-xs">open_in_new</span>
-              </a>
+              <div className="flex items-center gap-2">
+                <a
+                  href="https://platform.openai.com/api-keys"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-tertiary hover:underline font-semibold flex items-center gap-0.5"
+                >
+                  <span>OpenAI</span>
+                  <span className="material-symbols-outlined text-xs">open_in_new</span>
+                </a>
+                <span className="text-outline text-xs">|</span>
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-tertiary hover:underline font-semibold flex items-center gap-0.5"
+                >
+                  <span>Gemini</span>
+                  <span className="material-symbols-outlined text-xs">open_in_new</span>
+                </a>
+              </div>
             </div>
             <input
               type="password"
-              value={settings.gemini_api_key || ''}
-              onChange={(e) => handleChange('gemini_api_key', e.target.value)}
-              placeholder="AIzaSy... (leave blank to use server environment key)"
+              value={settings.openai_api_key || settings.gemini_api_key || ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val.startsWith('sk-')) {
+                  handleChange('openai_api_key', val);
+                  handleChange('gemini_api_key', val);
+                } else {
+                  handleChange('gemini_api_key', val);
+                  handleChange('openai_api_key', '');
+                }
+              }}
+              placeholder="sk-... (OpenAI) or AIzaSy... (Gemini)"
               className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low border border-white/10 text-on-surface text-xs font-mono focus:outline-none focus:ring-1 focus:ring-tertiary"
             />
             <p className="text-[10px] text-outline mt-1.5">
-              Used when you tap &quot;AI Scan Plate&quot; on meal photos to detect foods, carbs, protein, fiber, and sugar automatically.
+              Supports OpenAI keys (<code>sk-...</code>) using GPT-4o-mini and Google Gemini keys (<code>AIza...</code>). Used when tapping &quot;AI Scan Plate&quot; on meal photos.
             </p>
           </div>
         </div>

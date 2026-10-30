@@ -18,6 +18,16 @@ body {
   overscroll-behavior: none;
 }
 
+body.entry-sheet-open > header,
+body.entry-sheet-open > nav {
+  display: none;
+}
+
+body.entry-sheet-open > main {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 input, textarea, select {
   user-select: text;
 }

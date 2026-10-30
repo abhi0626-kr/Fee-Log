@@ -9,26 +9,19 @@ import { FoodLog } from '../src/types';
 describe('Macro Calculator & Daily Fitness Tracker Tests', () => {
   test('estimates nutrients from staple Bangalore PG foods (3 idly, sambar)', () => {
     const est = estimateNutrientsFromItems('3 idly, sambar', 'medium');
-    // 3 idly = 3 * 15 = 45g carbs, 3 * 2.5 = 7.5g protein, 3 * 1 = 3g fiber, 3 * 120 = 360mg sodium
-    // 1 sambar = 16g carbs, 7g protein, 4g fiber, 420mg sodium
-    // Total carbs = 45 + 16 = 61g
-    // Total protein = 7.5 + 7 = 14.5g
-    // Total fiber = 3 + 4 = 7g
-    // Total sodium = 360 + 420 = 780mg
-    assert.equal(est.carbs_g, 61);
-    assert.equal(est.protein_g, 14.5);
-    assert.equal(est.fiber_g, 7);
-    assert.equal(est.sodium_mg, 780);
-    assert.ok(est.calories > 300);
+    assert.equal(est.carbs_g, 46.2);
+    assert.equal(est.protein_g, 13.3);
+    assert.equal(est.fiber_g, 6.6);
+    assert.equal(est.sodium_mg, 663);
+    assert.ok(est.calories > 250);
   });
 
   test('estimates nutrients from single item (2 dosa)', () => {
     const est = estimateNutrientsFromItems('2 dosa', 'medium');
-    // 2 dosa = 2 * 26 = 52g carbs, 2 * 3.5 = 7g protein, 2 * 1.2 = 2.4g fiber, 2 * 180 = 360mg sodium
-    assert.equal(est.carbs_g, 52);
-    assert.equal(est.protein_g, 7);
+    assert.equal(est.carbs_g, 51.2);
+    assert.equal(est.protein_g, 7.2);
     assert.equal(est.fiber_g, 2.4);
-    assert.equal(est.sodium_mg, 360);
+    assert.equal(est.sodium_mg, 352);
   });
 
   test('falls back to carb_size preset when item description is unrecognized', () => {

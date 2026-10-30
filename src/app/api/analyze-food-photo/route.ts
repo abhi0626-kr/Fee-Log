@@ -44,17 +44,19 @@ async function getCandidateModels(apiKey: string): Promise<string[]> {
           .map((m: { name: string }) => m.name.replace(/^models\//, ''));
 
         if (valid.length > 0) {
-          // Prefer broadly available stable Flash models over restricted or preview models.
+          // Prefer broadly available latest Flash models (e.g. 3.8-flash, 2.5-flash).
           return valid.sort((a: string, b: string) => {
             const getScore = (name: string) => {
               let score = 0;
               if (name.includes('flash')) score += 20;
-              if (name === 'gemini-2.0-flash') score += 20;
-              if (name.includes('2.0')) score += 10;
-              if (name.includes('1.5')) score += 5;
+              if (name.includes('3.8')) score += 30;
+              if (name.includes('3.0')) score += 25;
+              if (name.includes('2.5')) score += 20;
+              if (name === 'gemini-2.0-flash') score -= 30; // Retired by Google
+              if (name.includes('2.0')) score -= 20;
+              if (name.includes('1.5')) score -= 10;
               if (name.includes('latest')) score += 2;
-              if (name.includes('2.5')) score -= 10;
-              if (name.includes('pro')) score += 2;
+              if (name.includes('pro')) score += 1;
               return score;
             };
             return getScore(b) - getScore(a);
@@ -67,14 +69,45 @@ async function getCandidateModels(apiKey: string): Promise<string[]> {
   }
 
   return [
+    'gemini-3.8-flash',
+    'gemini-2.5-flash',
     'gemini-2.0-flash',
     'gemini-1.5-flash-latest',
     'gemini-1.5-flash',
-    'gemini-1.5-flash-002',
-    'gemini-1.5-flash-001',
-    'gemini-1.5-pro-latest',
-    'gemini-1.5-pro',
   ];
+}
+
+function formatScanResult(parsed: Partial<FoodScanResult>): FoodScanResult {
+  const cleanCarbs = Math.max(0, Math.round(Number(parsed.carbs_g ?? 0) * 10) / 10);
+  const cleanProtein = Math.max(0, Math.round(Number(parsed.protein_g ?? 0) * 10) / 10);
+  const cleanFiber = Math.max(0, Math.round(Number(parsed.fiber_g ?? 0) * 10) / 10);
+  const cleanSugar = Math.max(0, Math.round(Number(parsed.sugar_g ?? 0) * 10) / 10);
+  const cleanSodium = Math.max(0, Math.round(Number(parsed.sodium_mg ?? 0)));
+  const cleanCalories =
+    Number(parsed.calories) > 0
+      ? Math.round(Number(parsed.calories))
+      : Math.round(cleanCarbs * 4 + cleanProtein * 4);
+
+  const validCarbSizes: ('small' | 'medium' | 'large')[] = ['small', 'medium', 'large'];
+  const cleanSize = validCarbSizes.includes(parsed.carb_size as 'small' | 'medium' | 'large')
+    ? (parsed.carb_size as 'small' | 'medium' | 'large')
+    : cleanCarbs > 75
+    ? 'large'
+    : cleanCarbs > 35
+    ? 'medium'
+    : 'small';
+
+  return {
+    items: parsed.items?.trim() || 'Identified meal plate',
+    carb_size: cleanSize,
+    carbs_g: cleanCarbs,
+    protein_g: cleanProtein,
+    fiber_g: cleanFiber,
+    sugar_g: cleanSugar,
+    sodium_mg: cleanSodium,
+    calories: cleanCalories,
+    explanation: parsed.explanation?.trim() || 'Food items and macro profile calculated via AI.',
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -96,6 +129,7 @@ export async function POST(request: NextRequest) {
 
     const resolvedApiKey =
       apiKey?.trim() ||
+      process.env.OPENAI_API_KEY ||
       process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_API_KEY ||
       process.env.NEXT_PUBLIC_GEMINI_API_KEY;
@@ -129,7 +163,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: 'NO_API_KEY',
           message:
-            'Google Gemini API key required. Add your free key in Settings or enter it to scan.',
+            'API key required. Add your OpenAI (sk-...) or Google Gemini (AIzaSy...) key in Settings or enter it to scan.',
         },
         { status: 401 }
       );
@@ -169,8 +203,101 @@ Respond strictly in valid JSON matching this schema:
   "explanation": string
 }`;
 
-    // Dynamically discover which Gemini models are available for this user's API key.
-    // A server-side override is useful when an API key has a restricted model allowlist.
+    // Provider check: OpenAI key starts with "sk-" or when explicitly configured
+    const isOpenAiKey = (key: string) => key.startsWith('sk-');
+    const isUsingOpenAi =
+      isOpenAiKey(resolvedApiKey) ||
+      (Boolean(process.env.OPENAI_API_KEY) && !apiKey && !process.env.GEMINI_API_KEY);
+
+    // ==========================================
+    // PATH 1: OpenAI Vision (gpt-4o-mini / gpt-4o)
+    // ==========================================
+    if (isUsingOpenAi) {
+      try {
+        const modelName = process.env.OPENAI_MODEL?.trim() || 'gpt-4o-mini';
+        const openAiUrl = 'https://api.openai.com/v1/chat/completions';
+
+        const openAiResponse = await fetch(openAiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${resolvedApiKey}`,
+          },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [
+              {
+                role: 'system',
+                content: systemPrompt,
+              },
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: 'Analyze the food in this photo and return the estimated nutrition breakdown according to the requested JSON schema.',
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: {
+                      url: `data:${mimeType};base64,${rawBase64}`,
+                    },
+                  },
+                ],
+              },
+            ],
+            response_format: { type: 'json_object' },
+            temperature: 0.2,
+          }),
+        });
+
+        if (!openAiResponse.ok) {
+          const errText = await openAiResponse.text();
+          let errMsg = `OpenAI API error (${openAiResponse.status})`;
+          try {
+            const parsedErr = JSON.parse(errText);
+            errMsg = parsedErr.error?.message || errMsg;
+          } catch {
+            errMsg = errText || errMsg;
+          }
+          return NextResponse.json(
+            { success: false, error: 'OPENAI_ERROR', message: errMsg },
+            { status: openAiResponse.status >= 500 ? 502 : openAiResponse.status }
+          );
+        }
+
+        const openAiData = await openAiResponse.json();
+        const content = openAiData.choices?.[0]?.message?.content;
+
+        if (!content) {
+          return NextResponse.json(
+            { success: false, error: 'EMPTY_RESPONSE', message: 'No content received from OpenAI.' },
+            { status: 502 }
+          );
+        }
+
+        let parsed: Partial<FoodScanResult>;
+        try {
+          parsed = JSON.parse(content);
+        } catch {
+          return NextResponse.json(
+            { success: false, error: 'PARSE_ERROR', message: 'Failed to parse JSON response from OpenAI.' },
+            { status: 502 }
+          );
+        }
+
+        return NextResponse.json({ success: true, data: formatScanResult(parsed) });
+      } catch (err) {
+        return NextResponse.json(
+          { success: false, error: 'OPENAI_ERROR', message: (err as Error).message },
+          { status: 502 }
+        );
+      }
+    }
+
+    // ==========================================
+    // PATH 2: Google Gemini (gemini-3.8-flash, etc.)
+    // ==========================================
     const configuredModel = process.env.GEMINI_MODEL?.trim();
     const candidateModels = configuredModel
       ? [configuredModel]
@@ -233,7 +360,7 @@ Respond strictly in valid JSON matching this schema:
           lastErrorMsg = errText;
         }
 
-        // If it's a 404 or model not found, try the next model candidate
+        // If it's a 404 or model not found / deprecated, try next model candidate
         const lowerErrorMessage = lastErrorMsg.toLowerCase();
         const isUnsupportedModel =
           response.status === 404 ||
@@ -289,38 +416,7 @@ Respond strictly in valid JSON matching this schema:
       );
     }
 
-    const cleanCarbs = Math.max(0, Math.round(Number(parsed.carbs_g ?? 0) * 10) / 10);
-    const cleanProtein = Math.max(0, Math.round(Number(parsed.protein_g ?? 0) * 10) / 10);
-    const cleanFiber = Math.max(0, Math.round(Number(parsed.fiber_g ?? 0) * 10) / 10);
-    const cleanSugar = Math.max(0, Math.round(Number(parsed.sugar_g ?? 0) * 10) / 10);
-    const cleanSodium = Math.max(0, Math.round(Number(parsed.sodium_mg ?? 0)));
-    const cleanCalories =
-      Number(parsed.calories) > 0
-        ? Math.round(Number(parsed.calories))
-        : Math.round(cleanCarbs * 4 + cleanProtein * 4);
-
-    const validCarbSizes: ('small' | 'medium' | 'large')[] = ['small', 'medium', 'large'];
-    const cleanSize = validCarbSizes.includes(parsed.carb_size as 'small' | 'medium' | 'large')
-      ? (parsed.carb_size as 'small' | 'medium' | 'large')
-      : cleanCarbs > 75
-      ? 'large'
-      : cleanCarbs > 35
-      ? 'medium'
-      : 'small';
-
-    const result: FoodScanResult = {
-      items: parsed.items?.trim() || 'Identified meal plate',
-      carb_size: cleanSize,
-      carbs_g: cleanCarbs,
-      protein_g: cleanProtein,
-      fiber_g: cleanFiber,
-      sugar_g: cleanSugar,
-      sodium_mg: cleanSodium,
-      calories: cleanCalories,
-      explanation: parsed.explanation?.trim() || 'Food items and macro profile calculated via AI.',
-    };
-
-    return NextResponse.json({ success: true, data: result });
+    return NextResponse.json({ success: true, data: formatScanResult(parsed) });
   } catch (error) {
     return NextResponse.json(
       { success: false, error: 'SERVER_ERROR', message: (error as Error).message },

@@ -118,14 +118,14 @@ export default function InsulinSheet({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 overflow-y-auto"
+      className="fixed inset-0 z-[200] flex justify-center bg-surface-container text-on-surface overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-surface-container/95 border border-white/10 text-on-surface w-full max-w-lg rounded-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-150"
+        className="min-h-full w-full max-w-2xl flex flex-col overflow-hidden border-x border-white/10"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-surface-container-high shrink-0">
@@ -152,7 +152,7 @@ export default function InsulinSheet({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 pb-36 space-y-4">
           {/* Dose Type Segmented Selector */}
           <div>
             <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
@@ -301,7 +301,7 @@ export default function InsulinSheet({
             />
           </div>
 
-          <div className="pt-2 flex items-center gap-2.5">
+          <div className="fixed bottom-0 left-1/2 z-20 w-full max-w-2xl -translate-x-1/2 border-t border-white/10 bg-surface-container/95 px-6 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-md flex items-center gap-2.5">
             <button
               type="button"
               onClick={onClose}

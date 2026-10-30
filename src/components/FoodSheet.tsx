@@ -48,7 +48,10 @@ export default function FoodSheet({
   const [scanMessage, setScanMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [showKeyPrompt, setShowKeyPrompt] = useState<boolean>(false);
   const [tempApiKey, setTempApiKey] = useState<string>('');
-  const photoInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraVideoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState<boolean>(false);
 
   // Quick Food Chips customization state
   const [foodChips, setFoodChips] = useState<string[]>(COMMON_FOOD_CHIPS);
@@ -136,6 +139,31 @@ export default function FoodSheet({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
+
+  useEffect(() => {
+    return () => {
+      cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen && cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+      setIsCameraOpen(false);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const video = cameraVideoRef.current;
+    const stream = cameraStreamRef.current;
+    if (!isCameraOpen || !video || !stream) return;
+
+    video.srcObject = stream;
+    return () => {
+      video.srcObject = null;
+    };
+  }, [isCameraOpen]);
 
   if (!isOpen) return null;
 
@@ -304,6 +332,62 @@ export default function FoodSheet({
     }
   };
 
+  const closeCamera = () => {
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
+    setIsCameraOpen(false);
+  };
+
+  const handleOpenCamera = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScanMessage({
+        text: 'Camera access is not supported by this browser. Choose a photo from your gallery instead.',
+        type: 'error',
+      });
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+      cameraStreamRef.current = stream;
+      setIsCameraOpen(true);
+    } catch (error) {
+      const errorName = error instanceof DOMException ? error.name : '';
+      const message =
+        errorName === 'NotAllowedError'
+          ? 'Camera permission was denied. Allow camera access in your browser settings or choose a gallery photo.'
+          : errorName === 'NotFoundError'
+          ? 'No camera was found on this device. Choose a gallery photo instead.'
+          : 'Unable to open the camera. Choose a gallery photo instead.';
+      setScanMessage({ text: message, type: 'error' });
+    }
+  };
+
+  const handleCapturePhoto = () => {
+    const video = cameraVideoRef.current;
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+      setScanMessage({ text: 'The camera is not ready yet. Try again in a moment.', type: 'error' });
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      setScanMessage({ text: 'Unable to capture the camera image. Choose a gallery photo instead.', type: 'error' });
+      return;
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    setPhotoPreview(canvas.toDataURL('image/jpeg', 0.75));
+    closeCamera();
+    setScanMessage(null);
+  };
+
   // AI Plate Scanner Trigger
   const handleScanPlate = async (forceDemo: boolean = false, keyOverride?: string) => {
     if (!photoPreview && !forceDemo) return;
@@ -313,7 +397,7 @@ export default function FoodSheet({
 
     try {
       const currentSettings = getSettings();
-      const apiKey = keyOverride || currentSettings.gemini_api_key;
+      const apiKey = keyOverride || currentSettings.openai_api_key || currentSettings.gemini_api_key;
 
       const response = await fetch('/api/analyze-food-photo', {
         method: 'POST',
@@ -332,7 +416,7 @@ export default function FoodSheet({
         if (json.error === 'NO_API_KEY') {
           setShowKeyPrompt(true);
           setScanMessage({
-            text: 'Google Gemini API key required to scan plate.',
+            text: 'OpenAI or Gemini API key required to scan plate.',
             type: 'info',
           });
         } else {
@@ -373,9 +457,14 @@ export default function FoodSheet({
 
   const handleSaveApiKeyAndScan = () => {
     if (!tempApiKey.trim()) return;
-    saveSettings({ gemini_api_key: tempApiKey.trim() });
+    const cleanKey = tempApiKey.trim();
+    if (cleanKey.startsWith('sk-')) {
+      saveSettings({ openai_api_key: cleanKey, gemini_api_key: cleanKey });
+    } else {
+      saveSettings({ gemini_api_key: cleanKey });
+    }
     setShowKeyPrompt(false);
-    handleScanPlate(false, tempApiKey.trim());
+    handleScanPlate(false, cleanKey);
   };
 
   const handleStep = (
@@ -462,14 +551,14 @@ export default function FoodSheet({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 overflow-y-auto"
+      className="fixed inset-0 z-[200] flex justify-center bg-surface-container text-on-surface overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative bg-surface-container/95 border border-white/10 text-on-surface w-full max-w-lg rounded-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-150"
+        className="min-h-full w-full max-w-4xl flex flex-col overflow-hidden border-x border-white/10"
       >
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between px-5 sm:px-6 py-4 border-b border-surface-container-high bg-surface-container/95 backdrop-blur-md shrink-0">
@@ -496,7 +585,7 @@ export default function FoodSheet({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 pb-36 space-y-4">
           {/* Meal Type Segmented Selector */}
           <div>
             <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
@@ -556,7 +645,37 @@ export default function FoodSheet({
               )}
             </div>
 
-            {photoPreview ? (
+            {isCameraOpen ? (
+              <div className="space-y-2.5">
+                <div className="relative w-full overflow-hidden rounded-2xl border border-tertiary/40 bg-black">
+                  <video
+                    ref={cameraVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="aspect-[4/3] w-full object-cover"
+                  />
+                  <div className="pointer-events-none absolute inset-3 rounded-xl border border-white/40" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCapturePhoto}
+                    className="flex-1 rounded-xl bg-tertiary py-2.5 text-xs font-bold text-on-tertiary transition-all hover:bg-tertiary/90 active:scale-95"
+                  >
+                    <span className="material-symbols-outlined mr-1 align-middle text-base">photo_camera</span>
+                    Capture Photo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeCamera}
+                    className="rounded-xl bg-surface-container-high px-4 py-2.5 text-xs font-semibold text-on-surface transition-colors hover:bg-surface-bright"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : photoPreview ? (
               <div className="relative w-full h-44 rounded-2xl overflow-hidden border border-white/15 bg-black/40 group">
                 <img src={photoPreview} alt="Meal preview" className="w-full h-full object-cover" />
 
@@ -582,25 +701,31 @@ export default function FoodSheet({
                 </div>
               </div>
             ) : (
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => photoInputRef.current?.click()}
-                  className="w-full flex flex-col items-center justify-center gap-2 p-5 rounded-2xl bg-surface-container/60 border border-dashed border-white/15 hover:border-tertiary/50 text-on-surface-variant hover:text-on-surface cursor-pointer text-xs font-medium transition-all group"
-                >
-                  <div className="w-10 h-10 rounded-full bg-tertiary/10 text-tertiary border border-tertiary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <span className="material-symbols-outlined text-xl">camera_alt</span>
-                  </div>
-                  <div className="text-center">
-                    <span className="font-bold text-on-surface block">Attach or Take Food Picture</span>
-                    <span className="text-[11px] text-on-surface-variant">
-                      AI auto-detects items, carbs, protein, fiber &amp; sugar
-                    </span>
-                  </div>
-                </button>
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleOpenCamera}
+                    className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl bg-tertiary/10 border border-tertiary/25 hover:border-tertiary/60 text-tertiary hover:text-on-surface cursor-pointer text-xs font-bold transition-all"
+                  >
+                    <span className="material-symbols-outlined text-2xl">photo_camera</span>
+                    <span>Take Photo</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl bg-surface-container/60 border border-dashed border-white/15 hover:border-tertiary/50 text-on-surface-variant hover:text-on-surface cursor-pointer text-xs font-bold transition-all"
+                  >
+                    <span className="material-symbols-outlined text-2xl">photo_library</span>
+                    <span>Choose from Gallery</span>
+                  </button>
+                </div>
+                <p className="text-center text-[11px] text-on-surface-variant">
+                  AI auto-detects items, carbs, protein, fiber &amp; sugar
+                </p>
                 <input
-                  ref={photoInputRef}
-                  id="food-photo-upload"
+                  ref={galleryInputRef}
+                  id="food-photo-gallery"
                   type="file"
                   accept="image/*"
                   onChange={handlePhotoSelect}
@@ -639,25 +764,35 @@ export default function FoodSheet({
               </div>
             )}
 
-            {/* In-modal Gemini API Key prompt if not yet set */}
+            {/* In-modal Gemini / OpenAI API Key prompt if not yet set */}
             {showKeyPrompt && (
               <div className="p-3 rounded-xl bg-surface-container border border-tertiary/30 space-y-2 animate-in fade-in">
                 <div className="flex items-center justify-between text-xs font-bold text-tertiary">
-                  <span>Enter Free Gemini API Key</span>
-                  <a
-                    href="https://aistudio.google.com/app/apikey"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[10px] text-outline hover:text-on-surface underline"
-                  >
-                    Get Free Key ↗
-                  </a>
+                  <span>Enter OpenAI or Gemini Key</span>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href="https://platform.openai.com/api-keys"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-outline hover:text-on-surface underline"
+                    >
+                      OpenAI ↗
+                    </a>
+                    <a
+                      href="https://aistudio.google.com/app/apikey"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-outline hover:text-on-surface underline"
+                    >
+                      Gemini ↗
+                    </a>
+                  </div>
                 </div>
                 <input
                   type="password"
                   value={tempApiKey}
                   onChange={(e) => setTempApiKey(e.target.value)}
-                  placeholder="Paste AIzaSy... key"
+                  placeholder="Paste sk-... (OpenAI) or AIzaSy... (Gemini) key"
                   className="w-full px-3 py-1.5 rounded-lg bg-surface-container-high border border-white/10 text-xs text-on-surface font-mono focus:outline-none focus:ring-1 focus:ring-tertiary"
                 />
                 <div className="flex items-center gap-2 pt-1">
@@ -1157,7 +1292,7 @@ export default function FoodSheet({
             />
           </div>
 
-          <div className="pt-2 flex items-center gap-2.5">
+          <div className="fixed bottom-0 left-1/2 z-20 w-full max-w-4xl -translate-x-1/2 border-t border-white/10 bg-surface-container/95 px-5 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-md flex items-center gap-2.5">
             <button
               type="button"
               onClick={onClose}
