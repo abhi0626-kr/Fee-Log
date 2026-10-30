@@ -416,7 +416,7 @@ export default function FoodSheet({
         if (json.error === 'NO_API_KEY') {
           setShowKeyPrompt(true);
           setScanMessage({
-            text: 'OpenAI or Gemini API key required to scan plate.',
+            text: 'OpenAI, Groq, or Gemini API key required to scan plate.',
             type: 'info',
           });
         } else {
@@ -768,7 +768,7 @@ export default function FoodSheet({
             {showKeyPrompt && (
               <div className="p-3 rounded-xl bg-surface-container border border-tertiary/30 space-y-2 animate-in fade-in">
                 <div className="flex items-center justify-between text-xs font-bold text-tertiary">
-                  <span>Enter OpenAI or Gemini Key</span>
+                  <span>Enter OpenAI, Groq, or Gemini Key</span>
                   <div className="flex items-center gap-2">
                     <a
                       href="https://platform.openai.com/api-keys"
@@ -792,7 +792,7 @@ export default function FoodSheet({
                   type="password"
                   value={tempApiKey}
                   onChange={(e) => setTempApiKey(e.target.value)}
-                  placeholder="Paste sk-... (OpenAI) or AIzaSy... (Gemini) key"
+                  placeholder="Paste sk-... (OpenAI), gsk_... (Groq), or AIzaSy... (Gemini)"
                   className="w-full px-3 py-1.5 rounded-lg bg-surface-container-high border border-white/10 text-xs text-on-surface font-mono focus:outline-none focus:ring-1 focus:ring-tertiary"
                 />
                 <div className="flex items-center gap-2 pt-1">

@@ -795,7 +795,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between mb-2">
               <label className="text-on-surface-variant font-semibold flex items-center gap-1.5 text-xs">
                 <span className="material-symbols-outlined text-tertiary text-sm">auto_awesome</span>
-                <span>AI Photo Plate Scanner Key (OpenAI or Gemini)</span>
+                <span>AI Photo Plate Scanner Key (OpenAI, Groq, or Gemini)</span>
               </label>
               <div className="flex items-center gap-2">
                 <a
@@ -832,11 +832,11 @@ export default function SettingsPage() {
                   handleChange('openai_api_key', '');
                 }
               }}
-              placeholder="sk-... (OpenAI) or AIzaSy... (Gemini)"
+              placeholder="sk-... (OpenAI), gsk_... (Groq), or AIzaSy... (Gemini)"
               className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low border border-white/10 text-on-surface text-xs font-mono focus:outline-none focus:ring-1 focus:ring-tertiary"
             />
             <p className="text-[10px] text-outline mt-1.5">
-              Supports OpenAI keys (<code>sk-...</code>) using GPT-4o-mini and Google Gemini keys (<code>AIza...</code>). Used when tapping &quot;AI Scan Plate&quot; on meal photos.
+              Supports OpenAI (<code>sk-...</code>), Groq (<code>gsk_...</code>), and Google Gemini (<code>AIza...</code>) keys for meal photo scanning.
             </p>
           </div>
         </div>

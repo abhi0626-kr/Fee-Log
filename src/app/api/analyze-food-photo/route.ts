@@ -129,6 +129,7 @@ export async function POST(request: NextRequest) {
 
     const resolvedApiKey =
       apiKey?.trim() ||
+      process.env.GROQ_API_KEY ||
       process.env.OPENAI_API_KEY ||
       process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_API_KEY ||
@@ -203,11 +204,80 @@ Respond strictly in valid JSON matching this schema:
   "explanation": string
 }`;
 
-    // Provider check: OpenAI key starts with "sk-" or when explicitly configured
+    // Provider check: OpenAI keys start with "sk-" and Groq keys start with "gsk_".
     const isOpenAiKey = (key: string) => key.startsWith('sk-');
+    const isGroqKey = (key: string) => key.startsWith('gsk_');
     const isUsingOpenAi =
       isOpenAiKey(resolvedApiKey) ||
       (Boolean(process.env.OPENAI_API_KEY) && !apiKey && !process.env.GEMINI_API_KEY);
+    const isUsingGroq =
+      isGroqKey(resolvedApiKey) ||
+      (Boolean(process.env.GROQ_API_KEY) && !apiKey);
+
+    if (isUsingGroq) {
+      try {
+        const modelName = process.env.GROQ_MODEL?.trim() || 'meta-llama/llama-4-scout-17b-16e-instruct';
+        const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${resolvedApiKey}`,
+          },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: 'Analyze the food in this photo and return the estimated nutrition breakdown according to the requested JSON schema.',
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: { url: `data:${mimeType};base64,${rawBase64}` },
+                  },
+                ],
+              },
+            ],
+            response_format: { type: 'json_object' },
+            temperature: 0.2,
+          }),
+        });
+
+        if (!groqResponse.ok) {
+          const errText = await groqResponse.text();
+          let errMsg = `Groq API error (${groqResponse.status})`;
+          try {
+            const parsedErr = JSON.parse(errText);
+            errMsg = parsedErr.error?.message || errMsg;
+          } catch {
+            errMsg = errText || errMsg;
+          }
+          return NextResponse.json(
+            { success: false, error: 'GROQ_ERROR', message: errMsg },
+            { status: groqResponse.status >= 500 ? 502 : groqResponse.status }
+          );
+        }
+
+        const groqData = await groqResponse.json();
+        const content = groqData.choices?.[0]?.message?.content;
+        if (!content) {
+          return NextResponse.json(
+            { success: false, error: 'EMPTY_RESPONSE', message: 'No content received from Groq.' },
+            { status: 502 }
+          );
+        }
+
+        return NextResponse.json({ success: true, data: formatScanResult(JSON.parse(content)) });
+      } catch (err) {
+        return NextResponse.json(
+          { success: false, error: 'GROQ_ERROR', message: (err as Error).message },
+          { status: 502 }
+        );
+      }
+    }
 
     // ==========================================
     // PATH 1: OpenAI Vision (gpt-4o-mini / gpt-4o)
