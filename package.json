@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test": "tsx --test tests/**/*.test.ts",
-    "clean": "powershell -Command \"Remove-Item -Path .next -Recurse -Force -ErrorAction SilentlyContinue\""
+    "clean": "node -e \"try{require('fs').rmSync('.next',{recursive:true,force:true})}catch(e){}\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
