@@ -163,6 +163,7 @@ export interface UserSettings {
   // AI Food Scanner Config
   gemini_api_key?: string;
   openai_api_key?: string;
+  groq_api_key?: string;
 
   activity_chips: string[];
   food_chips: string[];

@@ -74,6 +74,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   daily_target_calories: 2000,
   gemini_api_key: '',
   openai_api_key: '',
+  groq_api_key: '',
 
   activity_chips: DEFAULT_ACTIVITY_CHIPS.map((a) => a.label),
   food_chips: COMMON_FOOD_CHIPS,

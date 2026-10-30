@@ -41,9 +41,11 @@ describe('AI Photo Auto-Scanner API Tests', () => {
 
   test('returns 401 when no API key is available and isDemo=false', async () => {
     // Ensure environment keys are not interfering
+    const prevGroq = process.env.GROQ_API_KEY;
     const prevGemini = process.env.GEMINI_API_KEY;
     const prevOpenAi = process.env.OPENAI_API_KEY;
     const prevGoogle = process.env.GOOGLE_API_KEY;
+    delete process.env.GROQ_API_KEY;
     delete process.env.GEMINI_API_KEY;
     delete process.env.OPENAI_API_KEY;
     delete process.env.GOOGLE_API_KEY;
@@ -63,6 +65,7 @@ describe('AI Photo Auto-Scanner API Tests', () => {
     assert.equal(json.success, false);
     assert.equal(json.error, 'NO_API_KEY');
 
+    if (prevGroq) process.env.GROQ_API_KEY = prevGroq;
     if (prevGemini) process.env.GEMINI_API_KEY = prevGemini;
     if (prevOpenAi) process.env.OPENAI_API_KEY = prevOpenAi;
     if (prevGoogle) process.env.GOOGLE_API_KEY = prevGoogle;

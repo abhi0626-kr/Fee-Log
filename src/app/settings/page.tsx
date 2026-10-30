@@ -799,6 +799,16 @@ export default function SettingsPage() {
               </label>
               <div className="flex items-center gap-2">
                 <a
+                  href="https://console.groq.com/keys"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-tertiary hover:underline font-semibold flex items-center gap-0.5"
+                >
+                  <span>Groq</span>
+                  <span className="material-symbols-outlined text-xs">open_in_new</span>
+                </a>
+                <span className="text-outline text-xs">|</span>
+                <a
                   href="https://platform.openai.com/api-keys"
                   target="_blank"
                   rel="noreferrer"
@@ -821,14 +831,20 @@ export default function SettingsPage() {
             </div>
             <input
               type="password"
-              value={settings.openai_api_key || settings.gemini_api_key || ''}
+              value={settings.groq_api_key || settings.openai_api_key || settings.gemini_api_key || ''}
               onChange={(e) => {
-                const val = e.target.value;
-                if (val.startsWith('sk-')) {
+                const val = e.target.value.trim();
+                if (val.startsWith('gsk_')) {
+                  handleChange('groq_api_key', val);
+                  handleChange('openai_api_key', '');
+                  handleChange('gemini_api_key', '');
+                } else if (val.startsWith('sk-')) {
                   handleChange('openai_api_key', val);
-                  handleChange('gemini_api_key', val);
+                  handleChange('groq_api_key', '');
+                  handleChange('gemini_api_key', '');
                 } else {
                   handleChange('gemini_api_key', val);
+                  handleChange('groq_api_key', '');
                   handleChange('openai_api_key', '');
                 }
               }}

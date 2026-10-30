@@ -397,7 +397,7 @@ export default function FoodSheet({
 
     try {
       const currentSettings = getSettings();
-      const apiKey = keyOverride || currentSettings.openai_api_key || currentSettings.gemini_api_key;
+      const apiKey = keyOverride || currentSettings.groq_api_key || currentSettings.openai_api_key || currentSettings.gemini_api_key;
 
       const response = await fetch('/api/analyze-food-photo', {
         method: 'POST',
@@ -458,8 +458,10 @@ export default function FoodSheet({
   const handleSaveApiKeyAndScan = () => {
     if (!tempApiKey.trim()) return;
     const cleanKey = tempApiKey.trim();
-    if (cleanKey.startsWith('sk-')) {
-      saveSettings({ openai_api_key: cleanKey, gemini_api_key: cleanKey });
+    if (cleanKey.startsWith('gsk_')) {
+      saveSettings({ groq_api_key: cleanKey });
+    } else if (cleanKey.startsWith('sk-')) {
+      saveSettings({ openai_api_key: cleanKey });
     } else {
       saveSettings({ gemini_api_key: cleanKey });
     }
@@ -770,6 +772,14 @@ export default function FoodSheet({
                 <div className="flex items-center justify-between text-xs font-bold text-tertiary">
                   <span>Enter OpenAI, Groq, or Gemini Key</span>
                   <div className="flex items-center gap-2">
+                    <a
+                      href="https://console.groq.com/keys"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-outline hover:text-on-surface underline"
+                    >
+                      Groq ↗
+                    </a>
                     <a
                       href="https://platform.openai.com/api-keys"
                       target="_blank"

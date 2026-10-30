@@ -24,7 +24,15 @@ const isImageCapableModel = (modelName: string): boolean => {
  * Dynamically queries available models from Google for this specific API key,
  * or returns a ranked list of robust fallback candidates.
  */
-async function getCandidateModels(apiKey: string): Promise<string[]> {
+async function getGeminiCandidateModels(apiKey: string, configuredModel?: string): Promise<string[]> {
+  const hardcodedFallbacks = [
+    'gemini-3.8-flash',
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash-latest',
+    'gemini-1.5-flash',
+  ];
+
   try {
     const listRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
@@ -44,8 +52,7 @@ async function getCandidateModels(apiKey: string): Promise<string[]> {
           .map((m: { name: string }) => m.name.replace(/^models\//, ''));
 
         if (valid.length > 0) {
-          // Prefer broadly available latest Flash models (e.g. 3.8-flash, 2.5-flash).
-          return valid.sort((a: string, b: string) => {
+          const sorted = valid.sort((a: string, b: string) => {
             const getScore = (name: string) => {
               let score = 0;
               if (name.includes('flash')) score += 20;
@@ -61,6 +68,7 @@ async function getCandidateModels(apiKey: string): Promise<string[]> {
             };
             return getScore(b) - getScore(a);
           });
+          return Array.from(new Set([configuredModel, ...sorted, ...hardcodedFallbacks].filter(Boolean) as string[]));
         }
       }
     }
@@ -68,13 +76,7 @@ async function getCandidateModels(apiKey: string): Promise<string[]> {
     // If list models call fails, fall back to hardcoded sequence
   }
 
-  return [
-    'gemini-3.8-flash',
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash-latest',
-    'gemini-1.5-flash',
-  ];
+  return Array.from(new Set([configuredModel, ...hardcodedFallbacks].filter(Boolean) as string[]));
 }
 
 function formatScanResult(parsed: Partial<FoodScanResult>): FoodScanResult {
@@ -110,6 +112,288 @@ function formatScanResult(parsed: Partial<FoodScanResult>): FoodScanResult {
   };
 }
 
+async function getGroqCandidateModels(apiKey: string, configuredModel?: string): Promise<string[]> {
+  const fallbackModels = [
+    'qwen/qwen3.8-27b',
+    'llama-3.2-11b-vision-preview',
+    'llama-3.2-90b-vision-preview',
+  ];
+
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (response.ok) {
+      const data = (await response.json()) as { data?: { id?: string }[] };
+      const availableModels = (data.data || [])
+        .map((model) => model.id)
+        .filter((model): model is string => Boolean(model));
+      const visionModels = availableModels.filter((model) => {
+        const normalized = model.toLowerCase();
+        return (
+          normalized.includes('qwen') ||
+          normalized.includes('vision') ||
+          normalized.includes('llama-4') ||
+          normalized.includes('vl') ||
+          normalized.includes('spark')
+        );
+      });
+
+      if (visionModels.length > 0) {
+        visionModels.sort((a, b) => {
+          const score = (m: string) => {
+            const lower = m.toLowerCase();
+            if (lower.includes('qwen3.8-27b')) return 50;
+            if (lower.includes('vision')) return 40;
+            if (lower.includes('qwen')) return 30;
+            return 10;
+          };
+          return score(b) - score(a);
+        });
+        return Array.from(new Set([configuredModel, ...visionModels, ...fallbackModels].filter(Boolean) as string[]));
+      }
+    }
+  } catch {
+    // Continue with known vision model candidates if model discovery is unavailable.
+  }
+
+  return Array.from(new Set([configuredModel, ...fallbackModels].filter(Boolean) as string[]));
+}
+
+async function executeGroqScan(
+  apiKey: string,
+  mimeType: string,
+  rawBase64: string,
+  systemPrompt: string
+): Promise<FoodScanResult> {
+  const modelCandidates = await getGroqCandidateModels(apiKey, process.env.GROQ_MODEL?.trim());
+  let lastGroqError = 'Groq did not return a response.';
+
+  for (const modelName of modelCandidates) {
+    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelName,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Analyze the food in this photo and return the estimated nutrition breakdown according to the requested JSON schema.',
+              },
+              {
+                type: 'image_url',
+                image_url: { url: `data:${mimeType};base64,${rawBase64}` },
+              },
+            ],
+          },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.2,
+      }),
+    });
+
+    if (groqResponse.ok) {
+      const groqData = await groqResponse.json();
+      const content = groqData.choices?.[0]?.message?.content;
+      if (!content) {
+        throw new Error('No content received from Groq.');
+      }
+      return formatScanResult(JSON.parse(content));
+    }
+
+    const errText = await groqResponse.text();
+    try {
+      const parsedErr = JSON.parse(errText);
+      lastGroqError = parsedErr.error?.message || errText;
+    } catch {
+      lastGroqError = errText || `Groq API error (${groqResponse.status})`;
+    }
+
+    const lowerError = lastGroqError.toLowerCase();
+    const canTryAnotherModel =
+      groqResponse.status === 404 ||
+      groqResponse.status === 400 ||
+      lowerError.includes('does not exist') ||
+      lowerError.includes('do not have access') ||
+      lowerError.includes('decommissioned') ||
+      lowerError.includes('deprecated') ||
+      lowerError.includes('not found') ||
+      lowerError.includes('unsupported') ||
+      lowerError.includes('invalid model');
+    if (!canTryAnotherModel) break;
+  }
+
+  throw new Error(lastGroqError);
+}
+
+async function executeOpenAiScan(
+  apiKey: string,
+  mimeType: string,
+  rawBase64: string,
+  systemPrompt: string
+): Promise<FoodScanResult> {
+  const modelName = process.env.OPENAI_MODEL?.trim() || 'gpt-4o-mini';
+  const openAiUrl = 'https://api.openai.com/v1/chat/completions';
+
+  const openAiResponse = await fetch(openAiUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: modelName,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Analyze the food in this photo and return the estimated nutrition breakdown according to the requested JSON schema.',
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${mimeType};base64,${rawBase64}`,
+              },
+            },
+          ],
+        },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.2,
+    }),
+  });
+
+  if (!openAiResponse.ok) {
+    const errText = await openAiResponse.text();
+    let errMsg = `OpenAI API error (${openAiResponse.status})`;
+    try {
+      const parsedErr = JSON.parse(errText);
+      errMsg = parsedErr.error?.message || errMsg;
+    } catch {
+      errMsg = errText || errMsg;
+    }
+    throw new Error(errMsg);
+  }
+
+  const openAiData = await openAiResponse.json();
+  const content = openAiData.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error('No content received from OpenAI.');
+  }
+
+  return formatScanResult(JSON.parse(content));
+}
+
+async function executeGeminiScan(
+  apiKey: string,
+  mimeType: string,
+  rawBase64: string,
+  systemPrompt: string
+): Promise<FoodScanResult> {
+  const candidateModels = await getGeminiCandidateModels(apiKey, process.env.GEMINI_MODEL?.trim());
+
+  interface GeminiApiResponse {
+    candidates?: {
+      content?: {
+        parts?: {
+          text?: string;
+        }[];
+      };
+    }[];
+    error?: {
+      message?: string;
+    };
+  }
+
+  let geminiData: GeminiApiResponse | null = null;
+  let lastErrorMsg = 'Failed to connect to Google Gemini API.';
+
+  for (const modelName of candidateModels) {
+    try {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+      const response = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: systemPrompt },
+                {
+                  inlineData: {
+                    mimeType,
+                    data: rawBase64,
+                  },
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.2,
+          },
+        }),
+      });
+
+      if (response.ok) {
+        geminiData = await response.json();
+        break;
+      }
+
+      const errText = await response.text();
+      try {
+        const parsedErr = JSON.parse(errText);
+        lastErrorMsg = parsedErr.error?.message || errText;
+      } catch {
+        lastErrorMsg = errText;
+      }
+
+      const lowerErrorMessage = lastErrorMsg.toLowerCase();
+      const isUnsupportedModel =
+        response.status === 404 ||
+        lowerErrorMessage.includes('not found') ||
+        lowerErrorMessage.includes('image input modality') ||
+        lowerErrorMessage.includes('does not support image') ||
+        lowerErrorMessage.includes('modality is not enabled') ||
+        lowerErrorMessage.includes('no longer available') ||
+        lowerErrorMessage.includes('not available to new users');
+
+      if (isUnsupportedModel) {
+        continue;
+      } else {
+        break;
+      }
+    } catch (err) {
+      lastErrorMsg = (err as Error).message;
+    }
+  }
+
+  if (!geminiData) {
+    throw new Error(lastErrorMsg);
+  }
+
+  const candidateText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!candidateText) {
+    throw new Error('No response candidate received from Gemini.');
+  }
+
+  return formatScanResult(JSON.parse(candidateText));
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -127,16 +411,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const resolvedApiKey =
-      apiKey?.trim() ||
-      process.env.GROQ_API_KEY ||
-      process.env.OPENAI_API_KEY ||
-      process.env.GEMINI_API_KEY ||
-      process.env.GOOGLE_API_KEY ||
-      process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-
-    // Simulated Demo Scan if requested or if no key available but demo requested
-    if (isDemo || (!resolvedApiKey && isDemo)) {
+    // Simulated Demo Scan if requested
+    if (isDemo) {
       const demoResult: FoodScanResult = {
         items:
           mealHint === 'breakfast'
@@ -156,18 +432,6 @@ export async function POST(request: NextRequest) {
       };
 
       return NextResponse.json({ success: true, data: demoResult, isDemo: true });
-    }
-
-    if (!resolvedApiKey) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'NO_API_KEY',
-          message:
-            'API key required. Add your OpenAI (sk-...) or Google Gemini (AIzaSy...) key in Settings or enter it to scan.',
-        },
-        { status: 401 }
-      );
     }
 
     // Extract base64 payload & mime type
@@ -204,305 +468,93 @@ Respond strictly in valid JSON matching this schema:
   "explanation": string
 }`;
 
-    // Provider check: OpenAI keys start with "sk-" and Groq keys start with "gsk_".
-    const isOpenAiKey = (key: string) => key.startsWith('sk-');
-    const isGroqKey = (key: string) => key.startsWith('gsk_');
-    const isUsingOpenAi =
-      isOpenAiKey(resolvedApiKey) ||
-      (Boolean(process.env.OPENAI_API_KEY) && !apiKey && !process.env.GEMINI_API_KEY);
-    const isUsingGroq =
-      isGroqKey(resolvedApiKey) ||
-      (Boolean(process.env.GROQ_API_KEY) && !apiKey);
+    const isGroqKey = (key?: string) => Boolean(key && key.startsWith('gsk_'));
+    const isOpenAiKey = (key?: string) => Boolean(key && key.startsWith('sk-') && !key.startsWith('sk-ant-'));
 
-    if (isUsingGroq) {
+    const userKey = apiKey?.trim();
+
+    // PATH 1: Client explicitly supplied a key from modal or settings
+    if (userKey) {
       try {
-        const configuredModel = process.env.GROQ_MODEL?.trim();
-        const modelCandidates = configuredModel
-          ? [configuredModel]
-          : [
-              'meta-llama/llama-4-scout-17b-16e-instruct',
-              'meta-llama/llama-4-maverick-17b-128e-instruct',
-            ];
-        let lastGroqError = 'Groq did not return a response.';
-
-        for (const modelName of modelCandidates) {
-          const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${resolvedApiKey}`,
-            },
-            body: JSON.stringify({
-              model: modelName,
-              messages: [
-                { role: 'system', content: systemPrompt },
-                {
-                  role: 'user',
-                  content: [
-                    {
-                      type: 'text',
-                      text: 'Analyze the food in this photo and return the estimated nutrition breakdown according to the requested JSON schema.',
-                    },
-                    {
-                      type: 'image_url',
-                      image_url: { url: `data:${mimeType};base64,${rawBase64}` },
-                    },
-                  ],
-                },
-              ],
-              response_format: { type: 'json_object' },
-              temperature: 0.2,
-            }),
-          });
-
-          if (groqResponse.ok) {
-            const groqData = await groqResponse.json();
-            const content = groqData.choices?.[0]?.message?.content;
-            if (!content) {
-              return NextResponse.json(
-                { success: false, error: 'EMPTY_RESPONSE', message: 'No content received from Groq.' },
-                { status: 502 }
-              );
-            }
-            return NextResponse.json({ success: true, data: formatScanResult(JSON.parse(content)) });
-          }
-
-          const errText = await groqResponse.text();
-          try {
-            const parsedErr = JSON.parse(errText);
-            lastGroqError = parsedErr.error?.message || errText;
-          } catch {
-            lastGroqError = errText || `Groq API error (${groqResponse.status})`;
-          }
-
-          const lowerError = lastGroqError.toLowerCase();
-          const canTryAnotherModel =
-            groqResponse.status === 404 ||
-            lowerError.includes('does not exist') ||
-            lowerError.includes('do not have access');
-          if (!canTryAnotherModel) break;
-        }
-
-        return NextResponse.json(
-          { success: false, error: 'GROQ_ERROR', message: lastGroqError },
-          { status: 502 }
-        );
-      } catch (err) {
-        return NextResponse.json(
-          { success: false, error: 'GROQ_ERROR', message: (err as Error).message },
-          { status: 502 }
-        );
-      }
-    }
-
-    // ==========================================
-    // PATH 1: OpenAI Vision (gpt-4o-mini / gpt-4o)
-    // ==========================================
-    if (isUsingOpenAi) {
-      try {
-        const modelName = process.env.OPENAI_MODEL?.trim() || 'gpt-4o-mini';
-        const openAiUrl = 'https://api.openai.com/v1/chat/completions';
-
-        const openAiResponse = await fetch(openAiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${resolvedApiKey}`,
-          },
-          body: JSON.stringify({
-            model: modelName,
-            messages: [
-              {
-                role: 'system',
-                content: systemPrompt,
-              },
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'text',
-                    text: 'Analyze the food in this photo and return the estimated nutrition breakdown according to the requested JSON schema.',
-                  },
-                  {
-                    type: 'image_url',
-                    image_url: {
-                      url: `data:${mimeType};base64,${rawBase64}`,
-                    },
-                  },
-                ],
-              },
-            ],
-            response_format: { type: 'json_object' },
-            temperature: 0.2,
-          }),
-        });
-
-        if (!openAiResponse.ok) {
-          const errText = await openAiResponse.text();
-          let errMsg = `OpenAI API error (${openAiResponse.status})`;
-          try {
-            const parsedErr = JSON.parse(errText);
-            errMsg = parsedErr.error?.message || errMsg;
-          } catch {
-            errMsg = errText || errMsg;
-          }
-          return NextResponse.json(
-            { success: false, error: 'OPENAI_ERROR', message: errMsg },
-            { status: openAiResponse.status >= 500 ? 502 : openAiResponse.status }
-          );
-        }
-
-        const openAiData = await openAiResponse.json();
-        const content = openAiData.choices?.[0]?.message?.content;
-
-        if (!content) {
-          return NextResponse.json(
-            { success: false, error: 'EMPTY_RESPONSE', message: 'No content received from OpenAI.' },
-            { status: 502 }
-          );
-        }
-
-        let parsed: Partial<FoodScanResult>;
-        try {
-          parsed = JSON.parse(content);
-        } catch {
-          return NextResponse.json(
-            { success: false, error: 'PARSE_ERROR', message: 'Failed to parse JSON response from OpenAI.' },
-            { status: 502 }
-          );
-        }
-
-        return NextResponse.json({ success: true, data: formatScanResult(parsed) });
-      } catch (err) {
-        return NextResponse.json(
-          { success: false, error: 'OPENAI_ERROR', message: (err as Error).message },
-          { status: 502 }
-        );
-      }
-    }
-
-    // ==========================================
-    // PATH 2: Google Gemini (gemini-3.8-flash, etc.)
-    // ==========================================
-    const configuredModel = process.env.GEMINI_MODEL?.trim();
-    const candidateModels = configuredModel
-      ? [configuredModel]
-      : await getCandidateModels(resolvedApiKey);
-
-    interface GeminiApiResponse {
-      candidates?: {
-        content?: {
-          parts?: {
-            text?: string;
-          }[];
-        };
-      }[];
-      error?: {
-        message?: string;
-      };
-    }
-
-    let geminiData: GeminiApiResponse | null = null;
-    let lastErrorMsg = 'Failed to connect to Google Gemini API.';
-
-    for (const modelName of candidateModels) {
-      try {
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${resolvedApiKey}`;
-
-        const response = await fetch(geminiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: systemPrompt },
-                  {
-                    inlineData: {
-                      mimeType,
-                      data: rawBase64,
-                    },
-                  },
-                ],
-              },
-            ],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              temperature: 0.2,
-            },
-          }),
-        });
-
-        if (response.ok) {
-          geminiData = await response.json();
-          break;
-        }
-
-        const errText = await response.text();
-        try {
-          const parsedErr = JSON.parse(errText);
-          lastErrorMsg = parsedErr.error?.message || errText;
-        } catch {
-          lastErrorMsg = errText;
-        }
-
-        // If it's a 404 or model not found / deprecated, try next model candidate
-        const lowerErrorMessage = lastErrorMsg.toLowerCase();
-        const isUnsupportedModel =
-          response.status === 404 ||
-          lowerErrorMessage.includes('not found') ||
-          lowerErrorMessage.includes('image input modality') ||
-          lowerErrorMessage.includes('does not support image') ||
-          lowerErrorMessage.includes('modality is not enabled') ||
-          lowerErrorMessage.includes('no longer available') ||
-          lowerErrorMessage.includes('not available to new users');
-
-        if (isUnsupportedModel) {
-          continue;
+        if (isGroqKey(userKey)) {
+          const result = await executeGroqScan(userKey, mimeType, rawBase64, systemPrompt);
+          return NextResponse.json({ success: true, data: result });
+        } else if (isOpenAiKey(userKey)) {
+          const result = await executeOpenAiScan(userKey, mimeType, rawBase64, systemPrompt);
+          return NextResponse.json({ success: true, data: result });
         } else {
-          // If it's a key/quota error (e.g. 400 or 403), stop retrying
-          break;
+          const result = await executeGeminiScan(userKey, mimeType, rawBase64, systemPrompt);
+          return NextResponse.json({ success: true, data: result });
         }
       } catch (err) {
-        lastErrorMsg = (err as Error).message;
+        return NextResponse.json(
+          { success: false, error: 'SCAN_FAILED', message: (err as Error).message },
+          { status: 502 }
+        );
       }
     }
 
-    if (!geminiData) {
-      return NextResponse.json(
-        { success: false, error: 'GEMINI_ERROR', message: lastErrorMsg },
-        { status: 502 }
-      );
-    }
+    // PATH 2: Server-side environment variables (Vercel production / local .env)
+    const serverGroqKey =
+      process.env.GROQ_API_KEY?.trim() ||
+      (process.env.OPENAI_API_KEY?.trim().startsWith('gsk_') ? process.env.OPENAI_API_KEY.trim() : undefined);
+    const serverGeminiKey =
+      process.env.GEMINI_API_KEY?.trim() ||
+      process.env.GOOGLE_API_KEY?.trim() ||
+      process.env.NEXT_PUBLIC_GEMINI_API_KEY?.trim();
+    const serverOpenAiKey =
+      process.env.OPENAI_API_KEY?.trim().startsWith('sk-') ? process.env.OPENAI_API_KEY.trim() : undefined;
 
-    const candidateText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!candidateText) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'EMPTY_RESPONSE',
-          message: 'No response candidate received from Gemini.',
-        },
-        { status: 502 }
-      );
-    }
-
-    let parsed: Partial<FoodScanResult>;
-    try {
-      parsed = JSON.parse(candidateText);
-    } catch {
+    if (!serverGroqKey && !serverGeminiKey && !serverOpenAiKey) {
       return NextResponse.json(
         {
           success: false,
-          error: 'PARSE_ERROR',
-          message: 'Failed to parse JSON response from Gemini.',
+          error: 'NO_API_KEY',
+          message:
+            'API key required. Add your Groq (gsk_...), OpenAI (sk-...), or Google Gemini (AIzaSy...) key in Settings or Vercel environment variables to scan.',
         },
-        { status: 502 }
+        { status: 401 }
       );
     }
 
-    return NextResponse.json({ success: true, data: formatScanResult(parsed) });
+    let lastError = '';
+
+    // Prioritize Groq if configured
+    if (serverGroqKey) {
+      try {
+        const result = await executeGroqScan(serverGroqKey, mimeType, rawBase64, systemPrompt);
+        return NextResponse.json({ success: true, data: result });
+      } catch (err) {
+        lastError = `Groq: ${(err as Error).message}`;
+        console.warn(`${lastError}. Trying server fallback provider if configured...`);
+      }
+    }
+
+    // Fall back to Gemini if configured
+    if (serverGeminiKey) {
+      try {
+        const result = await executeGeminiScan(serverGeminiKey, mimeType, rawBase64, systemPrompt);
+        return NextResponse.json({ success: true, data: result });
+      } catch (err) {
+        lastError = `Gemini: ${(err as Error).message}`;
+        console.warn(`${lastError}. Trying server fallback provider if configured...`);
+      }
+    }
+
+    // Fall back to OpenAI if configured
+    if (serverOpenAiKey) {
+      try {
+        const result = await executeOpenAiScan(serverOpenAiKey, mimeType, rawBase64, systemPrompt);
+        return NextResponse.json({ success: true, data: result });
+      } catch (err) {
+        lastError = `OpenAI: ${(err as Error).message}`;
+      }
+    }
+
+    return NextResponse.json(
+      { success: false, error: 'SCAN_FAILED', message: lastError || 'Failed to analyze food plate.' },
+      { status: 502 }
+    );
   } catch (error) {
     return NextResponse.json(
       { success: false, error: 'SERVER_ERROR', message: (error as Error).message },
