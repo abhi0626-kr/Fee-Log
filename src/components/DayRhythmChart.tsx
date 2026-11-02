@@ -22,7 +22,7 @@ interface RhythmDataPoint {
   isRealEvent?: boolean;
 }
 
-export default function DayRhythmChart({ logs, selectedDate }: DayRhythmChartProps) {
+export default function DayRhythmChart({ logs }: DayRhythmChartProps) {
   const [activePoint, setActivePoint] = useState<RhythmDataPoint | null>(null);
 
   // Synthesize continuous physiological rhythm curve from real daily events

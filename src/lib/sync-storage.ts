@@ -371,14 +371,15 @@ function saveLocalArray<T>(key: string, items: T[]): void {
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(key, JSON.stringify(items));
-    } catch (error) {
+    } catch {
       // Browser 5MB storage limit exceeded! Strip giant base64 photos to ensure all 41 records, macros, and dates fit easily in <50KB.
       try {
         if (key === STORAGE_KEYS.FOOD) {
           const stripped = (items as FoodLog[]).map((f) => {
             if (f.photo_url && f.photo_url.length > 300) {
-              const { photo_url, ...rest } = f;
-              return rest as FoodLog;
+              const copy = { ...f };
+              delete copy.photo_url;
+              return copy;
             }
             return f;
           });
@@ -709,7 +710,7 @@ async function flushOfflineQueueInternal(): Promise<SyncResult> {
         const { error } = await client.from(item.table).delete().eq('id', item.id);
         if (error) throw error;
         synced++;
-      } catch (e) {
+      } catch {
         remainingQueue.push(item);
         failed++;
       }

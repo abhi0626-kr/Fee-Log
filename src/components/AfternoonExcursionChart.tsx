@@ -44,7 +44,7 @@ export default function AfternoonExcursionChart({
   const [activeSlot, setActiveSlot] = useState<HourlySlot | null>(null);
 
   // Compute live hourly distribution
-  const { slots, peakSlot, hasRealData, peakHourLabel } = useMemo(() => {
+  const { slots, peakSlot, hasRealData } = useMemo(() => {
     const windowFeels = filterLogsByDateWindow(feelLogs, windowDays);
     const windowFoods = filterLogsByDateWindow(foodLogs, windowDays);
     const windowGlucoses = filterLogsByDateWindow(glucoseLogs, windowDays);
