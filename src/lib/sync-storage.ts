@@ -563,8 +563,41 @@ export function mergeFoodRecords(
   return Array.from(map.values());
 }
 
+export function pruneLocalFoodPhotos(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.FOOD);
+    if (raw && (raw.includes('data:image') || raw.includes('"photo_url"'))) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        let changed = false;
+        const cleaned = parsed.map((item: FoodLog) => {
+          if (item.photo_url) {
+            changed = true;
+            const copy = { ...item };
+            delete copy.photo_url;
+            return copy;
+          }
+          return item;
+        });
+        if (changed) {
+          localStorage.setItem(STORAGE_KEYS.FOOD, JSON.stringify(cleaned));
+          memoryLogs.food = cleaned;
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+if (typeof window !== 'undefined') {
+  pruneLocalFoodPhotos();
+}
+
 function sanitizeFoodPayload<T extends Record<string, unknown>>(payload: T): Record<string, unknown> {
   const base = { ...payload };
+  delete base.photo_url;
   delete base.carbs_g;
   delete base.protein_g;
   delete base.fiber_g;
@@ -794,7 +827,14 @@ async function flushOfflineQueueInternal(): Promise<SyncResult> {
       Object.entries(tableUpserts).map(async ([table, entries]) => {
         if (entries.length === 0) return;
         try {
-          const payloads = entries.map((e) => e.payload);
+          const payloads = entries.map((e) => {
+            if (table === 'food_logs') {
+              const copy = { ...e.payload };
+              delete copy.photo_url;
+              return copy;
+            }
+            return e.payload;
+          });
           let { error } = await client.from(table).upsert(payloads);
           if (error && table === 'food_logs' && isMissingColumnError(error)) {
             const basePayloads = payloads.map((p) => sanitizeFoodPayload(p));
@@ -893,7 +933,7 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
 
     const [insulinRes, foodRes, activityRes, feelRes, glucoseRes, profileRes] = await Promise.all([
       supabase.from('insulin_logs').select('*'),
-      supabase.from('food_logs').select('*'),
+      supabase.from('food_logs').select('id, user_id, log_date, log_time, meal, items, carb_size, carbs_g, protein_g, fiber_g, sugar_g, sodium_mg, calories, note, created_at'),
       supabase.from('activity_logs').select('*'),
       supabase.from('feel_logs').select('*'),
       supabase.from('glucose_logs').select('*'),
@@ -978,22 +1018,33 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
           .filter((l) => pendingFoodIds.has(l.id) || !remoteFoodIds.has(l.id) || !l.user_id || l.user_id !== userId)
           .map((l) => ({ ...l, user_id: userId }));
 
+        const cleanFood = unuploadedFood.map((l) => {
+          const copy = { ...l, user_id: userId };
+          delete copy.photo_url;
+          return copy;
+        });
+
         let foodUploadSucceeded = true;
-        if (unuploadedFood.length > 0) {
-          let { error } = await supabase.from('food_logs').upsert(unuploadedFood);
-          if (error && isMissingColumnError(error)) {
-            const baseFoodLogs = unuploadedFood.map(sanitizeFoodPayload);
-            const retryRes = await supabase.from('food_logs').upsert(baseFoodLogs);
-            error = retryRes.error;
-          }
-          if (error) {
-            foodUploadSucceeded = false;
-            console.warn('Failed to upsert unuploaded food logs:', error.message);
+        if (cleanFood.length > 0) {
+          // Batch in chunks of 10 to ensure instant execution without Postgres statement timeout
+          for (let i = 0; i < cleanFood.length; i += 10) {
+            const chunk = cleanFood.slice(i, i + 10);
+            let { error } = await supabase.from('food_logs').upsert(chunk);
+            if (error && isMissingColumnError(error)) {
+              const baseChunk = chunk.map(sanitizeFoodPayload);
+              const retryRes = await supabase.from('food_logs').upsert(baseChunk);
+              error = retryRes.error;
+            }
+            if (error) {
+              foodUploadSucceeded = false;
+              console.warn('Failed to upsert unuploaded food logs chunk:', error.message);
+              break;
+            }
           }
         }
-        if (foodUploadSucceeded && unuploadedFood.length > 0) {
-          unuploadedFood.forEach((record) => remoteFoodIds.add(record.id));
-          acknowledgeUploadedRecords('food_logs', new Set(unuploadedFood.map((r) => r.id)));
+        if (foodUploadSucceeded && cleanFood.length > 0) {
+          cleanFood.forEach((record) => remoteFoodIds.add(record.id));
+          acknowledgeUploadedRecords('food_logs', new Set(cleanFood.map((r) => r.id)));
         }
         acknowledgeSyncedInserts('food_logs', remoteFoodIds);
         acknowledgeDeletedRecords('food_logs', remoteFoodIds);
@@ -1734,14 +1785,22 @@ export async function pushAllLocalLogsToDatabase(): Promise<{ success: boolean; 
     }
     if (food.length > 0) {
       promises.push((async () => {
-        let { error } = await client.from('food_logs').upsert(food);
-        if (error && isMissingColumnError(error)) {
-          const sanitized = food.map((f) => sanitizeFoodPayload(f as Record<string, unknown>));
-          const retryRes = await client.from('food_logs').upsert(sanitized);
-          error = retryRes.error;
+        const cleanFood = food.map((f) => {
+          const copy = { ...f };
+          delete copy.photo_url;
+          return copy;
+        });
+        for (let i = 0; i < cleanFood.length; i += 10) {
+          const chunk = cleanFood.slice(i, i + 10);
+          let { error } = await client.from('food_logs').upsert(chunk);
+          if (error && isMissingColumnError(error)) {
+            const sanitized = chunk.map((c) => sanitizeFoodPayload(c as Record<string, unknown>));
+            const retryRes = await client.from('food_logs').upsert(sanitized);
+            error = retryRes.error;
+          }
+          if (error) throw error;
         }
-        if (error) throw error;
-        count += food.length;
+        count += cleanFood.length;
       })());
     }
     if (activity.length > 0) {
