@@ -14,6 +14,7 @@ import {
   deleteActivityLog,
   deleteFeelLog,
   deleteGlucoseLog,
+  hydrateFromSupabase,
 } from '@/lib/sync-storage';
 import {
   UnifiedLogItem,
@@ -62,13 +63,19 @@ export default function TimelinePage() {
 
   useEffect(() => {
     refreshLogs();
+    hydrateFromSupabase().then(() => refreshLogs());
+
+    const handleFocusOrVisible = () => {
+      hydrateFromSupabase().then(() => refreshLogs());
+    };
+
     window.addEventListener('t1d-data-updated', refreshLogs);
     window.addEventListener('storage', refreshLogs);
-    window.addEventListener('focus', refreshLogs);
+    window.addEventListener('focus', handleFocusOrVisible);
     return () => {
       window.removeEventListener('t1d-data-updated', refreshLogs);
       window.removeEventListener('storage', refreshLogs);
-      window.removeEventListener('focus', refreshLogs);
+      window.removeEventListener('focus', handleFocusOrVisible);
     };
   }, [refreshLogs]);
 

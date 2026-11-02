@@ -14,6 +14,7 @@ import {
   DEFAULT_SETTINGS,
   seedRealisticPGData,
   flushOfflineQueue,
+  hydrateFromSupabase,
 } from '@/lib/sync-storage';
 import {
   generateCSV,
@@ -46,23 +47,31 @@ export default function ExportPage() {
     setAfternoonUnitsInput(curSettings.afternoon_regular_units ?? 10);
     setNightUnitsInput(curSettings.night_30_70_units);
 
-    // Collect all unified logs between startDate and endDate
-    const allDates = getAllLoggedDates().filter((d) => d >= startDate && d <= endDate);
-    const combined: UnifiedLogItem[] = [];
+    const updateSelectedLogs = () => {
+      const allDates = getAllLoggedDates().filter((d) => d >= startDate && d <= endDate);
+      const combined: UnifiedLogItem[] = [];
 
-    allDates.forEach((d) => {
-      const dayLogs = getUnifiedLogsForDate(d);
-      combined.push(...dayLogs);
+      allDates.forEach((d) => {
+        const dayLogs = getUnifiedLogsForDate(d);
+        combined.push(...dayLogs);
+      });
+
+      combined.sort((a, b) => {
+        if (a.log_date === b.log_date) {
+          return a.log_time.localeCompare(b.log_time);
+        }
+        return a.log_date.localeCompare(b.log_date);
+      });
+
+      setSelectedLogs(combined);
+    };
+
+    updateSelectedLogs();
+
+    // Pull directly from database so laptop gets all mobile logs
+    hydrateFromSupabase().then(() => {
+      updateSelectedLogs();
     });
-
-    combined.sort((a, b) => {
-      if (a.log_date === b.log_date) {
-        return a.log_time.localeCompare(b.log_time);
-      }
-      return a.log_date.localeCompare(b.log_date);
-    });
-
-    setSelectedLogs(combined);
   }, [startDate, endDate]);
 
   const handleDownloadCSV = () => {

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   getOfflineQueue,
   flushOfflineQueue,
@@ -14,7 +13,6 @@ import {
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export default function SyncBanner() {
-  const router = useRouter();
   const [online, setOnline] = useState(true);
   const [queueCount, setQueueCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -29,18 +27,6 @@ export default function SyncBanner() {
   }, []);
 
   const doSync = useCallback(async () => {
-    const q = getOfflineQueue();
-    if (q.length === 0) {
-      setQueueCount(0);
-      return;
-    }
-
-    const hasSession = await checkSession();
-    if (!hasSession && isSupabaseConfigured) {
-      // Prompt user to sign in
-      return;
-    }
-
     setIsSyncing(true);
     const res = await flushOfflineQueue();
     setIsSyncing(false);
@@ -55,27 +41,20 @@ export default function SyncBanner() {
       setShowSyncedNotice(true);
       setTimeout(() => setShowSyncedNotice(false), 3000);
     }
-  }, [checkSession]);
+  }, []);
 
   useEffect(() => {
     setOnline(getIsOnline());
     const q = getOfflineQueue();
     setQueueCount(q.length);
-    checkSession().then((hasSession) => {
-      if (hasSession) {
-        hydrateFromSupabase().catch((error) => {
-          console.error('Unable to load logs from database:', error);
-        });
-      }
+    checkSession();
+    hydrateFromSupabase().catch((error) => {
+      console.error('Unable to load logs from database:', error);
     });
 
     const handleOnline = () => {
       setOnline(true);
-      checkSession().then((hasSession) => {
-        if (hasSession) {
-          doSync();
-        }
-      });
+      doSync();
     };
 
     const handleOffline = () => {
@@ -161,11 +140,7 @@ export default function SyncBanner() {
   }, [doSync, checkSession]);
 
   const handleBannerClick = () => {
-    if (!hasCloudSession && isSupabaseConfigured) {
-      router.push('/login');
-    } else {
-      doSync();
-    }
+    doSync();
   };
 
   const handleDismissQueue = (e: React.MouseEvent) => {

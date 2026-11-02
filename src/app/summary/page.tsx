@@ -15,6 +15,7 @@ import {
   getFoodLogs,
   getActivityLogs,
   getAllLoggedDates,
+  hydrateFromSupabase,
 } from '@/lib/sync-storage';
 import { getTodayIST, timeToMinutes, minutesToTime, formatISTTime } from '@/lib/date-utils';
 import { FEEL_COLORS, FeelLevel } from '@/types';
@@ -32,84 +33,89 @@ export default function SummaryPage() {
   const [weeklyTrends, setWeeklyTrends] = useState<{ week: string; highCount: number }[]>([]);
 
   useEffect(() => {
-    const feels = getFeelLogs();
-    const foods = getFoodLogs();
-    const activities = getActivityLogs();
-    const allDates = getAllLoggedDates();
+    const calculate = () => {
+      const feels = getFeelLogs();
+      const foods = getFoodLogs();
+      const activities = getActivityLogs();
+      const allDates = getAllLoggedDates();
 
-    const today = getTodayIST();
-    const [ty, tm, td] = today.split('-').map(Number);
-    const end = new Date(Date.UTC(ty, tm - 1, td, 23, 59, 59));
-    const start = new Date(end.getTime() - windowDays * 24 * 60 * 60 * 1000);
-    const startStr = start.toISOString().slice(0, 10);
+      const today = getTodayIST();
+      const [ty, tm, td] = today.split('-').map(Number);
+      const end = new Date(Date.UTC(ty, tm - 1, td, 23, 59, 59));
+      const start = new Date(end.getTime() - windowDays * 24 * 60 * 60 * 1000);
+      const startStr = start.toISOString().slice(0, 10);
 
-    // Filter in window
-    const windowFeels = feels.filter((f) => f.log_date >= startStr && f.log_date <= today);
-    const windowFoods = foods.filter((f) => f.log_date >= startStr && f.log_date <= today);
-    const windowActivities = activities.filter((a) => a.log_date >= startStr && a.log_date <= today);
+      // Filter in window
+      const windowFeels = feels.filter((f) => f.log_date >= startStr && f.log_date <= today);
+      const windowFoods = foods.filter((f) => f.log_date >= startStr && f.log_date <= today);
+      const windowActivities = activities.filter((a) => a.log_date >= startStr && a.log_date <= today);
 
-    // 1. Feel distribution
-    const feelOrder: FeelLevel[] = ['low', 'slightly_low', 'okay', 'slightly_high', 'high'];
-    const dist = feelOrder.map((fKey) => {
-      const count = windowFeels.filter((f) => f.feel === fKey).length;
-      return {
-        name: FEEL_COLORS[fKey].label,
-        key: fKey,
-        count,
-        color: fKey === 'okay' ? '#4edea3' : fKey === 'slightly_low' || fKey === 'slightly_high' ? '#ffb95f' : fKey === 'high' ? '#e29100' : '#ffb4ab',
-      };
-    });
-    setFeelDistribution(dist);
-
-    // 2. Average lunch time
-    const lunchLogs = windowFoods.filter((f) => f.meal === 'lunch');
-    if (lunchLogs.length > 0) {
-      const totalMinutes = lunchLogs.reduce((acc, f) => acc + timeToMinutes(f.log_time), 0);
-      const avgMinutes = Math.round(totalMinutes / lunchLogs.length);
-      const rawAvgTime = minutesToTime(avgMinutes);
-      setAvgLunchTimeStr(formatISTTime(rawAvgTime));
-    } else {
-      setAvgLunchTimeStr('N/A');
-    }
-
-    // 3. Days logged vs days in window
-    const uniqueLoggedDaysInWindow = new Set<string>();
-    allDates.forEach((d) => {
-      if (d >= startStr && d <= today) uniqueLoggedDaysInWindow.add(d);
-    });
-    setDaysLogged(uniqueLoggedDaysInWindow.size);
-
-    // 4. Run vs non-run days count
-    const runDays = new Set<string>();
-    windowActivities.forEach((a) => {
-      if (a.activity_type === 'run') runDays.add(a.log_date);
-    });
-    const runCount = runDays.size;
-    const nonRunCount = Math.max(0, uniqueLoggedDaysInWindow.size - runCount);
-    setRunDaysCount(runCount);
-    setNonRunDaysCount(nonRunCount);
-
-    // 5. Weekly trend
-    const trends: { week: string; highCount: number }[] = [];
-    for (let w = 3; w >= 0; w--) {
-      const wEnd = new Date(end.getTime() - w * 7 * 24 * 60 * 60 * 1000);
-      const wStart = new Date(wEnd.getTime() - 6 * 24 * 60 * 60 * 1000);
-      const wStartStr = wStart.toISOString().slice(0, 10);
-      const wEndStr = wEnd.toISOString().slice(0, 10);
-
-      const highCount = feels.filter(
-        (f) =>
-          f.log_date >= wStartStr &&
-          f.log_date <= wEndStr &&
-          (f.feel === 'high' || f.feel === 'slightly_high')
-      ).length;
-
-      trends.push({
-        week: `${w === 0 ? 'Current' : `${w}w ago`}`,
-        highCount,
+      // 1. Feel distribution
+      const feelOrder: FeelLevel[] = ['low', 'slightly_low', 'okay', 'slightly_high', 'high'];
+      const dist = feelOrder.map((fKey) => {
+        const count = windowFeels.filter((f) => f.feel === fKey).length;
+        return {
+          name: FEEL_COLORS[fKey].label,
+          key: fKey,
+          count,
+          color: fKey === 'okay' ? '#4edea3' : fKey === 'slightly_low' || fKey === 'slightly_high' ? '#ffb95f' : fKey === 'high' ? '#e29100' : '#ffb4ab',
+        };
       });
-    }
-    setWeeklyTrends(trends);
+      setFeelDistribution(dist);
+
+      // 2. Average lunch time
+      const lunchLogs = windowFoods.filter((f) => f.meal === 'lunch');
+      if (lunchLogs.length > 0) {
+        const totalMinutes = lunchLogs.reduce((acc, f) => acc + timeToMinutes(f.log_time), 0);
+        const avgMinutes = Math.round(totalMinutes / lunchLogs.length);
+        const rawAvgTime = minutesToTime(avgMinutes);
+        setAvgLunchTimeStr(formatISTTime(rawAvgTime));
+      } else {
+        setAvgLunchTimeStr('N/A');
+      }
+
+      // 3. Days logged vs days in window
+      const uniqueLoggedDaysInWindow = new Set<string>();
+      allDates.forEach((d) => {
+        if (d >= startStr && d <= today) uniqueLoggedDaysInWindow.add(d);
+      });
+      setDaysLogged(uniqueLoggedDaysInWindow.size);
+
+      // 4. Run vs non-run days count
+      const runDays = new Set<string>();
+      windowActivities.forEach((a) => {
+        if (a.activity_type === 'run') runDays.add(a.log_date);
+      });
+      const runCount = runDays.size;
+      const nonRunCount = Math.max(0, uniqueLoggedDaysInWindow.size - runCount);
+      setRunDaysCount(runCount);
+      setNonRunDaysCount(nonRunCount);
+
+      // 5. Weekly trend
+      const trends: { week: string; highCount: number }[] = [];
+      for (let w = 3; w >= 0; w--) {
+        const wEnd = new Date(end.getTime() - w * 7 * 24 * 60 * 60 * 1000);
+        const wStart = new Date(wEnd.getTime() - 6 * 24 * 60 * 60 * 1000);
+        const wStartStr = wStart.toISOString().slice(0, 10);
+        const wEndStr = wEnd.toISOString().slice(0, 10);
+
+        const highCount = feels.filter(
+          (f) =>
+            f.log_date >= wStartStr &&
+            f.log_date <= wEndStr &&
+            (f.feel === 'high' || f.feel === 'slightly_high')
+        ).length;
+
+        trends.push({
+          week: `${w === 0 ? 'Current' : `${w}w ago`}`,
+          highCount,
+        });
+      }
+      setWeeklyTrends(trends);
+    };
+
+    calculate();
+    hydrateFromSupabase().then(() => calculate());
   }, [windowDays]);
 
   return (

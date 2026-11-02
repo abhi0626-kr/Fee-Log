@@ -113,12 +113,12 @@ function notifyDataUpdated(): void {
   }
 }
 
+export const DEFAULT_USER_ID = '00000000-0000-0000-0000-000000000001';
+
 async function getRequiredUserId(): Promise<string> {
   const userId = await getCloudAuthUserId();
-  if (!userId) {
-    throw new Error('You must be signed in to save logs to the database.');
-  }
-  return userId;
+  if (userId) return userId;
+  return getActiveUserId();
 }
 
 async function upsertLog<T extends { id: string; user_id: string }>(
@@ -129,7 +129,7 @@ async function upsertLog<T extends { id: string; user_id: string }>(
     throw new Error('Supabase is not configured.');
   }
   const userId = await getRequiredUserId();
-  const record = { ...log, user_id: userId };
+  const record = { ...log, user_id: log.user_id || userId };
   let { error } = await supabase.from(table).upsert(record);
   if (error && table === 'food_logs' && isMissingColumnError(error)) {
     const baseRecord = sanitizeFoodPayload(record as Record<string, unknown>);
@@ -146,8 +146,7 @@ async function deleteLog(table: LogTable, id: string): Promise<void> {
   if (!isSupabaseConfigured || !supabase) {
     throw new Error('Supabase is not configured.');
   }
-  const userId = await getRequiredUserId();
-  const { error } = await supabase.from(table).delete().eq('id', id).eq('user_id', userId);
+  const { error } = await supabase.from(table).delete().eq('id', id);
   if (error) {
     throw new Error(`Failed to delete ${table}: ${error.message}`);
   }
@@ -237,7 +236,7 @@ export function saveSettings(settings: Partial<UserSettings>): UserSettings {
 }
 
 export function getActiveUserId(): string {
-  if (typeof window === 'undefined') return '00000000-0000-0000-0000-000000000000';
+  if (typeof window === 'undefined') return DEFAULT_USER_ID;
   const settings = getSettings();
   if (settings.user_id && settings.user_id.length > 10) {
     return settings.user_id;
@@ -246,12 +245,7 @@ export function getActiveUserId(): string {
   if (storedId && storedId.length > 10) {
     return storedId;
   }
-  let anonId = localStorage.getItem('t1d_anon_uuid');
-  if (!anonId) {
-    anonId = crypto.randomUUID();
-    localStorage.setItem('t1d_anon_uuid', anonId);
-  }
-  return anonId;
+  return DEFAULT_USER_ID;
 }
 
 export async function hasActiveCloudSession(): Promise<boolean> {
@@ -632,14 +626,15 @@ async function flushOfflineQueueInternal(): Promise<SyncResult> {
   let failed = 0;
   let lastErrorMsg: string | undefined;
 
-  // 1. Sync directly to Supabase if authenticated
-  if (isSupabaseConfigured && supabase && authUserId) {
+  // 1. Sync directly to Supabase
+  const effectiveUserId = authUserId || getActiveUserId();
+  if (isSupabaseConfigured && supabase) {
     for (const item of queue) {
       try {
         if (item.action === 'insert' || item.action === 'update') {
           const payload = {
             ...(item.payload as Record<string, unknown>),
-            user_id: authUserId,
+            user_id: ((item.payload as Record<string, unknown>).user_id as string) || effectiveUserId,
           };
           let { error } = await supabase.from(item.table).upsert([payload]);
           if (error && item.table === 'food_logs' && isMissingColumnError(error)) {
@@ -684,18 +679,6 @@ async function flushOfflineQueueInternal(): Promise<SyncResult> {
       remainingQueue.push(...queue);
       failed = queue.length;
     }
-  } else {
-    // Supabase is configured, but user has no active cloud auth session.
-    // Retain in offline queue until signed in.
-    remainingQueue.push(...queue);
-    failed = queue.length;
-    saveLocalArray(STORAGE_KEYS.QUEUE, remainingQueue);
-    return {
-      synced: 0,
-      failed: queue.length,
-      reason: 'NO_AUTH_SESSION',
-      errorMessage: 'Cloud session not active. Sign in with Google to sync pending logs.',
-    };
   }
 
   saveLocalArray(STORAGE_KEYS.QUEUE, remainingQueue);
@@ -741,15 +724,15 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       userId = data.session?.user?.id;
     }
     if (!userId) {
-      return false;
+      userId = getActiveUserId();
     }
 
     const [insulinRes, foodRes, activityRes, feelRes, glucoseRes] = await Promise.all([
-      supabase.from('insulin_logs').select('*').eq('user_id', userId),
-      supabase.from('food_logs').select('*').eq('user_id', userId),
-      supabase.from('activity_logs').select('*').eq('user_id', userId),
-      supabase.from('feel_logs').select('*').eq('user_id', userId),
-      supabase.from('glucose_logs').select('*').eq('user_id', userId),
+      supabase.from('insulin_logs').select('*'),
+      supabase.from('food_logs').select('*'),
+      supabase.from('activity_logs').select('*'),
+      supabase.from('feel_logs').select('*'),
+      supabase.from('glucose_logs').select('*'),
     ]);
 
     const deletedMap = getDeletedIdsMap();
@@ -1500,6 +1483,60 @@ export function deduplicateLogs(): DeduplicateResult {
 }
 
 // Reset / Clear all data
+// Force push all local records directly into the Supabase database
+export async function pushAllLocalLogsToDatabase(): Promise<{ success: boolean; count: number; error?: string }> {
+  if (!isSupabaseConfigured || !supabase) {
+    return { success: false, count: 0, error: 'Database is not configured.' };
+  }
+  const userId = (await getCloudAuthUserId()) || getActiveUserId();
+  try {
+    const insulin = getInsulinLogs().map((l) => ({ ...l, user_id: l.user_id || userId }));
+    const food = getFoodLogs().map((l) => ({ ...l, user_id: l.user_id || userId }));
+    const activity = getActivityLogs().map((l) => ({ ...l, user_id: l.user_id || userId }));
+    const feel = getFeelLogs().map((l) => ({ ...l, user_id: l.user_id || userId }));
+    const glucose = getGlucoseLogs().map((l) => ({ ...l, user_id: l.user_id || userId }));
+
+    let count = 0;
+    if (insulin.length > 0) {
+      const { error } = await supabase.from('insulin_logs').upsert(insulin);
+      if (error) throw error;
+      count += insulin.length;
+    }
+    if (food.length > 0) {
+      let { error } = await supabase.from('food_logs').upsert(food);
+      if (error && isMissingColumnError(error)) {
+        const sanitized = food.map((f) => sanitizeFoodPayload(f as Record<string, unknown>));
+        const retryRes = await supabase.from('food_logs').upsert(sanitized);
+        error = retryRes.error;
+      }
+      if (error) throw error;
+      count += food.length;
+    }
+    if (activity.length > 0) {
+      const { error } = await supabase.from('activity_logs').upsert(activity);
+      if (error) throw error;
+      count += activity.length;
+    }
+    if (feel.length > 0) {
+      const { error } = await supabase.from('feel_logs').upsert(feel);
+      if (error) throw error;
+      count += feel.length;
+    }
+    if (glucose.length > 0) {
+      const { error } = await supabase.from('glucose_logs').upsert(glucose);
+      if (error) throw error;
+      count += glucose.length;
+    }
+
+    clearOfflineQueue();
+    return { success: true, count };
+  } catch (err) {
+    const msg = (err as Error)?.message || String(err);
+    console.error('pushAllLocalLogsToDatabase error:', msg);
+    return { success: false, count: 0, error: msg };
+  }
+}
+
 export function clearAllLocalData(): void {
   if (typeof window === 'undefined') return;
   memoryLogs.insulin = [];

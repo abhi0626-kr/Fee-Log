@@ -18,6 +18,7 @@ import {
   getActivityLogs,
   getGlucoseLogs,
   getInsulinLogs,
+  hydrateFromSupabase,
 } from '@/lib/sync-storage';
 import { getPastDates } from '@/lib/date-utils';
 import { MEDICAL_DISCLAIMER } from '@/types';
@@ -66,13 +67,19 @@ export default function PatternsPage() {
 
   useEffect(() => {
     loadData();
+    hydrateFromSupabase().then(() => loadData());
+
+    const handleFocus = () => {
+      hydrateFromSupabase().then(() => loadData());
+    };
+
     window.addEventListener('t1d-data-updated', loadData);
     window.addEventListener('storage', loadData);
-    window.addEventListener('focus', loadData);
+    window.addEventListener('focus', handleFocus);
     return () => {
       window.removeEventListener('t1d-data-updated', loadData);
       window.removeEventListener('storage', loadData);
-      window.removeEventListener('focus', loadData);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [loadData]);
 

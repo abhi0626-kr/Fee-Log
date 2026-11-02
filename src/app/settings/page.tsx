@@ -15,6 +15,8 @@ import {
   setUserLoggedIn,
   isUserLoggedIn,
   deduplicateLogs,
+  pushAllLocalLogsToDatabase,
+  hydrateFromSupabase,
 } from '@/lib/sync-storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { UserSettings, COMMON_FOOD_CHIPS } from '@/types';
@@ -146,35 +148,18 @@ export default function SettingsPage() {
     setIsSyncingServer(true);
     setDataMessage(null);
     try {
-      let hasSession = false;
-      if (isSupabaseConfigured && supabase) {
-        let { data: sessionData } = await supabase.auth.getSession();
-        if (!sessionData.session) {
-          const { data: refreshed } = await supabase.auth.refreshSession();
-          sessionData = refreshed;
-        }
-        hasSession = Boolean(sessionData.session?.user);
-      }
-
-      if (!hasSession && isSupabaseConfigured) {
-        const qCount = getOfflineQueue().length;
-        setDataMessage(
-          qCount > 0
-            ? `Cloud session not active (${qCount} pending log${qCount > 1 ? 's' : ''}). Sign in with Google to sync.`
-            : 'Cloud session not active. Sign in with Google to enable automatic cloud sync.'
-        );
-        setIsSyncingServer(false);
-        return;
-      }
-
+      const pushRes = await pushAllLocalLogsToDatabase();
       const res = await flushOfflineQueue();
+      await hydrateFromSupabase();
       const remaining = getOfflineQueue().length;
       setPendingQueueCount(remaining);
 
-      if (res.failed > 0 || remaining > 0) {
+      if (pushRes.success) {
+        setDataMessage(`Database synchronized successfully! ${pushRes.count} logs stored directly in cloud database.`);
+      } else if (res.failed > 0 || remaining > 0) {
         setDataMessage(
-          res.errorMessage ||
-          `Sync incomplete: ${res.synced} processed, ${remaining} still pending. Check connection or sign in again.`
+          pushRes.error || res.errorMessage ||
+          `Sync incomplete: ${res.synced} processed. Check database permissions or connection.`
         );
       } else {
         setDataMessage(`Sync complete: ${res.synced} pending items processed.`);
@@ -184,7 +169,7 @@ export default function SettingsPage() {
     } finally {
       setIsSyncingServer(false);
     }
-    setTimeout(() => setDataMessage(null), 4500);
+    setTimeout(() => setDataMessage(null), 5000);
   };
 
   const handleClearPendingQueue = () => {
