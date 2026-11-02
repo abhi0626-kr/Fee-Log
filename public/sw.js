@@ -1,4 +1,4 @@
-const CACHE_NAME = 't1d-log-cache-v1';
+const CACHE_NAME = 't1d-log-cache-v2';
 const STATIC_ASSETS = [
   '/',
   '/timeline',
@@ -35,26 +35,42 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Never intercept or cache Next.js internal chunks, HMR, or API calls
+  // 1. Only intercept GET requests
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
+  // 2. NEVER intercept external requests (Supabase, Google OAuth, external APIs)
+  // Let the browser handle cross-origin requests directly to avoid CORS & Response errors
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // 3. Never intercept Next.js chunks, webpack, or internal API calls
   if (
-    event.request.url.includes('/_next/') ||
-    event.request.url.includes('/api/') ||
-    event.request.url.includes('webpack')
+    url.pathname.startsWith('/_next/') ||
+    url.pathname.startsWith('/api/') ||
+    url.pathname.includes('webpack')
   ) {
     return;
   }
 
-  // Navigation requests: stale-while-revalidate or network-first
+  // 4. Navigation requests (HTML pages)
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match(event.request).then((res) => res || caches.match('/'));
+      fetch(event.request).catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        const root = await caches.match('/');
+        if (root) return root;
+        return new Response('Offline', { status: 503, statusText: 'Offline' });
       })
     );
     return;
   }
 
-  // Assets
+  // 5. Same-origin Static Assets
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -75,9 +91,10 @@ self.addEventListener('fetch', (event) => {
           });
           return networkResponse;
         })
-        .catch(() => {
-          // Offline fallback
-          return caches.match(event.request);
+        .catch(async () => {
+          const cached = await caches.match(event.request);
+          if (cached) return cached;
+          return new Response('', { status: 408, statusText: 'Offline' });
         });
     })
   );

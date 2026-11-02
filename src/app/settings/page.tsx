@@ -13,8 +13,8 @@ import {
   clearOfflineQueue,
   flushOfflineQueue,
   getOfflineQueue,
-  setUserLoggedIn,
   isUserLoggedIn,
+  signOutUser,
   deduplicateLogs,
   pushAllLocalLogsToDatabase,
   hydrateFromSupabase,
@@ -143,23 +143,12 @@ export default function SettingsPage() {
 
   const handleSignOut = async () => {
     if (confirm('Are you sure you want to sign out of Feelog?')) {
-      if (isSupabaseConfigured && supabase) {
-        try {
-          await supabase.auth.signOut();
-        } catch {
-          // ignore
-        }
-      }
-      setUserLoggedIn(false, {
-        auth_provider: 'guest',
-        email: '',
-        is_logged_in: false,
-      });
+      await signOutUser();
       setIsLoggedIn(false);
       setDataMessage('Signed out successfully.');
       setTimeout(() => {
         router.push('/login');
-      }, 500);
+      }, 300);
     }
   };
 

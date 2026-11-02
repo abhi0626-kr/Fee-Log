@@ -293,7 +293,10 @@ export function saveSettings(settings: Partial<UserSettings>): UserSettings {
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent('t1d-data-updated'));
     // Fire-and-forget sync to Supabase database so mobile and laptop stay synchronized
-    syncSettingsToSupabase(updated).catch(() => {});
+    // Only upload settings if the user is not actively logged out
+    if (updated.is_logged_in !== false && localStorage.getItem('t1d_is_logged_in') !== 'false') {
+      syncSettingsToSupabase(updated).catch(() => {});
+    }
   }
   return updated;
 }
@@ -313,12 +316,9 @@ export function getActiveUserId(): string {
 
 export async function hasActiveCloudSession(): Promise<boolean> {
   if (typeof window === 'undefined' || !isSupabaseConfigured || !supabase) return false;
+  if (localStorage.getItem('t1d_is_logged_in') === 'false') return false;
   try {
-    let { data } = await supabase.auth.getSession();
-    if (!data.session) {
-      const refreshed = await supabase.auth.refreshSession();
-      data = refreshed.data;
-    }
+    const { data } = await supabase.auth.getSession();
     return Boolean(data.session?.user);
   } catch {
     return false;
@@ -327,16 +327,62 @@ export async function hasActiveCloudSession(): Promise<boolean> {
 
 export async function getCloudAuthUserId(): Promise<string | null> {
   if (typeof window === 'undefined' || !isSupabaseConfigured || !supabase) return null;
+  if (localStorage.getItem('t1d_is_logged_in') === 'false') return null;
   try {
-    let { data } = await supabase.auth.getSession();
-    if (!data.session) {
-      const refreshed = await supabase.auth.refreshSession();
-      data = refreshed.data;
-    }
+    const { data } = await supabase.auth.getSession();
     return data.session?.user?.id || null;
   } catch {
     return null;
   }
+}
+
+export async function signOutUser(): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  // 1. Explicitly sign out of Supabase client locally and remotely
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (e) {
+      console.warn('Supabase auth.signOut notice:', e);
+    }
+  }
+
+  // 2. Clear all cached Supabase auth tokens from localStorage & sessionStorage
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('sb-') || key.includes('-auth-token'))) {
+        localStorage.removeItem(key);
+      }
+    }
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const key = sessionStorage.key(i);
+      if (key && (key.startsWith('sb-') || key.includes('-auth-token') || key === 't1d_oauth_in_progress')) {
+        sessionStorage.removeItem(key);
+      }
+    }
+  } catch (e) {
+    console.warn('Error clearing auth tokens:', e);
+  }
+
+  // 3. Set logged out flag
+  localStorage.setItem('t1d_is_logged_in', 'false');
+  localStorage.removeItem('t1d_user_id');
+
+  // 4. Reset user credentials in local settings without triggering cloud upload
+  const current = getSettings();
+  const updated: UserSettings = {
+    ...current,
+    is_logged_in: false,
+    email: '',
+    auth_provider: 'guest',
+    user_id: undefined,
+  };
+  localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
+
+  // 5. Notify the rest of the application
+  window.dispatchEvent(new CustomEvent('t1d-data-updated'));
 }
 
 export function isUserLoggedIn(): boolean {

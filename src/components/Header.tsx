@@ -37,7 +37,11 @@ export default function Header({ onNewEntry }: HeaderProps) {
       supabase.auth.getSession().then(({ data }) => {
         setHasCloudSession(Boolean(data.session?.user));
       });
-      const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_OUT' || !session?.user || (typeof window !== 'undefined' && localStorage.getItem('t1d_is_logged_in') === 'false')) {
+          setHasCloudSession(false);
+          return;
+        }
         setHasCloudSession(Boolean(session?.user));
       });
       authUnsub = () => listener.subscription.unsubscribe();

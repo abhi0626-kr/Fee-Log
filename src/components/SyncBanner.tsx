@@ -104,10 +104,19 @@ export default function SyncBanner() {
         }
       });
 
-      const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_OUT' || !session?.user || (typeof window !== 'undefined' && localStorage.getItem('t1d_is_logged_in') === 'false')) {
+          setHasCloudSession(false);
+          if (realtimeUnsubscribe) {
+            realtimeUnsubscribe();
+            realtimeUnsubscribe = undefined;
+          }
+          return;
+        }
+
         const hasUser = Boolean(session?.user);
         setHasCloudSession(hasUser);
-        if (hasUser && session?.user) {
+        if (hasUser && session?.user && event === 'SIGNED_IN') {
           if (realtimeUnsubscribe) realtimeUnsubscribe();
           realtimeUnsubscribe = initSupabaseRealtime(session.user.id);
           hydrateFromSupabase(session.user.id).catch((error) => {

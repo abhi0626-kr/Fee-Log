@@ -7,6 +7,7 @@ import {
   getSettings,
   setUserLoggedIn,
   isUserLoggedIn,
+  signOutUser,
   hydrateFromSupabase,
   flushOfflineQueue,
 } from '@/lib/sync-storage';
@@ -46,6 +47,12 @@ export default function LoginPage() {
     // Check real Supabase OAuth session on redirect/load
     if (isSupabaseConfigured && supabase) {
       supabase.auth.getSession().then(async ({ data }) => {
+        // If explicitly logged out and this is NOT an OAuth redirect return, keep logged out
+        if (localStorage.getItem('t1d_is_logged_in') === 'false' && !isOAuthRedirect) {
+          setCloudUser(null);
+          return;
+        }
+
         if (data.session?.user) {
           const u = data.session.user;
           const realEmail = u.email || '';
@@ -82,6 +89,16 @@ export default function LoginPage() {
       });
 
       const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_OUT' || !session?.user) {
+          setCloudUser(null);
+          return;
+        }
+
+        if (event !== 'SIGNED_IN' && localStorage.getItem('t1d_is_logged_in') === 'false') {
+          setCloudUser(null);
+          return;
+        }
+
         if (session?.user) {
           const u = session.user;
           const realEmail = u.email || '';
@@ -341,30 +358,24 @@ export default function LoginPage() {
   // 5. Complete Sign Out
   const handleSignOut = async () => {
     setLoading(true);
-    if (isSupabaseConfigured && supabase) {
-      try {
-        await supabase.auth.signOut();
-      } catch {
-        // ignore
-      }
+    setFeedback(null);
+    try {
+      await signOutUser();
+      setCloudUser(null);
+      setSettings(getSettings());
+      setEmailInput('');
+      setPasswordInput('');
+      setNameInput('');
+      setIsEditingAccount(false);
+      setFeedback({
+        text: 'Signed out completely. You can sign in anytime below.',
+        type: 'info',
+      });
+    } catch (e) {
+      console.warn('Sign out notice:', e);
+    } finally {
+      setLoading(false);
     }
-    setCloudUser(null);
-    const updated = setUserLoggedIn(false, {
-      auth_provider: 'guest',
-      email: '',
-      user_id: undefined,
-      is_logged_in: false,
-    });
-    setSettings(updated);
-    setEmailInput('');
-    setPasswordInput('');
-    setNameInput('');
-    setIsEditingAccount(false);
-    setLoading(false);
-    setFeedback({
-      text: 'Signed out completely. You can sign in anytime below.',
-      type: 'info',
-    });
   };
 
   // 0. Hydration Barrier: Render identical SSR & first-paint placeholder until mounted
@@ -399,7 +410,7 @@ export default function LoginPage() {
   }
 
   const hasCloudSession = Boolean(cloudUser?.id);
-  const isCloudConnected = isSupabaseConfigured ? hasCloudSession : isUserLoggedIn();
+  const isCloudConnected = isSupabaseConfigured ? (hasCloudSession && isUserLoggedIn()) : isUserLoggedIn();
   const hasEmail = Boolean((cloudUser?.email || settings?.email || '').trim().length > 0);
   const activeEmail = cloudUser?.email || settings?.email;
 
