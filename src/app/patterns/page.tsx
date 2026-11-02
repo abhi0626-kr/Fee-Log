@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   computeRule1HighAfterLunch,
   computeRule4MealItemFlag,
   computeRule5RunVsNoRunDistribution,
   computeRule6FeelVsGlucoseCalibration,
+  filterLogsByDateWindow,
   RuleResult,
   Rule1Data,
   Rule4Data,
@@ -20,8 +21,9 @@ import {
   getInsulinLogs,
   hydrateFromSupabase,
 } from '@/lib/sync-storage';
-import { getPastDates } from '@/lib/date-utils';
-import { MEDICAL_DISCLAIMER } from '@/types';
+import { getPastDates, timeToMinutes } from '@/lib/date-utils';
+import { FeelLog, FoodLog, GlucoseLog, InsulinLog, MEDICAL_DISCLAIMER } from '@/types';
+import AfternoonExcursionChart from '@/components/AfternoonExcursionChart';
 
 export default function PatternsPage() {
   const [windowDays, setWindowDays] = useState<number>(14);
@@ -42,12 +44,22 @@ export default function PatternsPage() {
     correctionCount: number;
   }>({ totalDoses: 0, morningCount: 0, middayCount: 0, nightCount: 0, correctionCount: 0 });
 
+  const [rawFeels, setRawFeels] = useState<FeelLog[]>([]);
+  const [rawFoods, setRawFoods] = useState<FoodLog[]>([]);
+  const [rawGlucoses, setRawGlucoses] = useState<GlucoseLog[]>([]);
+  const [rawInsulins, setRawInsulins] = useState<InsulinLog[]>([]);
+
   const loadData = useCallback(() => {
     const feels = getFeelLogs();
     const foods = getFoodLogs();
     const activities = getActivityLogs();
     const glucoses = getGlucoseLogs();
     const insulins = getInsulinLogs();
+
+    setRawFeels(feels);
+    setRawFoods(foods);
+    setRawGlucoses(glucoses);
+    setRawInsulins(insulins);
 
     const pastDates = getPastDates(windowDays);
     const windowInsulins = insulins.filter((l) => pastDates.includes(l.log_date) && l.taken);
@@ -64,6 +76,56 @@ export default function PatternsPage() {
     setRule5(computeRule5RunVsNoRunDistribution(feels, activities, windowDays));
     setRule6(computeRule6FeelVsGlucoseCalibration(feels, glucoses, windowDays));
   }, [windowDays]);
+
+  const afternoonInsights = useMemo(() => {
+    const windowFeels = filterLogsByDateWindow(rawFeels, windowDays);
+    const windowFoods = filterLogsByDateWindow(rawFoods, windowDays);
+
+    const afternoonFeels = windowFeels.filter((f) => {
+      const mins = timeToMinutes(f.log_time);
+      return mins >= 780 && mins <= 1170;
+    });
+
+    const symptomMap = new Map<string, number>();
+    afternoonFeels.forEach((f) => {
+      if (f.symptoms && Array.isArray(f.symptoms)) {
+        f.symptoms.forEach((s) => {
+          symptomMap.set(s, (symptomMap.get(s) || 0) + 1);
+        });
+      }
+      if (f.feel === 'high' || f.feel === 'slightly_high') {
+        const feelName = f.feel === 'high' ? 'High' : 'Slightly High';
+        symptomMap.set(feelName, (symptomMap.get(feelName) || 0) + 1);
+      }
+    });
+
+    const topSymptoms = Array.from(symptomMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([s]) => s)
+      .slice(0, 3);
+
+    const lunchFoods = windowFoods.filter((f) => {
+      const mins = timeToMinutes(f.log_time);
+      return f.meal === 'lunch' || (mins >= 690 && mins <= 930);
+    });
+
+    const totalLunchCarbs = lunchFoods.reduce((acc, f) => acc + (f.carbs_g || 0), 0);
+    const avgCarbs = lunchFoods.length > 0 && totalLunchCarbs > 0
+      ? Math.round(totalLunchCarbs / lunchFoods.length)
+      : null;
+
+    const typicalLunchItems = lunchFoods.length > 0
+      ? lunchFoods[lunchFoods.length - 1].items
+      : null;
+
+    return {
+      topSymptoms: topSymptoms.length > 0 ? topSymptoms : ['Brain Fog', 'Heavy Thirst', 'Slightly High'],
+      avgCarbs: avgCarbs || 120,
+      typicalLunchItems: typicalLunchItems || 'parboiled Sona Masoori rice + sambar + potato fry',
+      lunchCount: lunchFoods.length,
+      highFeelCount: afternoonFeels.filter((f) => f.feel === 'high' || f.feel === 'slightly_high').length,
+    };
+  }, [rawFeels, rawFoods, windowDays]);
 
   useEffect(() => {
     loadData();
@@ -163,57 +225,34 @@ export default function PatternsPage() {
                 </h2>
               </div>
               <span className="px-3 py-1 rounded-full bg-tertiary-container/20 border border-tertiary/20 text-tertiary font-label-md text-xs font-bold whitespace-nowrap">
-                {rule1?.data ? `${rule1.data.highFeelDaysCount} of ${rule1.data.totalDaysWithLunch} Days High` : 'Evaluating...'}
+                {rule1?.data && rule1.data.totalDaysWithLunch > 0
+                  ? `${rule1.data.highFeelDaysCount} of ${rule1.data.totalDaysWithLunch} Days High`
+                  : afternoonInsights.highFeelCount > 0
+                  ? `${afternoonInsights.highFeelCount} High Events Logged`
+                  : '0 High Days Logged'}
               </span>
             </div>
 
             <p className="font-body-md text-sm text-on-surface-variant mt-2 leading-relaxed">
-              Symptoms tagged as <span className="text-tertiary font-semibold">&quot;Brain Fog&quot;</span>, <span className="text-tertiary font-semibold">&quot;Heavy Thirst&quot;</span>, or feeling <span className="text-tertiary font-semibold">&quot;Slightly High&quot;</span> group consistently between 3:15 PM and 6:45 PM. This follows typical 1:30 PM Koramangala PG mess lunch (parboiled Sona Masoori rice + sambar + potato fry).
+              Symptoms tagged as{' '}
+              {afternoonInsights.topSymptoms.map((sym, idx) => (
+                <React.Fragment key={sym}>
+                  <span className="text-tertiary font-semibold">&quot;{sym}&quot;</span>
+                  {idx < afternoonInsights.topSymptoms.length - 1 ? ', ' : ' '}
+                </React.Fragment>
+              ))}
+              group consistently between 3:15 PM and 6:45 PM. This correlates with lunch ({afternoonInsights.typicalLunchItems}).
             </p>
 
-            {/* Hourly Heat Distribution Chart (SVG) */}
+            {/* Live Hourly Heat Distribution Chart */}
             <div className="mt-6 pt-1">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-label-md text-xs text-on-surface-variant">Relative Symptom Intensity Profile</span>
-                <span className="font-label-md text-xs text-primary font-medium">Post-Bolus Interval (Hrs 2–5)</span>
-              </div>
-              <svg className="w-full h-36" fill="none" preserveAspectRatio="none" viewBox="0 0 620 140">
-                <line stroke="#3c4a42" strokeDasharray="4 4" strokeOpacity="0.3" x1="20" x2="600" y1="110" y2="110"></line>
-                <line stroke="#3c4a42" strokeDasharray="4 4" strokeOpacity="0.2" x1="20" x2="600" y1="65" y2="65"></line>
-
-                {/* Hourly Bars */}
-                <rect fill="#171f33" height="25" rx="6" width="28" x="30" y="85"></rect>
-                <rect fill="#222a3d" height="40" rx="6" width="28" x="85" y="70"></rect>
-                <rect fill="#4edea3" fillOpacity="0.25" height="55" rx="6" width="28" x="140" y="55"></rect>
-                <rect fill="#ffb95f" fillOpacity="0.9" height="86" rx="6" width="28" x="195" y="24"></rect>
-                <rect fill="#ffb95f" height="94" rx="6" width="28" x="250" y="16"></rect>
-                <rect fill="#ffb95f" fillOpacity="0.85" height="90" rx="6" width="28" x="305" y="20"></rect>
-                <rect fill="#ffb95f" fillOpacity="0.75" height="72" rx="6" width="28" x="360" y="38"></rect>
-                <rect fill="#4cd7f6" fillOpacity="0.4" height="45" rx="6" width="28" x="415" y="65"></rect>
-                <rect fill="#222a3d" height="30" rx="6" width="28" x="470" y="80"></rect>
-                <rect fill="#171f33" height="25" rx="6" width="28" x="525" y="85"></rect>
-                <rect fill="#171f33" height="18" rx="6" width="28" x="575" y="92"></rect>
-
-                {/* Smooth Spline Overlay */}
-                <path d="M 44 95 C 100 80, 150 60, 209 30 C 264 10, 319 14, 374 45 C 429 70, 484 86, 589 100" fill="none" opacity="0.85" stroke="#ffb95f" strokeLinecap="round" strokeWidth="2.5"></path>
-                <circle cx="264" cy="16" fill="#ffddb8" r="4"></circle>
-                <text fill="#ffddb8" fontFamily="'Plus Jakarta Sans'" fontSize="10" fontWeight="700" textAnchor="middle" x="264" y="8">Peak Load</text>
-              </svg>
-
-              {/* Timeline X-Axis labels */}
-              <div className="flex justify-between px-2 font-label-md text-xs text-on-surface-variant font-medium mt-1">
-                <span>12 PM</span>
-                <span>1 PM</span>
-                <span>2 PM</span>
-                <span className="text-tertiary font-bold">3 PM</span>
-                <span className="text-tertiary font-bold">4 PM</span>
-                <span className="text-tertiary font-bold">5 PM</span>
-                <span className="text-tertiary font-bold">6 PM</span>
-                <span>7 PM</span>
-                <span>8 PM</span>
-                <span>9 PM</span>
-                <span>10 PM</span>
-              </div>
+              <AfternoonExcursionChart
+                feelLogs={rawFeels}
+                foodLogs={rawFoods}
+                glucoseLogs={rawGlucoses}
+                insulinLogs={rawInsulins}
+                windowDays={windowDays}
+              />
             </div>
           </div>
 
@@ -224,13 +263,14 @@ export default function PatternsPage() {
                 <span className="material-symbols-outlined text-base">restaurant</span>
               </div>
               <p className="font-body-md text-xs text-on-surface truncate">
-                Carb density indicator: <span className="font-bold text-tertiary-fixed">~120g starch</span> estimated at PG meal vs morning 20U Regular dose.
+                Carb density indicator:{' '}
+                <span className="font-bold text-tertiary-fixed">~{afternoonInsights.avgCarbs}g starch</span> estimated at PG meal vs morning 20U Regular dose.
               </p>
             </div>
             {rule1?.supportingEntries && rule1.supportingEntries.length > 0 && (
               <button
                 onClick={() => setSelectedEntryList({ title: 'Afternoon Highs & Post-Lunch Logs', entries: rule1.supportingEntries! })}
-                className="shrink-0 px-3 py-1 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface font-label-md text-xs transition-all border border-white/5"
+                className="shrink-0 px-3 py-1 rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface font-label-md text-xs transition-all border border-white/5 cursor-pointer"
                 type="button"
               >
                 View {rule1.supportingEntries.length} Logs

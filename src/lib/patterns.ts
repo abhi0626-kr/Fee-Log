@@ -106,11 +106,14 @@ export function computeRule1HighAfterLunch(
   const windowFeel = filterLogsByDateWindow(feelLogs, windowDays);
   const windowFood = filterLogsByDateWindow(foodLogs, windowDays);
 
-  // Group lunch logs by date
+  // Group lunch logs by date (either meal === 'lunch' or food logged between 11:30 and 15:30)
   const lunchByDate = new Map<string, FoodLog>();
   windowFood.forEach((f) => {
-    if (f.meal === 'lunch') {
-      lunchByDate.set(f.log_date, f);
+    const mins = timeToMinutes(f.log_time);
+    if (f.meal === 'lunch' || (mins >= 690 && mins <= 930)) {
+      if (!lunchByDate.has(f.log_date) || f.meal === 'lunch') {
+        lunchByDate.set(f.log_date, f);
+      }
     }
   });
 
@@ -119,27 +122,30 @@ export function computeRule1HighAfterLunch(
 
   windowFeel.forEach((f) => {
     const mins = timeToMinutes(f.log_time);
-    // 14:00 (840) to 19:00 (1140)
-    const isAfternoon = mins >= 840 && mins <= 1140;
+    // 14:00 (840) to 19:30 (1170)
+    const isAfternoon = mins >= 840 && mins <= 1170;
     const isHigh = f.feel === 'high' || f.feel === 'slightly_high';
 
-    if (isAfternoon && isHigh && lunchByDate.has(f.log_date)) {
+    if (isAfternoon && isHigh) {
       highDays.add(f.log_date);
-      const lunch = lunchByDate.get(f.log_date)!;
+      const lunch = lunchByDate.get(f.log_date);
+      const symptomsList = f.symptoms && f.symptoms.length > 0 ? ` (${f.symptoms.join(', ')})` : '';
       supportingEntries.push({
         date: f.log_date,
-        description: `Felt ${f.feel.replace('_', ' ')} at ${f.log_time} after lunch (${lunch.items})`,
+        description: lunch
+          ? `Felt ${f.feel.replace('_', ' ')}${symptomsList} at ${f.log_time} after lunch (${lunch.items})`
+          : `Felt ${f.feel.replace('_', ' ')}${symptomsList} at ${f.log_time} (afternoon excursion)`,
       });
     }
   });
 
-  const totalDaysWithLunch = lunchByDate.size;
+  const totalDaysWithLunch = Math.max(lunchByDate.size, highDays.size);
   const highFeelDaysCount = highDays.size;
-  const hasEnoughData = totalDaysWithLunch >= 3;
+  const hasEnoughData = totalDaysWithLunch >= 1;
 
   let sentence = 'Not enough data yet — keep logging.';
   if (hasEnoughData) {
-    sentence = `You logged high feelings after lunch on ${highFeelDaysCount} of the last ${windowDays} days (out of ${totalDaysWithLunch} lunch days).`;
+    sentence = `You logged high feelings in the afternoon on ${highFeelDaysCount} of ${totalDaysWithLunch} days.`;
   }
 
   return {

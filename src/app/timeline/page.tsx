@@ -32,6 +32,7 @@ import FeelSheet from '@/components/FeelSheet';
 import GlucoseSheet from '@/components/GlucoseSheet';
 import InsulinSheet from '@/components/InsulinSheet';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
+import DayRhythmChart from '@/components/DayRhythmChart';
 
 type FilterType = 'all' | 'insulin' | 'feelings' | 'food' | 'activity';
 
@@ -543,51 +544,8 @@ export default function TimelinePage() {
 
         {/* RIGHT: INSIGHTS & CONTEXT SIDEBAR (Col 4) */}
         <div className="lg:col-span-4 space-y-6">
-          {/* Day Rhythm Snapshot Card */}
-          <div className="bg-surface-container-low/80 backdrop-blur-2xl p-5 md:p-6 rounded-3xl border border-white/5 shadow-xl relative overflow-hidden">
-            <div className="flex items-center justify-between pb-2">
-              <span className="font-headline-sm text-sm text-on-surface font-bold">Day Rhythm Curve</span>
-              <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-md text-[0.7rem] border border-white/5">
-                Felt Energy vs Glycemia
-              </span>
-            </div>
-            <p className="font-label-md text-xs text-on-surface-variant pb-3">
-              Continuous subjective wellbeing curve synthesized across check-ins and meal timing.
-            </p>
-
-            {/* Inline SVG Curve Chart */}
-            <div className="w-full h-36 relative flex items-center justify-center">
-              <svg className="w-full h-full overflow-visible" fill="none" viewBox="0 0 320 120" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <linearGradient id="curveGradient" x1="0%" x2="0%" y1="0%" y2="100%">
-                    <stop offset="0%" stopColor="#4edea3" stopOpacity="0.35"></stop>
-                    <stop offset="50%" stopColor="#ffb95f" stopOpacity="0.2"></stop>
-                    <stop offset="100%" stopColor="#4cd7f6" stopOpacity="0.0"></stop>
-                  </linearGradient>
-                </defs>
-                {/* Target Comfort Zone Fill */}
-                <rect fill="#4edea3" fillOpacity="0.05" height="45" rx="6" width="320" x="0" y="35"></rect>
-                <line stroke="#3c4a42" strokeDasharray="3 3" strokeOpacity="0.3" x1="0" x2="320" y1="35" y2="35"></line>
-                <line stroke="#3c4a42" strokeDasharray="3 3" strokeOpacity="0.3" x1="0" x2="320" y1="80" y2="80"></line>
-                {/* Area under path */}
-                <path d="M 0,55 C 40,25 60,30 90,45 C 130,55 160,85 200,98 C 240,110 270,60 320,48 L 320,120 L 0,120 Z" fill="url(#curveGradient)"></path>
-                {/* Spline line */}
-                <path d="M 0,55 C 40,25 60,30 90,45 C 130,55 160,85 200,98 C 240,110 270,60 320,48" stroke="#4edea3" strokeLinecap="round" strokeWidth="3"></path>
-                {/* Event Highlight Dots */}
-                <circle cx="25" cy="40" fill="#4cd7f6" r="4" stroke="#0b1326" strokeWidth="2"></circle>
-                <circle cx="70" cy="38" fill="#ffb95f" r="4" stroke="#0b1326" strokeWidth="2"></circle>
-                <circle cx="200" cy="98" fill="#ffb95f" r="5" stroke="#0b1326" strokeWidth="2"></circle>
-                <circle cx="270" cy="60" fill="#4cd7f6" r="4" stroke="#0b1326" strokeWidth="2"></circle>
-              </svg>
-            </div>
-
-            <div className="flex justify-between text-[0.65rem] text-outline font-label-md mt-2">
-              <span>07:00 AM (Run)</span>
-              <span>12:30 PM (Lunch)</span>
-              <span className="text-tertiary font-bold">04:30 PM (Peak)</span>
-              <span>08:30 PM (Dinner)</span>
-            </div>
-          </div>
+          {/* Dynamic Day Rhythm Data Analysis Chart */}
+          <DayRhythmChart logs={logs} selectedDate={selectedDate} />
 
           {/* Bangalore PG Routine Log Notes */}
           <div className="bg-surface-container-low/80 backdrop-blur-2xl p-5 md:p-6 rounded-3xl border border-white/5 shadow-xl">
