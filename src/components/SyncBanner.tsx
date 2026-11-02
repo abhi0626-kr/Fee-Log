@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getOfflineQueue,
   flushOfflineQueue,
@@ -26,20 +26,27 @@ export default function SyncBanner() {
     return active;
   }, []);
 
+  const isSyncingRef = useRef(false);
+
   const doSync = useCallback(async () => {
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
     setIsSyncing(true);
-    const res = await flushOfflineQueue();
-    setIsSyncing(false);
+    try {
+      const res = await flushOfflineQueue();
+      const remaining = getOfflineQueue();
+      setQueueCount(remaining.length);
 
-    const remaining = getOfflineQueue();
-    setQueueCount(remaining.length);
-
-    if (res.synced > 0) {
-      setSyncedNoticeText(
-        res.synced === 1 ? '1 log synced to database ✓' : `${res.synced} logs synced to database ✓`
-      );
-      setShowSyncedNotice(true);
-      setTimeout(() => setShowSyncedNotice(false), 3000);
+      if (res.synced > 0) {
+        setSyncedNoticeText(
+          res.synced === 1 ? '1 log synced to database ✓' : `${res.synced} logs synced to database ✓`
+        );
+        setShowSyncedNotice(true);
+        setTimeout(() => setShowSyncedNotice(false), 2500);
+      }
+    } finally {
+      setIsSyncing(false);
+      isSyncingRef.current = false;
     }
   }, []);
 
@@ -117,14 +124,10 @@ export default function SyncBanner() {
     const interval = setInterval(() => {
       const currentQueue = getOfflineQueue();
       setQueueCount(currentQueue.length);
-      if (currentQueue.length > 0 && getIsOnline()) {
-        checkSession().then((hasSession) => {
-          if (hasSession) {
-            doSync();
-          }
-        });
+      if (currentQueue.length > 0 && getIsOnline() && !isSyncingRef.current) {
+        doSync();
       }
-    }, 3000);
+    }, 15000);
 
     return () => {
       window.removeEventListener('online', handleOnline);

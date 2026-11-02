@@ -152,7 +152,7 @@ async function deleteLog(table: LogTable, id: string): Promise<void> {
   }
 }
 
-function withDatabaseTimeout<T>(operation: Promise<T>, timeoutMs = 12000): Promise<T> {
+function withDatabaseTimeout<T>(operation: Promise<T>, timeoutMs = 5000): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error('Database request timed out.'));
@@ -626,36 +626,63 @@ async function flushOfflineQueueInternal(): Promise<SyncResult> {
   let failed = 0;
   let lastErrorMsg: string | undefined;
 
-  // 1. Sync directly to Supabase
+  // 1. Sync directly to Supabase via bulk batching (instant, batch-grouped requests)
   const effectiveUserId = authUserId || getActiveUserId();
   if (isSupabaseConfigured && supabase) {
+    const client = supabase;
+    const tableUpserts: Record<string, { item: SyncQueueItem; payload: Record<string, unknown> }[]> = {
+      insulin_logs: [],
+      food_logs: [],
+      activity_logs: [],
+      feel_logs: [],
+      glucose_logs: [],
+    };
+    const deletes: SyncQueueItem[] = [];
+
     for (const item of queue) {
-      try {
-        if (item.action === 'insert' || item.action === 'update') {
-          const payload = {
-            ...(item.payload as Record<string, unknown>),
-            user_id: ((item.payload as Record<string, unknown>).user_id as string) || effectiveUserId,
-          };
-          let { error } = await supabase.from(item.table).upsert([payload]);
-          if (error && item.table === 'food_logs' && isMissingColumnError(error)) {
-            const basePayload = sanitizeFoodPayload(payload);
-            const retryRes = await supabase.from(item.table).upsert([basePayload]);
+      if (item.action === 'delete') {
+        deletes.push(item);
+      } else {
+        const payload = {
+          ...(item.payload as Record<string, unknown>),
+          user_id: ((item.payload as Record<string, unknown>).user_id as string) || effectiveUserId,
+        };
+        if (!tableUpserts[item.table]) tableUpserts[item.table] = [];
+        tableUpserts[item.table].push({ item, payload });
+      }
+    }
+
+    // Process all tables in parallel using batch upsert (1 request per table instead of 70+ requests)
+    await Promise.all(
+      Object.entries(tableUpserts).map(async ([table, entries]) => {
+        if (entries.length === 0) return;
+        try {
+          const payloads = entries.map((e) => e.payload);
+          let { error } = await client.from(table).upsert(payloads);
+          if (error && table === 'food_logs' && isMissingColumnError(error)) {
+            const basePayloads = payloads.map((p) => sanitizeFoodPayload(p));
+            const retryRes = await client.from(table).upsert(basePayloads);
             error = retryRes.error;
           }
           if (error) throw error;
-          synced++;
-        } else if (item.action === 'delete') {
-          const { error } = await supabase
-            .from(item.table)
-            .delete()
-            .eq('id', item.id);
-          if (error) throw error;
-          synced++;
+          synced += entries.length;
+        } catch (e) {
+          const msg = (e as { message?: string })?.message || String(e);
+          lastErrorMsg = msg;
+          console.warn(`Supabase batch sync error on ${table}:`, msg);
+          entries.forEach((e) => remainingQueue.push(e.item));
+          failed += entries.length;
         }
+      })
+    );
+
+    // Process deletes
+    for (const item of deletes) {
+      try {
+        const { error } = await client.from(item.table).delete().eq('id', item.id);
+        if (error) throw error;
+        synced++;
       } catch (e) {
-        const msg = (e as { message?: string })?.message || String(e);
-        lastErrorMsg = msg;
-        console.warn(`Supabase sync item error on ${item.table}:`, msg);
         remainingQueue.push(item);
         failed++;
       }
@@ -1488,6 +1515,7 @@ export async function pushAllLocalLogsToDatabase(): Promise<{ success: boolean; 
   if (!isSupabaseConfigured || !supabase) {
     return { success: false, count: 0, error: 'Database is not configured.' };
   }
+  const client = supabase;
   const userId = (await getCloudAuthUserId()) || getActiveUserId();
   try {
     const insulin = getInsulinLogs().map((l) => ({ ...l, user_id: l.user_id || userId }));
@@ -1497,37 +1525,50 @@ export async function pushAllLocalLogsToDatabase(): Promise<{ success: boolean; 
     const glucose = getGlucoseLogs().map((l) => ({ ...l, user_id: l.user_id || userId }));
 
     let count = 0;
+    const promises: Promise<void>[] = [];
+
     if (insulin.length > 0) {
-      const { error } = await supabase.from('insulin_logs').upsert(insulin);
-      if (error) throw error;
-      count += insulin.length;
+      promises.push((async () => {
+        const { error } = await client.from('insulin_logs').upsert(insulin);
+        if (error) throw error;
+        count += insulin.length;
+      })());
     }
     if (food.length > 0) {
-      let { error } = await supabase.from('food_logs').upsert(food);
-      if (error && isMissingColumnError(error)) {
-        const sanitized = food.map((f) => sanitizeFoodPayload(f as Record<string, unknown>));
-        const retryRes = await supabase.from('food_logs').upsert(sanitized);
-        error = retryRes.error;
-      }
-      if (error) throw error;
-      count += food.length;
+      promises.push((async () => {
+        let { error } = await client.from('food_logs').upsert(food);
+        if (error && isMissingColumnError(error)) {
+          const sanitized = food.map((f) => sanitizeFoodPayload(f as Record<string, unknown>));
+          const retryRes = await client.from('food_logs').upsert(sanitized);
+          error = retryRes.error;
+        }
+        if (error) throw error;
+        count += food.length;
+      })());
     }
     if (activity.length > 0) {
-      const { error } = await supabase.from('activity_logs').upsert(activity);
-      if (error) throw error;
-      count += activity.length;
+      promises.push((async () => {
+        const { error } = await client.from('activity_logs').upsert(activity);
+        if (error) throw error;
+        count += activity.length;
+      })());
     }
     if (feel.length > 0) {
-      const { error } = await supabase.from('feel_logs').upsert(feel);
-      if (error) throw error;
-      count += feel.length;
+      promises.push((async () => {
+        const { error } = await client.from('feel_logs').upsert(feel);
+        if (error) throw error;
+        count += feel.length;
+      })());
     }
     if (glucose.length > 0) {
-      const { error } = await supabase.from('glucose_logs').upsert(glucose);
-      if (error) throw error;
-      count += glucose.length;
+      promises.push((async () => {
+        const { error } = await client.from('glucose_logs').upsert(glucose);
+        if (error) throw error;
+        count += glucose.length;
+      })());
     }
 
+    await Promise.all(promises);
     clearOfflineQueue();
     return { success: true, count };
   } catch (err) {
