@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   getTodayIST,
   formatISTDate,
+  formatISTTime,
   shiftDate,
 } from '@/lib/date-utils';
 import {
@@ -39,6 +40,15 @@ export default function ExportPage() {
   const [morningUnitsInput, setMorningUnitsInput] = useState(20);
   const [afternoonUnitsInput, setAfternoonUnitsInput] = useState(10);
   const [nightUnitsInput, setNightUnitsInput] = useState(25);
+
+  const userInitials = useMemo(() => {
+    const name = settings.display_name?.trim() || 'Abhishek';
+    const parts = name.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  }, [settings.display_name]);
 
   useEffect(() => {
     const curSettings = getSettings();
@@ -270,11 +280,12 @@ export default function ExportPage() {
               <div className="space-y-1">
                 <div className="font-label-md text-[0.68rem] text-outline uppercase font-semibold">Patient Information</div>
                 <div className="font-body-md text-sm text-on-surface font-bold">
-                  {settings.display_name} ({settings.gender || 'Male'}, {settings.age || 20} Yrs)
+                  {settings.display_name || 'Abhishek'} ({settings.gender || 'Male'}, {settings.age || 20} Yrs)
                 </div>
                 <div className="font-label-md text-xs text-on-surface-variant">Height: {settings.height_cm} cm · Weight: {settings.weight_kg} kg</div>
                 <div className="font-label-md text-xs text-on-surface-variant">
-                  Residential: {settings.residence_area ? `${settings.residence_area}, ` : ''}{settings.city || 'Bangalore'} · Native: {settings.native_location || 'Tamil Nadu'}
+                  Location: {settings.residence_area ? `${settings.residence_area}, ` : ''}{settings.city || 'Bangalore'}
+                  {settings.native_location ? ` · Native: ${settings.native_location}` : ''}
                 </div>
               </div>
               <div className="space-y-1">
@@ -291,7 +302,7 @@ export default function ExportPage() {
                   Night: {settings.night_insulin_brand || '30/70 Biphasic'} · {settings.night_30_70_units} Units
                 </div>
                 <div className="font-label-md text-xs text-on-surface-variant">
-                  Doctor: {settings.doctor_name || 'Dr. S. Ramanathan, MD'} {settings.clinic_name ? `(${settings.clinic_name})` : ''}
+                  Doctor: {settings.doctor_name || 'Physician not specified'} {settings.clinic_name ? `(${settings.clinic_name})` : ''}
                 </div>
               </div>
             </div>
@@ -382,39 +393,83 @@ export default function ExportPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5 text-on-surface">
-                  <tr className="hover:bg-surface-container/40 transition-colors">
-                    <td className="py-2.5 px-3 font-label-md text-outline">Oct 28 · 08:15 AM</td>
-                    <td className="py-2.5 px-3 font-semibold">Idli + Sambhar (PG Mess)</td>
-                    <td className="py-2.5 px-3">
-                      <span className="inline-flex items-center gap-1 text-primary text-[0.7rem] font-bold bg-primary-container/20 px-2.5 py-0.5 rounded-full border border-primary/20">
-                        Energized · Post 6k Run
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 font-semibold text-on-surface">Regular · 20 U</td>
-                    <td className="py-2.5 px-3 text-outline">Normal baseline</td>
-                  </tr>
-                  <tr className="hover:bg-surface-container/40 transition-colors">
-                    <td className="py-2.5 px-3 font-label-md text-outline">Oct 28 · 04:45 PM</td>
-                    <td className="py-2.5 px-3 font-semibold">Post-College Study · Tea</td>
-                    <td className="py-2.5 px-3">
-                      <span className="inline-flex items-center gap-1 text-tertiary text-[0.7rem] font-bold bg-tertiary-container/20 px-2.5 py-0.5 rounded-full border border-tertiary/20">
-                        Heavy Brain Fog + Thirst
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-outline-variant">— None</td>
-                    <td className="py-2.5 px-3 text-tertiary font-bold">Likely Post-Prandial High</td>
-                  </tr>
-                  <tr className="hover:bg-surface-container/40 transition-colors">
-                    <td className="py-2.5 px-3 font-label-md text-outline">Oct 27 · 09:10 PM</td>
-                    <td className="py-2.5 px-3 font-semibold">Rice, Dal &amp; Curd</td>
-                    <td className="py-2.5 px-3">
-                      <span className="inline-flex items-center gap-1 text-secondary text-[0.7rem] font-bold bg-secondary-container/20 px-2.5 py-0.5 rounded-full border border-secondary/20">
-                        Calm &amp; Stable
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 font-semibold text-on-surface">30/70 · 25 U</td>
-                    <td className="py-2.5 px-3 text-outline">On-time adherence</td>
-                  </tr>
+                  {selectedLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-6 text-center text-on-surface-variant font-label-md text-xs">
+                        No log entries recorded in this range. Log entries in Quick Log or Timeline to populate report.
+                      </td>
+                    </tr>
+                  ) : (
+                    selectedLogs.slice(-10).reverse().map((item) => {
+                      const timeStr = `${formatISTDate(item.log_date, { day: 'numeric', month: 'short' })} · ${formatISTTime(item.log_time)}`;
+
+                      let contextText = 'Log Entry';
+                      let sensationText = 'Recorded';
+                      let sensationBadge = 'bg-surface-container-high text-on-surface-variant';
+                      let insulinGiven = '— None';
+                      let physicianFlag = 'Normal baseline';
+                      let flagColor = 'text-outline';
+
+                      if (item.category === 'food' && item.food) {
+                        contextText = `${item.food.meal.toUpperCase()}: ${item.food.items}`;
+                        sensationText = item.food.carbs_g ? `~${item.food.carbs_g}g carbs` : item.food.carb_size ? `${item.food.carb_size} carb portion` : 'Meal';
+                        sensationBadge = 'bg-tertiary-container/20 text-tertiary border border-tertiary/20';
+                      } else if (item.category === 'insulin' && item.insulin) {
+                        contextText = `${item.insulin.insulin_type.replace('_', ' ').toUpperCase()} Injection`;
+                        sensationText = item.insulin.taken ? 'Administered' : 'Scheduled / Skipped';
+                        sensationBadge = 'bg-secondary-container/20 text-secondary border border-secondary/20';
+                        insulinGiven = `${item.insulin.units} U`;
+                        physicianFlag = 'Prescribed regimen';
+                      } else if (item.category === 'feel' && item.feel) {
+                        contextText = 'Somatic Feeling Check-in';
+                        sensationText = `Felt ${item.feel.feel.replace('_', ' ').toUpperCase()}${item.feel.symptoms?.length ? ` (${item.feel.symptoms.join(', ')})` : ''}`;
+                        if (item.feel.feel === 'high' || item.feel.feel === 'slightly_high') {
+                          sensationBadge = 'bg-tertiary-container/20 text-tertiary border border-tertiary/20 font-bold';
+                          physicianFlag = 'Likely Post-Prandial High';
+                          flagColor = 'text-tertiary font-bold';
+                        } else if (item.feel.feel === 'low' || item.feel.feel === 'slightly_low') {
+                          sensationBadge = 'bg-error-container/20 text-error border border-error/20 font-bold';
+                          physicianFlag = 'Hypo Sensation Alert';
+                          flagColor = 'text-error font-bold';
+                        } else {
+                          sensationBadge = 'bg-primary-container/20 text-primary border border-primary/20';
+                        }
+                      } else if (item.category === 'activity' && item.activity) {
+                        contextText = `${item.activity.activity_type.toUpperCase()} (${item.activity.duration_min}m)`;
+                        sensationText = `${item.activity.intensity || 'Moderate'} Intensity`;
+                        sensationBadge = 'bg-primary-container/20 text-primary border border-primary/20';
+                        physicianFlag = 'Cardio Protective Cushion';
+                      } else if (item.category === 'glucose' && item.glucose) {
+                        contextText = `Fingerstick Meter (${item.glucose.context || 'General'})`;
+                        sensationText = `${item.glucose.reading_mgdl} mg/dL`;
+                        if (item.glucose.reading_mgdl > 140) {
+                          sensationBadge = 'bg-tertiary-container/20 text-tertiary border border-tertiary/20 font-bold';
+                          physicianFlag = 'Above Target Range';
+                          flagColor = 'text-tertiary font-bold';
+                        } else if (item.glucose.reading_mgdl < 70) {
+                          sensationBadge = 'bg-error-container/20 text-error border border-error/20 font-bold';
+                          physicianFlag = 'Below Target Range';
+                          flagColor = 'text-error font-bold';
+                        } else {
+                          sensationBadge = 'bg-primary-container/20 text-primary border border-primary/20';
+                        }
+                      }
+
+                      return (
+                        <tr key={item.id} className="hover:bg-surface-container/40 transition-colors">
+                          <td className="py-2.5 px-3 font-label-md text-outline whitespace-nowrap">{timeStr}</td>
+                          <td className="py-2.5 px-3 font-semibold max-w-[200px] truncate">{contextText}</td>
+                          <td className="py-2.5 px-3">
+                            <span className={`inline-flex items-center gap-1 text-[0.7rem] px-2.5 py-0.5 rounded-full ${sensationBadge}`}>
+                              {sensationText}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 font-semibold text-on-surface">{insulinGiven}</td>
+                          <td className={`py-2.5 px-3 ${flagColor}`}>{physicianFlag}</td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -425,7 +480,7 @@ export default function ExportPage() {
                 <span className="material-symbols-outlined text-primary text-[1.125rem]">verified</span>
                 <span>Raw patient telemetry authenticated via Feelog Cryptographic Vault</span>
               </div>
-              <span>Ref: {settings.doctor_name || 'Dr. S. Ramanathan, MD'} {settings.clinic_name ? `(${settings.clinic_name})` : ''}</span>
+              <span>Ref: {settings.doctor_name || 'Attending Physician'} {settings.clinic_name ? `(${settings.clinic_name})` : ''}</span>
             </div>
           </div>
         </div>
@@ -542,31 +597,38 @@ export default function ExportPage() {
 
             <div className="mt-4 p-3 rounded-2xl bg-surface-container-lowest/50 border border-white/5 text-on-surface-variant font-label-md text-[0.7rem] flex items-start gap-2">
               <span className="material-symbols-outlined text-secondary text-[1rem] shrink-0 mt-0.5">info</span>
-              <span>Never change insulin amounts without consulting Dr. Ramanathan or your local clinic physician.</span>
+              <span>Never change insulin amounts without consulting {settings.doctor_name || 'your physician'} or your local clinic physician.</span>
             </div>
           </div>
 
-          {/* Card 2: Personal Profile & Student PG Context */}
+          {/* Card 2: Personal Profile & Living Context */}
           <div className="rounded-3xl bg-surface-container/70 border border-white/5 backdrop-blur-xl p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2 font-headline-sm text-sm text-on-surface font-bold">
                 <span className="material-symbols-outlined text-secondary">person_pin_circle</span>
-                <span>PG &amp; Living Context</span>
+                <span>Personal &amp; Living Context</span>
               </div>
               <span className="px-2.5 py-0.5 rounded-full bg-secondary-container/20 text-secondary font-label-md text-xs font-semibold border border-secondary/20">
-                Student Profile
+                Active Profile
               </span>
             </div>
 
             <div className="space-y-3">
               <div className="p-3.5 rounded-2xl bg-surface-container-low/70 border border-white/5 flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-surface-container-high border border-primary/30 flex items-center justify-center text-on-surface font-bold text-sm shrink-0">
-                  VR
+                <div className="w-10 h-10 rounded-full bg-surface-container-high border border-primary/30 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                  {userInitials}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="font-body-md text-sm font-bold text-on-surface">Vignesh R.</div>
-                  <div className="font-label-md text-xs text-on-surface-variant">20 yrs · Engineering Student</div>
-                  <div className="font-label-md text-[0.7rem] text-outline mt-0.5 truncate">Home: Coimbatore, TN · PG: Koramangala, BLR</div>
+                  <div className="font-body-md text-sm font-bold text-on-surface">
+                    {settings.display_name || 'Abhishek'}
+                  </div>
+                  <div className="font-label-md text-xs text-on-surface-variant">
+                    {settings.age || 20} yrs · {settings.lifestyle_note || 'Daily routine'}
+                  </div>
+                  <div className="font-label-md text-[0.7rem] text-outline mt-0.5 truncate">
+                    {settings.residence_area ? `${settings.residence_area}, ` : ''}{settings.city || 'Bangalore'}
+                    {settings.native_location ? ` · Native: ${settings.native_location}` : ''}
+                  </div>
                 </div>
               </div>
 
@@ -575,7 +637,11 @@ export default function ExportPage() {
                   <span className="material-symbols-outlined text-[1.125rem] text-primary">directions_run</span>
                   <span>Daily Athletic Routine</span>
                 </span>
-                <span className="text-on-surface font-bold">5-10k Morning Runs</span>
+                <span className="text-on-surface font-bold">
+                  {activityLogs.length > 0
+                    ? `${activityLogs.length} Sessions (${activityLogs.reduce((acc, a) => acc + (a.activity?.duration_min || 0), 0)} min total)`
+                    : 'Daily routine & walking'}
+                </span>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-surface-container-high/40 border border-white/5">
@@ -584,7 +650,7 @@ export default function ExportPage() {
                   <span>Symptom-First Mode Active</span>
                 </div>
                 <p className="font-label-md text-xs text-on-surface-variant">
-                  Currently no glucometer/CGM kept in PG room. Feelog prioritizes thirst cues, fatigue alerts, and carb estimates until home check-up in Coimbatore.
+                  Logging meals, insulin doses, and somatic sensation signals to establish accurate metabolic patterns.
                 </p>
               </div>
             </div>

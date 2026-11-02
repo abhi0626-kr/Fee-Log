@@ -618,7 +618,7 @@ export default function SettingsPage() {
                   <label className="text-on-surface-variant block mb-1 font-semibold">Living Area / PG</label>
                   <input
                     type="text"
-                    value={settings.residence_area || 'Koramangala PG'}
+                    value={settings.residence_area ?? ''}
                     onChange={(e) => handleChange('residence_area', e.target.value)}
                     placeholder="e.g. Koramangala PG"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low border border-white/10 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary"
@@ -630,9 +630,9 @@ export default function SettingsPage() {
                 <label className="text-on-surface-variant block mb-1 font-semibold">Native Place / State</label>
                 <input
                   type="text"
-                  value={settings.native_location || 'Coimbatore, Tamil Nadu'}
+                  value={settings.native_location ?? ''}
                   onChange={(e) => handleChange('native_location', e.target.value)}
-                  placeholder="e.g. Coimbatore, Tamil Nadu"
+                  placeholder="e.g. Karnataka, India"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low border border-white/10 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
@@ -641,9 +641,9 @@ export default function SettingsPage() {
                 <label className="text-on-surface-variant block mb-1 font-semibold">Lifestyle / Routine Summary</label>
                 <input
                   type="text"
-                  value={settings.lifestyle_note || 'Studying & Running away from native Tamil Nadu'}
+                  value={settings.lifestyle_note ?? ''}
                   onChange={(e) => handleChange('lifestyle_note', e.target.value)}
-                  placeholder="e.g. Studying at university, morning runs"
+                  placeholder="e.g. Studying at university, daily workout routine"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low border border-white/10 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
