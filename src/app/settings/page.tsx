@@ -55,7 +55,7 @@ export default function SettingsPage() {
   // Quick Food Chips customizer
   const [newFoodChipText, setNewFoodChipText] = useState('');
 
-  const handleAddFoodChip = () => {
+  const handleAddFoodChip = async () => {
     const trimmed = newFoodChipText.trim().toLowerCase();
     if (!trimmed) return;
     const currentChips = Array.isArray(settings.food_chips) && settings.food_chips.length > 0
@@ -67,22 +67,25 @@ export default function SettingsPage() {
     }
     const updated = [...currentChips, trimmed];
     handleChange('food_chips', updated);
-    saveSettings({ ...settings, food_chips: updated });
+    const saved = saveSettings({ ...settings, food_chips: updated });
     setNewFoodChipText('');
+    await syncSettingsToSupabase(saved);
   };
 
-  const handleRemoveFoodChip = (chipToRemove: string) => {
+  const handleRemoveFoodChip = async (chipToRemove: string) => {
     const currentChips = Array.isArray(settings.food_chips) && settings.food_chips.length > 0
       ? settings.food_chips
       : COMMON_FOOD_CHIPS;
     const updated = currentChips.filter((c) => c !== chipToRemove);
     handleChange('food_chips', updated);
-    saveSettings({ ...settings, food_chips: updated });
+    const saved = saveSettings({ ...settings, food_chips: updated });
+    await syncSettingsToSupabase(saved);
   };
 
-  const handleResetFoodChips = () => {
+  const handleResetFoodChips = async () => {
     handleChange('food_chips', COMMON_FOOD_CHIPS);
-    saveSettings({ ...settings, food_chips: COMMON_FOOD_CHIPS });
+    const saved = saveSettings({ ...settings, food_chips: COMMON_FOOD_CHIPS });
+    await syncSettingsToSupabase(saved);
   };
 
   useEffect(() => {

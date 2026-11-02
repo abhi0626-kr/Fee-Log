@@ -1249,13 +1249,8 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
           if (remoteProfile.city !== undefined) extracted.city = remoteProfile.city;
           if (remoteProfile.age !== undefined) extracted.age = Number(remoteProfile.age);
           if (remoteProfile.gender !== undefined) extracted.gender = remoteProfile.gender;
-          if (Array.isArray(remoteProfile.food_chips) && remoteProfile.food_chips.length > 0) {
-            const localChips = Array.isArray(localSettings.food_chips) && localSettings.food_chips.length > 0
-              ? localSettings.food_chips
-              : COMMON_FOOD_CHIPS;
-            // Merge chips from remote and local so custom chips from both mobile and laptop are preserved!
-            const mergedChipSet = Array.from(new Set([...localChips, ...remoteProfile.food_chips]));
-            extracted.food_chips = mergedChipSet;
+          if (Array.isArray(remoteProfile.food_chips)) {
+            extracted.food_chips = remoteProfile.food_chips;
           }
 
           const merged: UserSettings = {
@@ -1265,11 +1260,6 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
 
           localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
           anyHydrated = true;
-
-          // If local device had custom food chips that were not in Supabase, sync the merged list to the cloud!
-          if (Array.isArray(localSettings.food_chips) && localSettings.food_chips.some((c) => !remoteProfile.food_chips?.includes(c))) {
-            syncSettingsToSupabase(merged).catch(() => {});
-          }
         }
       } catch (profileErr) {
         console.warn('Error during profile settings hydration:', profileErr);
