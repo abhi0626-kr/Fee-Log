@@ -17,6 +17,7 @@ alter table profiles add column if not exists lifestyle_note text;
 alter table profiles add column if not exists city text;
 alter table profiles add column if not exists age int;
 alter table profiles add column if not exists gender text;
+alter table profiles add column if not exists food_chips text[];
 alter table profiles add column if not exists updated_at timestamptz default now();
 
 -- 2. Ensure open access for cross-device synchronization

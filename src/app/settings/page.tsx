@@ -67,6 +67,7 @@ export default function SettingsPage() {
     }
     const updated = [...currentChips, trimmed];
     handleChange('food_chips', updated);
+    saveSettings({ ...settings, food_chips: updated });
     setNewFoodChipText('');
   };
 
@@ -76,10 +77,12 @@ export default function SettingsPage() {
       : COMMON_FOOD_CHIPS;
     const updated = currentChips.filter((c) => c !== chipToRemove);
     handleChange('food_chips', updated);
+    saveSettings({ ...settings, food_chips: updated });
   };
 
   const handleResetFoodChips = () => {
     handleChange('food_chips', COMMON_FOOD_CHIPS);
+    saveSettings({ ...settings, food_chips: COMMON_FOOD_CHIPS });
   };
 
   useEffect(() => {

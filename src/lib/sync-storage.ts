@@ -251,6 +251,7 @@ export async function syncSettingsToSupabase(settingsToSync?: UserSettings): Pro
       city: settings.city || 'Bangalore',
       age: settings.age || 20,
       gender: settings.gender || 'Male',
+      food_chips: Array.isArray(settings.food_chips) ? settings.food_chips : [],
       settings: settings,
     };
 
@@ -1150,6 +1151,9 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
           if (remoteProfile.city !== undefined) extracted.city = remoteProfile.city;
           if (remoteProfile.age !== undefined) extracted.age = Number(remoteProfile.age);
           if (remoteProfile.gender !== undefined) extracted.gender = remoteProfile.gender;
+          if (Array.isArray(remoteProfile.food_chips) && remoteProfile.food_chips.length > 0) {
+            extracted.food_chips = remoteProfile.food_chips;
+          }
 
           const merged: UserSettings = {
             ...localSettings,
