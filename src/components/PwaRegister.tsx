@@ -43,6 +43,7 @@ export default function PwaRegister() {
         navigator.serviceWorker
           .register('/sw.js')
           .then((reg) => {
+            reg.update();
             console.log('T1D Log ServiceWorker registration successful with scope: ', reg.scope);
           })
           .catch((err) => {

@@ -1,11 +1,5 @@
-const CACHE_NAME = 't1d-log-cache-v2';
+const CACHE_NAME = 't1d-log-cache-v4';
 const STATIC_ASSETS = [
-  '/',
-  '/timeline',
-  '/patterns',
-  '/summary',
-  '/export',
-  '/settings',
   '/manifest.json',
   '/icon.svg',
 ];
