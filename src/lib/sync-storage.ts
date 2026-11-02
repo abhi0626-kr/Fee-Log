@@ -225,12 +225,74 @@ export function getSettings(): UserSettings {
   }
 }
 
+export async function syncSettingsToSupabase(settingsToSync?: UserSettings): Promise<{ success: boolean; error?: string }> {
+  if (typeof window === 'undefined' || !isSupabaseConfigured || !supabase) {
+    return { success: false, error: 'Database is not configured.' };
+  }
+
+  try {
+    const settings = settingsToSync || getSettings();
+    const userId = getActiveUserId();
+
+    const payload: Record<string, unknown> = {
+      id: userId,
+      display_name: settings.display_name || 'Abhishek',
+      height_cm: settings.height_cm || 173,
+      weight_kg: settings.weight_kg || 58,
+      morning_regular_default: settings.morning_regular_units || 20,
+      night_30_70_default: settings.night_30_70_units || 25,
+      doctor_name: settings.doctor_name || '',
+      clinic_name: settings.clinic_name || '',
+      doctor_phone: settings.doctor_phone || '',
+      emergency_contact_phone: settings.emergency_contact_phone || '',
+      residence_area: settings.residence_area || '',
+      native_location: settings.native_location || '',
+      lifestyle_note: settings.lifestyle_note || '',
+      city: settings.city || 'Bangalore',
+      age: settings.age || 20,
+      gender: settings.gender || 'Male',
+      settings: settings,
+    };
+
+    const { error } = await supabase.from('profiles').upsert(payload);
+    if (error) {
+      // If error is missing column (code 42703), fallback to the 7 default columns
+      if (error.code === '42703' || error.message.includes('column')) {
+        const basicPayload = {
+          id: userId,
+          display_name: settings.display_name || 'Abhishek',
+          height_cm: settings.height_cm || 173,
+          weight_kg: settings.weight_kg || 58,
+          morning_regular_default: settings.morning_regular_units || 20,
+          night_30_70_default: settings.night_30_70_units || 25,
+        };
+        const { error: fallbackError } = await supabase.from('profiles').upsert(basicPayload);
+        if (fallbackError) {
+          console.warn('Basic profile upsert notice:', fallbackError.message);
+          return { success: false, error: fallbackError.message };
+        }
+        return { success: true };
+      }
+      console.warn('Profiles upsert notice:', error.message);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown sync error';
+    console.warn('syncSettingsToSupabase error:', msg);
+    return { success: false, error: msg };
+  }
+}
+
 export function saveSettings(settings: Partial<UserSettings>): UserSettings {
   const current = getSettings();
   const updated = { ...current, ...settings };
   if (typeof window !== 'undefined') {
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent('t1d-data-updated'));
+    // Fire-and-forget sync to Supabase database so mobile and laptop stay synchronized
+    syncSettingsToSupabase(updated).catch(() => {});
   }
   return updated;
 }
@@ -782,12 +844,13 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       userId = getActiveUserId();
     }
 
-    const [insulinRes, foodRes, activityRes, feelRes, glucoseRes] = await Promise.all([
+    const [insulinRes, foodRes, activityRes, feelRes, glucoseRes, profileRes] = await Promise.all([
       supabase.from('insulin_logs').select('*'),
       supabase.from('food_logs').select('*'),
       supabase.from('activity_logs').select('*'),
       supabase.from('feel_logs').select('*'),
       supabase.from('glucose_logs').select('*'),
+      supabase.from('profiles').select('*').limit(5),
     ]);
 
     const deletedMap = getDeletedIdsMap();
@@ -1054,6 +1117,53 @@ export async function hydrateFromSupabase(targetUserId?: string): Promise<boolea
       console.warn('Supabase glucose query notice:', glucoseRes.error.message);
     }
 
+    // 6. Profiles & Settings Sync
+    if (!profileRes.error && Array.isArray(profileRes.data) && profileRes.data.length > 0) {
+      try {
+        const remoteProfile =
+          profileRes.data.find((p) => p.id === userId) || profileRes.data[0];
+
+        if (remoteProfile) {
+          const localSettings = getSettings();
+          const remoteSettingsData = (remoteProfile.settings as Partial<UserSettings>) || {};
+
+          const extracted: Partial<UserSettings> = {
+            ...remoteSettingsData,
+          };
+
+          if (remoteProfile.display_name) extracted.display_name = remoteProfile.display_name;
+          if (remoteProfile.height_cm) extracted.height_cm = Number(remoteProfile.height_cm);
+          if (remoteProfile.weight_kg) extracted.weight_kg = Number(remoteProfile.weight_kg);
+          if (remoteProfile.morning_regular_default !== undefined && remoteProfile.morning_regular_default !== null) {
+            extracted.morning_regular_units = Number(remoteProfile.morning_regular_default);
+          }
+          if (remoteProfile.night_30_70_default !== undefined && remoteProfile.night_30_70_default !== null) {
+            extracted.night_30_70_units = Number(remoteProfile.night_30_70_default);
+          }
+          if (remoteProfile.doctor_name !== undefined) extracted.doctor_name = remoteProfile.doctor_name;
+          if (remoteProfile.clinic_name !== undefined) extracted.clinic_name = remoteProfile.clinic_name;
+          if (remoteProfile.doctor_phone !== undefined) extracted.doctor_phone = remoteProfile.doctor_phone;
+          if (remoteProfile.emergency_contact_phone !== undefined) extracted.emergency_contact_phone = remoteProfile.emergency_contact_phone;
+          if (remoteProfile.residence_area !== undefined) extracted.residence_area = remoteProfile.residence_area;
+          if (remoteProfile.native_location !== undefined) extracted.native_location = remoteProfile.native_location;
+          if (remoteProfile.lifestyle_note !== undefined) extracted.lifestyle_note = remoteProfile.lifestyle_note;
+          if (remoteProfile.city !== undefined) extracted.city = remoteProfile.city;
+          if (remoteProfile.age !== undefined) extracted.age = Number(remoteProfile.age);
+          if (remoteProfile.gender !== undefined) extracted.gender = remoteProfile.gender;
+
+          const merged: UserSettings = {
+            ...localSettings,
+            ...extracted,
+          };
+
+          localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
+          anyHydrated = true;
+        }
+      } catch (profileErr) {
+        console.warn('Error during profile settings hydration:', profileErr);
+      }
+    }
+
     window.dispatchEvent(new CustomEvent('t1d-data-updated'));
     return anyHydrated;
   } catch (err) {
@@ -1145,6 +1255,7 @@ export function initSupabaseRealtime(userId?: string): () => void {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, handleRemoteChange)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'feel_logs' }, handleRemoteChange)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'glucose_logs' }, handleRemoteChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, handleRemoteChange)
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           console.log('T1D Realtime live sync active on Supabase');
@@ -1554,6 +1665,15 @@ export async function pushAllLocalLogsToDatabase(): Promise<{ success: boolean; 
 
     let count = 0;
     const promises: Promise<void>[] = [];
+
+    // Also persist profile & settings to Supabase
+    promises.push((async () => {
+      try {
+        await syncSettingsToSupabase();
+      } catch (err) {
+        console.warn('Profile sync in pushAllLocalLogsToDatabase notice:', err);
+      }
+    })());
 
     if (insulin.length > 0) {
       promises.push((async () => {

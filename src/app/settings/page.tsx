@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   getSettings,
   saveSettings,
+  syncSettingsToSupabase,
   DEFAULT_SETTINGS,
   seedRealisticPGData,
   clearAllLocalData,
@@ -40,6 +41,8 @@ export default function SettingsPage() {
   const [cloudEmail, setCloudEmail] = useState<string | null>(null);
   const [pendingQueueCount, setPendingQueueCount] = useState(0);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [saveStatusMessage, setSaveStatusMessage] = useState<string | null>(null);
   const [dataMessage, setDataMessage] = useState<string | null>(null);
   const [showDevVault, setShowDevVault] = useState(false);
 
@@ -84,6 +87,23 @@ export default function SettingsPage() {
     setIsLoggedIn(isUserLoggedIn());
     setPendingQueueCount(getOfflineQueue().length);
 
+    // Fetch latest profile and settings directly from Supabase database
+    hydrateFromSupabase()
+      .then(() => {
+        setSettings(getSettings());
+        setPendingQueueCount(getOfflineQueue().length);
+      })
+      .catch(() => {});
+
+    // Listen for local or realtime changes across tabs and devices
+    const handleDataUpdate = () => {
+      setSettings(getSettings());
+      setPendingQueueCount(getOfflineQueue().length);
+    };
+
+    window.addEventListener('t1d-data-updated', handleDataUpdate);
+    window.addEventListener('storage', handleDataUpdate);
+
     if (isSupabaseConfigured && supabase) {
       supabase.auth.getSession().then(({ data }) => {
         if (data.session?.user) {
@@ -106,9 +126,16 @@ export default function SettingsPage() {
       });
 
       return () => {
+        window.removeEventListener('t1d-data-updated', handleDataUpdate);
+        window.removeEventListener('storage', handleDataUpdate);
         authListener.subscription.unsubscribe();
       };
     }
+
+    return () => {
+      window.removeEventListener('t1d-data-updated', handleDataUpdate);
+      window.removeEventListener('storage', handleDataUpdate);
+    };
   }, []);
 
   const handleSignOut = async () => {
@@ -137,20 +164,39 @@ export default function SettingsPage() {
     setSettings((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    saveSettings(settings);
-    setSavedNotice(true);
-    setTimeout(() => setSavedNotice(false), 2500);
+    setIsSavingSettings(true);
+    setSaveStatusMessage('Saving to database & device...');
+    try {
+      const updated = saveSettings(settings);
+      const syncRes = await syncSettingsToSupabase(updated);
+      if (syncRes.success) {
+        setSaveStatusMessage('Saved to database and synchronized across devices!');
+      } else {
+        setSaveStatusMessage('Saved on device (Cloud database sync notice: ' + (syncRes.error || 'offline') + ')');
+      }
+    } catch {
+      setSaveStatusMessage('Saved locally on device.');
+    } finally {
+      setIsSavingSettings(false);
+      setSavedNotice(true);
+      setTimeout(() => {
+        setSavedNotice(false);
+        setSaveStatusMessage(null);
+      }, 3500);
+    }
   };
 
   const handleManualSync = async () => {
     setIsSyncingServer(true);
     setDataMessage(null);
     try {
+      await syncSettingsToSupabase(settings);
       const pushRes = await pushAllLocalLogsToDatabase();
       const res = await flushOfflineQueue();
       await hydrateFromSupabase();
+      setSettings(getSettings());
       const remaining = getOfflineQueue().length;
       setPendingQueueCount(remaining);
 
@@ -253,7 +299,7 @@ export default function SettingsPage() {
         {savedNotice && (
           <div className="px-4 py-1.5 rounded-full bg-primary/20 border border-primary/30 text-primary text-xs font-bold animate-in fade-in flex items-center gap-1.5 self-start md:self-auto">
             <span className="material-symbols-outlined text-sm">check_circle</span>
-            <span>Settings saved successfully</span>
+            <span>{saveStatusMessage || 'Settings saved successfully'}</span>
           </div>
         )}
       </div>
@@ -916,9 +962,11 @@ export default function SettingsPage() {
           </span>
           <button
             type="submit"
-            className="px-6 py-3 rounded-full bg-primary-container text-on-primary font-bold text-xs hover:bg-primary transition-all active:scale-95 shadow-lg shadow-primary/20 cursor-pointer"
+            disabled={isSavingSettings}
+            className="px-6 py-3 rounded-full bg-primary-container text-on-primary font-bold text-xs hover:bg-primary transition-all active:scale-95 shadow-lg shadow-primary/20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            Save All Preferences
+            {isSavingSettings && <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>}
+            <span>{isSavingSettings ? 'Saving to Database...' : 'Save All Preferences'}</span>
           </button>
         </div>
       </form>
