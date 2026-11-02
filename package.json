@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "npm run clean && cross-env NEXT_IGNORE_INCORRECT_LOCKFILE=1 next dev",
-    "build": "cross-env NEXT_IGNORE_INCORRECT_LOCKFILE=1 next build",
+    "build": "cross-env NEXT_IGNORE_INCORRECT_LOCKFILE=1 NODE_OPTIONS=--max-old-space-size=4096 next build",
     "start": "next start",
     "lint": "next lint",
     "test": "tsx --test tests/**/*.test.ts",
