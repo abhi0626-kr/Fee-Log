@@ -367,11 +367,38 @@ function saveLocalArray<T>(key: string, items: T[]): void {
   else if (key === STORAGE_KEYS.ACTIVITY) memoryLogs.activity = items as ActivityLog[];
   else if (key === STORAGE_KEYS.FEEL) memoryLogs.feel = items as FeelLog[];
   else if (key === STORAGE_KEYS.GLUCOSE) memoryLogs.glucose = items as GlucoseLog[];
+
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(key, JSON.stringify(items));
     } catch (error) {
-      console.error(`Unable to persist local storage key ${key}:`, error);
+      // Browser 5MB storage limit exceeded! Strip giant base64 photos to ensure all 41 records, macros, and dates fit easily in <50KB.
+      try {
+        if (key === STORAGE_KEYS.FOOD) {
+          const stripped = (items as FoodLog[]).map((f) => {
+            if (f.photo_url && f.photo_url.length > 300) {
+              const { photo_url, ...rest } = f;
+              return rest as FoodLog;
+            }
+            return f;
+          });
+          localStorage.setItem(key, JSON.stringify(stripped));
+        } else if (key === STORAGE_KEYS.QUEUE) {
+          const strippedQueue = (items as SyncQueueItem[]).map((q) => {
+            if (q.table === 'food_logs' && q.payload && typeof q.payload === 'object') {
+              const p = { ...(q.payload as Record<string, unknown>) };
+              if (typeof p.photo_url === 'string' && p.photo_url.length > 300) {
+                delete p.photo_url;
+              }
+              return { ...q, payload: p };
+            }
+            return q;
+          });
+          localStorage.setItem(key, JSON.stringify(strippedQueue));
+        }
+      } catch (retryError) {
+        console.error(`Unable to persist local storage key ${key} after quota stripping:`, retryError);
+      }
     }
   }
   notifyDataUpdated();

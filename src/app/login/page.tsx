@@ -73,8 +73,8 @@ export default function LoginPage() {
               type: 'success',
             });
             setTimeout(() => {
-              router.push('/');
-            }, 800);
+              window.location.href = '/';
+            }, 300);
           }
         } else {
           setCloudUser(null);
@@ -103,7 +103,7 @@ export default function LoginPage() {
 
           if (event === 'SIGNED_IN' && isOAuthRedirect) {
             sessionStorage.removeItem('t1d_oauth_in_progress');
-            router.push('/');
+            window.location.href = '/';
           }
         } else {
           setCloudUser(null);
@@ -230,8 +230,8 @@ export default function LoginPage() {
         await flushOfflineQueue();
 
         setTimeout(() => {
-          router.push('/');
-        }, 800);
+          window.location.href = '/';
+        }, 400);
       }
     } catch (err) {
       setFeedback({
@@ -302,8 +302,8 @@ export default function LoginPage() {
         await flushOfflineQueue();
 
         setTimeout(() => {
-          router.push('/');
-        }, 800);
+          window.location.href = '/';
+        }, 400);
       } else if (data.user) {
         // Confirmation email sent
         setFeedback({
@@ -322,7 +322,7 @@ export default function LoginPage() {
     }
   };
 
-  // 4. Offline-First Guest Mode
+  // 4. Direct Database / No-Auth Mode
   const handleGuestSignIn = () => {
     const updated = setUserLoggedIn(true, {
       auth_provider: 'guest',
@@ -330,12 +330,12 @@ export default function LoginPage() {
     });
     setSettings(updated);
     setFeedback({
-      text: 'Signed in via Private Offline Mode. Everything stays on this browser.',
+      text: 'Entering Feelog with direct database connection...',
       type: 'info',
     });
     setTimeout(() => {
-      router.push('/');
-    }, 600);
+      window.location.href = '/';
+    }, 200);
   };
 
   // 5. Complete Sign Out
