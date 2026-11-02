@@ -514,7 +514,8 @@ export default function FoodSheet({
         meal,
         items: items.trim(),
         carb_size: carbSize,
-        photo_url: photoPreview,
+        // AI analyzes the image, but only save the food details & macros, not the heavy picture
+        photo_url: null,
         carbs_g: carbsG === '' ? null : Number(carbsG),
         protein_g: proteinG === '' ? null : Number(proteinG),
         fiber_g: fiberG === '' ? null : Number(fiberG),
